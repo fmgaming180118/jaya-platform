@@ -1,0 +1,16 @@
+system:
+  vram_limit_mb: 1024
+  use_gpu: true
+  log_level: "INFO"
+
+teacher:
+  provider: "nvidia_nim"
+  model: "nvidia/llama-3.1-nemotron-ultra-253b-v1" # User preference from .env
+  # model: "meta/llama-3.1-70b-instruct"
+  api_base: "https://integrate.api.nvidia.com/v1"
+
+student:
+  framework: "tinygrad"
+  model_path: "models/micro_agi_v1.safetensors"
+  context_window: 2048
+  learning_rate: 0.0003

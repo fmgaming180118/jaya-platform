@@ -1,0 +1,29 @@
+
+# Environment Variables
+.env
+.venv
+venv/
+ENV/
+
+# Project Specific
+blueprint/
+backups/
+sandbox_env/
+tmp/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.db
+*.sqlite3
+
+# Discovery Artifacts (Optional: Keep findings, ignore infinite logs if they get huge)
+# discoveries/ 
+# discoveries_native/
+
+# IDEs
+.vscode/
+.idea/

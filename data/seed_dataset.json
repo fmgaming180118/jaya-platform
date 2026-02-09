@@ -1,0 +1,42 @@
+[
+  {
+    "input_logic": "def add(a, b): return a + b",
+    "output_llvm": "```\ndefine i32 @add(i32 %a, i32 %b) {\n  %1 = add i32 %a, %b\n  ret i32 %1\n}\n```",
+    "timestamp": 1770654823.6915207
+  },
+  {
+    "input_logic": "def subtract(a, b): return a - b",
+    "output_llvm": "```\ndefine i32 @subtract(i32 %a, i32 %b) {\n  %1 = sub i32 %a, %b\n  ret i32 %1\n}\n```",
+    "timestamp": 1770654826.3245335
+  },
+  {
+    "input_logic": "def multiply(a, b): return a * b",
+    "output_llvm": "```\ndefine i32 @multiply(i32 %a, i32 %b) {\n  %1 = mul i32 %a, %b\n  ret i32 %1\n}\n```",
+    "timestamp": 1770654828.9937878
+  },
+  {
+    "input_logic": "def divide(a, b): return a / b if b != 0 else 0",
+    "output_llvm": "```\ndefine i64 @divide(i64 %a, i64 %b) {\n  %1 = icmp ne i64 %b, 0\n  br i1 %1, label %2, label %3\n2:\n  %4 = sdiv i64 %a, %b\n  br label %5\n3:\n  br label %5\n5:\n  %6 = phi i64 [ 0, %3 ], [ %4, %2 ]\n  ret i64 %6\n}\n```",
+    "timestamp": 1770654833.8476193
+  },
+  {
+    "input_logic": "def square(x): return x * x",
+    "output_llvm": "```\ndefine i32 @square(i32 %x) {\n  %1 = mul i32 %x, %x\n  ret i32 %1\n}\n```",
+    "timestamp": 1770654836.2821174
+  },
+  {
+    "input_logic": "def is_even(x): return x % 2 == 0",
+    "output_llvm": "```\ndefine i1 @is_even(i64 %x) {\n  %1 = srem i64 %x, 2\n  %2 = icmp eq i64 %1, 0\n  ret i1 %2\n}\n```",
+    "timestamp": 1770654839.3371465
+  },
+  {
+    "input_logic": "def get_max(a, b): return a if a > b else b",
+    "output_llvm": "```\ndefine i32 @get_max(i32 %a, i32 %b) {\n  %1 = icmp sgt i32 %a, %b\n  %2 = select i1 %1, i32 %a, i32 %b\n  ret i32 %2\n}\n```",
+    "timestamp": 1770654842.913948
+  },
+  {
+    "input_logic": "def loop_sum(n): total = 0; for i in range(n): total += i; return total",
+    "output_llvm": "```\ndefine i32 @loop_sum(i32 %n) {\n  %1 = alloca i32\n  store i32 0, i32* %1\n  %2 = icmp sgt i32 %n, 0\n  br i1 %2, label %3, label %11\n\n; <label>:3\n  %4 = phi i32 [ 0, %0 ], [ %9, %10 ]\n  %5 = load i32, i32* %1\n  %6 = add i32 %5, %4\n  store i32 %6, i32* %1\n  %7 = add i32 %4, 1\n  %8 = icmp slt i32 %7, %n\n  br i1 %8, label %10, label %11\n\n; <label>:10\n  %9 = phi i32 %7\n  br label %3\n\n; <label>:11\n  %12 = load i32, i32* %1\n  ret i32 %12\n}\n```",
+    "timestamp": 1770654852.6321723
+  }
+]
