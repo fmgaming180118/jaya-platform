@@ -1,14 +1,20 @@
 
 import sys
+import os
+import random
+import time
 from memory import DiscoveryMemory
+from optimizer import Optimizer
+from immune_system import ImmuneSystem
 
 class ScientificDiscovery(Optimizer):
     def __init__(self, target_file="engine.py"):
         super().__init__(target_file)
         # We use a separate folder for successful "experiments"
-        self.discovery_dir = "discoveries"
+        self.discovery_dir = os.path.join("data", "discoveries")
         os.makedirs(self.discovery_dir, exist_ok=True)
-        self.memory = DiscoveryMemory()
+        # Point to data/discovery_memory.json
+        self.memory = DiscoveryMemory(os.path.join("data", "discovery_memory.json"))
 
     def suggest_novelty(self, code_snippet):
         """
@@ -26,29 +32,33 @@ class ScientificDiscovery(Optimizer):
              context_str += f"\nBUILD UPON THIS SUCCESS (Hash): {best[0]['hash'][:6]}"
 
         prompt = f"""
-        You are a Radical AI Researcher. 
-        Your goal is to discover a **NEW, UNCONVENTIONAL** implementation for the provided code.
+        You are an AI Language Designer & Compression Expert. 
+        Your goal is to discover a **Compact, AI-Native Language** (highly efficient logic) for this code.
         {context_str}
         
-        Refactor the code to use:
-        1. Mathematical Approximations (e.g. Padé approximant, Taylor series) instead of heavy math library calls.
-        2. Bitwise hacks for speed (if applicable in Python).
-        3. Fused operations.
-        4. __slots__ or other memory optimizations.
+        Refactor the code to use **Compressed Logic**:
+        1.  **AI-Native Encoding**: Use dense algorithms (bitwise, lookup tables, or efficient math approximations) that are faster for machines, even if harder for humans to read.
+        2.  **Binary Thinking**: The processor thinks in 1s and 0s. Use binary masking and bit manipulation where possible.
+        3.  **Efficiency First**: Prioritize speed and low memory usage for portable devices.
+        4.  **Hardware Friendliness**:
+            - **Memory Alignment**: Ensure data structures are packed.
+            - **Cache Locality**: Access memory sequentially to minimize cache misses.
+            - **Avoid Object Creation**: Minimize Python object overhead (GC pressure). Use tuples or raw types where possible.
+        5.  **Maximize OPS**: Your code must execute more Operations Per Second than standard Python.
         
         CONSTRAINT:
-        - The logic must still be roughly correct (1+1=2).
-        - Accuracy vs Speed trade-off: Speed is priority, but error must be < 1%.
+        - The logic must still be CORRECT (1+1=2).
+        - Accuracy vs Speed trade-off: Speed is priority, error < 1%.
         
-        CODE TO MUTATE:
+        CODE TO COMPRESS:
         {code_snippet}
         
         Return ONLY the Raw Python Code.
         """
-        # We append a random seed to the prompt to force variety if the model ignores temp
-        seed = f"# Mutation Seed: {random.randint(0, 100000)}"
+        # Seed for variety in the "Language Space"
+        seed = f"# Language Seed: {random.randint(0, 100000)}"
         
-        return self.teacher.suggest_optimization(code_snippet + "\n" + seed, focus="Novelty and Approximation")
+        return self.teacher.suggest_optimization(code_snippet + "\n" + seed, focus="AI-Native Compression")
 
     def run_discovery_loop(self, max_epochs=10):
         print(f"\n[DISCOVERY] 🔭 Starting 'Edison' Loop (Max Epochs: {max_epochs})...")

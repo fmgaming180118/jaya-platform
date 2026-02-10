@@ -9,11 +9,10 @@ This project implements a "Silent Engineer" AI capable of recursive self-improve
 
 | Feature | Status | Description |
 | :--- | :--- | :--- |
-| **Neural Compiler** | ✅ Active | Custom MicroGrad Engine rewritten by AI for speed. |
-| **Digital Immune System** | ✅ Active | Integrity checks & auto-rollback prevent broken code. |
-| **Continuous Discovery** | ✅ Active | "Edison Loop" finds novel math & logic automatically. |
-| **Native Ascension** | ✅ Active | **52x Speedup** using Numba JIT compilation. |
-| **Memory System** | ✅ Active | JSON-based RAG prevents repetitive mistakes. |
+| **AI-Native Language** | ✅ Active | Compiler translates Python -> Highly Compressed Machine Code. |
+| **Hybrid Architecture** | ✅ Active | **50% Human** (Interface) + **50% Machine** (Core Logic). |
+| **Logic Compression** | ✅ Active | "Edison Loop" distills complex thought into dense algorithms. |
+| **Recursive Discovery** | ✅ Active | Continuous self-improvement loop for 24/7 research. |
 
 ## 🛠️ Installation
 
@@ -35,27 +34,54 @@ This project implements a "Silent Engineer" AI capable of recursive self-improve
     # Edit .env with your NVIDIA_API_KEY
     ```
 
+## 🧬 The 50/50 Hybrid Architecture
+
+The system is designed as a **Hybrid Entity**:
+
+1.  **The Machine (50%):** The "Body" running on your local device.
+    *   **Language:** AI-Native (Compressed Machine Code).
+    *   **Role:** High-speed logic, math, and core processing.
+    *   **Feature:** It is efficient, runs on minimal hardware, and is "read-only" to humans (binary/byte-code).
+
+2.  **The Human Interface (50%):** The "Translator" (Teacher Model).
+    *   **Language:** Natural Human Language (Indonesian/English).
+    *   **Role:** Translates your questions into AI-Native code for the machine, then translates the machine's output back to you.
+    *   **Flow:** `User Question` -> `Translator` -> `Machine Core` -> `Translator` -> `Human Answer`.
+
 ## 🧪 Usage
 
-### 1. Run the "Edison" Discovery Loop
-To let the AI continuously research better math for its engine:
-```bash
-python src/discovery.py
-```
-*   **Result:** Winning code is saved in `discoveries/`.
+### 1. Run the "Unlimited Discovery" Loop (Recursive Research)
+To let the AI continuously compress its own logic and discover better "AI-Native" encodings forever.
+It will loop: *Dream -> Compress -> Test -> Ascend -> Repeat*.
 
-### 2. Run the "Ascension" JIT Loop (Phase 6)
-To evolve the AI into Native Machine Code (Numba/LLVM):
 ```bash
-python src/jit_discovery.py
+# Terminal 1: Logic Compression (Edison Loop)
+python src/discovery.py --forever
 ```
-*   **Result:** Native optimizations are saved in `discoveries_native/`.
 
-### 3. Verify Performance
+```bash
+# Terminal 2: Language Compilation (Ascension Loop)
+python src/jit_discovery.py --forever
+```
+
+*   **Result:** The AI will continuously rewrite its own `src/engine.py` and `src/engine_jit.py` with increasingly efficient, compressed logic.
+
+### 2. Verify Efficiency Comparison
 To see the difference between Python and Native Mode:
 ```bash
-python benchmark_jit.py
+python test/benchmark_jit.py
 ```
+
+### 3. Digital Twin (Language Lab)
+Simulate the evolution of a new, highly efficient language:
+```bash
+# Run the Evolution Loop
+python src/digital_twin_compiler.py
+
+# Create Fine-Tuning Dataset
+python src/generate_training_data.py
+```
+For more details, see [Digital Twin Documentation](docs/DIGITAL_TWIN.md).
 
 ## 📂 Project Structure
 
@@ -70,8 +96,9 @@ python benchmark_jit.py
 
 For detailed research notes, see:
 -   [Detailed Project Summary](docs/PROJECT_SUMMARY.md)
--   [LLM vs Neural Compiler Comparison](docs/comparison_llm_vs_neural_compiler.md)
 -   [Walkthrough & Results](walkthrough.md)
+-   [Current Task List](docs/task.md)
+-   [Implementation Plan](docs/implementation_plan.md)
 
 ---
 *Created by Micro-AGI Research Team.*

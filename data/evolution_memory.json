@@ -1,0 +1,2528 @@
+[
+  {
+    "timestamp": 1770685996.129043,
+    "hash": "531b0e7a0b8549402838d790204cad6981c28ef78e445a857e04ba089100bc9a",
+    "result": "SUCCESS_EVOLUTION",
+    "score": 1,
+    "error": null
+  },
+  {
+    "timestamp": 1770685998.9132419,
+    "hash": "5cf16a97860bc319ad6f7ce94895f96a2a9fdfcb86a9d90c64d8d9f389d33960",
+    "result": "SUCCESS_EVOLUTION",
+    "score": 2,
+    "error": null
+  },
+  {
+    "timestamp": 1770686001.9805934,
+    "hash": "5cf16a97860bc319ad6f7ce94895f96a2a9fdfcb86a9d90c64d8d9f389d33960",
+    "result": "SUCCESS_EVOLUTION",
+    "score": 3,
+    "error": null
+  },
+  {
+    "timestamp": 1770686286.8984709,
+    "hash": "11faab4be5395da679ee946e0e1f743802e22675ee0bf0da5f42e52e3b5de055",
+    "result": "SUCCESS_EVOLUTION",
+    "score": 1,
+    "error": null
+  },
+  {
+    "timestamp": 1770686289.5777104,
+    "hash": "a1fc994997832e68d567000214de8df250571e47d829d5777115a407671ed2e7",
+    "result": "SUCCESS_EVOLUTION",
+    "score": 2,
+    "error": null
+  },
+  {
+    "timestamp": 1770686292.4364223,
+    "hash": "2b1ef05344208bd6dff395026d143e1784002422145cb01afbb556e720cb2c4a",
+    "result": "SUCCESS_EVOLUTION",
+    "score": 3,
+    "error": null
+  },
+  {
+    "timestamp": 1770686609.651187,
+    "hash": "fe0e3016b31bf27295d580d32e865158af8b05b61bee9fc2c06e64fd127434e4",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 126.06801809348299,
+    "error": null
+  },
+  {
+    "timestamp": 1770686613.8797138,
+    "hash": "97d207eaf7d7c998bc6b647550cc9b03eadca7223064f97711e86493ae6149fe",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 155.2154564202757,
+    "error": null
+  },
+  {
+    "timestamp": 1770686626.955632,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 228.4136546184739,
+    "error": null
+  },
+  {
+    "timestamp": 1770686631.0803814,
+    "hash": "561cd6b189ff53288a9edd0b3fe0f2b2bc74184eee306159bbfd9e6f73b648c6",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 116.78297167256157,
+    "error": null
+  },
+  {
+    "timestamp": 1770686635.7099538,
+    "hash": "97d207eaf7d7c998bc6b647550cc9b03eadca7223064f97711e86493ae6149fe",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 152.17091026290345,
+    "error": null
+  },
+  {
+    "timestamp": 1770686655.1947458,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 225.36910846110166,
+    "error": null
+  },
+  {
+    "timestamp": 1770686796.3302555,
+    "hash": "8ff153b44f814df6ad20bb797a2b9c366f8f495e11ea94d806cfd53af88269e6",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 131.64499201460188,
+    "error": null
+  },
+  {
+    "timestamp": 1770686800.9842916,
+    "hash": "97d207eaf7d7c998bc6b647550cc9b03eadca7223064f97711e86493ae6149fe",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 151.97015197015196,
+    "error": null
+  },
+  {
+    "timestamp": 1770686810.3065476,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 225.45662100456622,
+    "error": null
+  },
+  {
+    "timestamp": 1770686818.8271089,
+    "hash": "561cd6b189ff53288a9edd0b3fe0f2b2bc74184eee306159bbfd9e6f73b648c6",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 122.37762237762237,
+    "error": null
+  },
+  {
+    "timestamp": 1770686822.928746,
+    "hash": "97d207eaf7d7c998bc6b647550cc9b03eadca7223064f97711e86493ae6149fe",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 156.9691962705063,
+    "error": null
+  },
+  {
+    "timestamp": 1770686836.1924706,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 229.3859649122807,
+    "error": null
+  },
+  {
+    "timestamp": 1770686978.0963082,
+    "hash": "8ff153b44f814df6ad20bb797a2b9c366f8f495e11ea94d806cfd53af88269e6",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 131.94444444444446,
+    "error": null
+  },
+  {
+    "timestamp": 1770686982.2792423,
+    "hash": "8ff153b44f814df6ad20bb797a2b9c366f8f495e11ea94d806cfd53af88269e6",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 132.9451722464823,
+    "error": null
+  },
+  {
+    "timestamp": 1770686986.4469252,
+    "hash": "97d207eaf7d7c998bc6b647550cc9b03eadca7223064f97711e86493ae6149fe",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 156.1877667140825,
+    "error": null
+  },
+  {
+    "timestamp": 1770686999.1085281,
+    "hash": "8ff153b44f814df6ad20bb797a2b9c366f8f495e11ea94d806cfd53af88269e6",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 125.66715186802523,
+    "error": null
+  },
+  {
+    "timestamp": 1770687004.5587687,
+    "hash": "97d207eaf7d7c998bc6b647550cc9b03eadca7223064f97711e86493ae6149fe",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 147.72959357342228,
+    "error": null
+  },
+  {
+    "timestamp": 1770687009.9421227,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.08843537414967,
+    "error": null
+  },
+  {
+    "timestamp": 1770687049.4696121,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.08843537414967,
+    "error": null
+  },
+  {
+    "timestamp": 1770687085.004765,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687122.4041786,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687159.394095,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687196.596991,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687233.9614716,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687271.1261702,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687308.1801062,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687347.2739253,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687384.3967874,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687421.616833,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687462.4431725,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687499.5094943,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687536.630052,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687575.879005,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687613.0392518,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687650.639646,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687688.2587173,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687725.6815357,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687762.872879,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687802.6203895,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687842.6004138,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687879.5501115,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687916.7642596,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687953.8426738,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770687991.0052578,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688028.0191886,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688065.1894424,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688102.270726,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688139.3867397,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688176.5341957,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688214.072837,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688251.1345263,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688288.3422353,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688325.3525233,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688362.6164951,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688399.6627917,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688436.7112024,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688473.807492,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688511.1020453,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688548.2447321,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688585.240281,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 221.15384615384616,
+    "error": null
+  },
+  {
+    "timestamp": 1770688622.4130259,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.78663345786634,
+    "error": null
+  },
+  {
+    "timestamp": 1770688663.7930117,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.78663345786634,
+    "error": null
+  },
+  {
+    "timestamp": 1770688701.4933064,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.78663345786634,
+    "error": null
+  },
+  {
+    "timestamp": 1770688739.4364548,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.78663345786634,
+    "error": null
+  },
+  {
+    "timestamp": 1770688777.272967,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.78663345786634,
+    "error": null
+  },
+  {
+    "timestamp": 1770688815.048959,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.78663345786634,
+    "error": null
+  },
+  {
+    "timestamp": 1770688847.5138376,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.9755583649389,
+    "error": null
+  },
+  {
+    "timestamp": 1770688885.2231984,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.9755583649389,
+    "error": null
+  },
+  {
+    "timestamp": 1770688922.9656725,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770688961.1856554,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770688999.4021122,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689037.6345108,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689075.9969158,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689114.778889,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689152.8543067,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689190.9002247,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689229.2757006,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689269.3946478,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689307.6079314,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.679012345679,
+    "error": null
+  },
+  {
+    "timestamp": 1770689313.0508766,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689351.133911,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689389.5956957,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689427.7995887,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.679012345679,
+    "error": null
+  },
+  {
+    "timestamp": 1770689449.8539557,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689488.1067865,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689526.5980608,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689564.5416937,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689603.9989142,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689642.2412426,
+    "hash": "5be82a3b649ff404f5a5d68a0f64450241ce2e07edccb1727faf788f57577b13",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 220.94367381252627,
+    "error": null
+  },
+  {
+    "timestamp": 1770689680.5905192,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689719.4590225,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689758.4542835,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689797.3352277,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689836.1302598,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689878.5180562,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689920.6815133,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770689959.6415062,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690002.4078364,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690042.7900748,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690082.2366104,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690120.776231,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690160.125975,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690199.5691223,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690238.8492224,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690277.995743,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690322.352157,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690361.248797,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690399.8668182,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690438.7073157,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690477.3701856,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690516.3992686,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690555.1054187,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690594.0503006,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690632.9899101,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770690671.8677301,
+    "hash": "542a312f50e2d01e44c36f014b4d35938178079953b5fae8d43e7c2dcb18fd02",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 179.27700714585959,
+    "error": null
+  },
+  {
+    "timestamp": 1770694857.0240345,
+    "hash": "9eee6a93c957304d960c1db68c6bee6e0534eed307c7fb8709064e7b3b6a527f",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 42.0932677273169,
+    "error": null
+  },
+  {
+    "timestamp": 1770694867.9628184,
+    "hash": "9c549475a4524b8a846069d41fb790aaae3a5bec468377549ac5e1e1ee4533bd",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 59.928566522425996,
+    "error": null
+  },
+  {
+    "timestamp": 1770694903.8579216,
+    "hash": "5814ed2d2528851bfb596bc4883ddce3b2956af23f581c7811e0e2647024b8e9",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 59.51417004048583,
+    "error": null
+  },
+  {
+    "timestamp": 1770694908.813563,
+    "hash": "568ddce5935fa707371362887dbaa27f2f57df77db96c1eb184097e3549a74f1",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 60.98556102421384,
+    "error": null
+  },
+  {
+    "timestamp": 1770694945.9868603,
+    "hash": "9716af2333ec2103e53161def39d4fb01c73e21689df94b40004e8fe6a0d9a0a",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 62.725461691703,
+    "error": null
+  },
+  {
+    "timestamp": 1770694981.4373796,
+    "hash": "235a28c3b88ff66e3763a5eef6d35864db4ce8b86e97c837cd30558a7663d9b4",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 60.26831785345718,
+    "error": null
+  },
+  {
+    "timestamp": 1770694986.5785325,
+    "hash": "9716af2333ec2103e53161def39d4fb01c73e21689df94b40004e8fe6a0d9a0a",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 62.725461691703,
+    "error": null
+  },
+  {
+    "timestamp": 1770695021.788633,
+    "hash": "235a28c3b88ff66e3763a5eef6d35864db4ce8b86e97c837cd30558a7663d9b4",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 60.26831785345718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695325.5390475,
+    "hash": "2efd9b500950f711499487a98e348be6a093dcbb897a0867ae8db01cc1231bfd",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 37.956277219818524,
+    "error": null
+  },
+  {
+    "timestamp": 1770695369.7769227,
+    "hash": "48bcc9a1ea4834d148667a6d17a28e6371b6bedade627e34e59b5fc7799520b5",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 37.65919488456715,
+    "error": null
+  },
+  {
+    "timestamp": 1770695381.741174,
+    "hash": "73e9e260644455b131e08cfe33e29deb5a0ff7335dc583a904506bbb278b2752",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 58.334393958678035,
+    "error": null
+  },
+  {
+    "timestamp": 1770695387.145615,
+    "hash": "08cebcda64e7421dd0627e46e8bb2f8587e74f4e18580523bf1e1a180c0cfb33",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 64.5754955131024,
+    "error": null
+  },
+  {
+    "timestamp": 1770695392.2913995,
+    "hash": "99e82a04c1bab3fb7349505bdf9ccff1c798e964d9c80810ef58952eeac4fdd5",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 80.47326982469878,
+    "error": null
+  },
+  {
+    "timestamp": 1770695402.4506285,
+    "hash": "b5368bc381efec08e4741154a4ffea60f2432a2577215bcb145944f5974bc42c",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 89.64589870013447,
+    "error": null
+  },
+  {
+    "timestamp": 1770695407.4290895,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695442.2929256,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695477.1003966,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695511.9105108,
+    "hash": "df271d7adb7de27a5a4dc7da4babc94b24d5f908f250e91a0c0549ccadd3a74f",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.21574402957059,
+    "error": null
+  },
+  {
+    "timestamp": 1770695516.8737736,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695551.6621726,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695586.7033308,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695621.6436775,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695656.6132987,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695691.5310683,
+    "hash": "8d8807807106419b69768057063db772810aea72355d7850f580316d28ca0652",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 101.92789329605684,
+    "error": null
+  },
+  {
+    "timestamp": 1770695706.4344606,
+    "hash": "07ac13c3617b9a8eb911855dd09ad246c8b383e5f85ce3975172a1ee1cb0600c",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 106.46784486990673,
+    "error": null
+  },
+  {
+    "timestamp": 1770695741.7408388,
+    "hash": "9286620faaa69fa8b72f51b6c9b2d001b9b98370f72accd5531d01fce83d26a5",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 95.9222880645074,
+    "error": null
+  },
+  {
+    "timestamp": 1770695746.7169814,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695792.4582298,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695827.285093,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695862.0515826,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695896.9203439,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695931.922666,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770695966.7427337,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696001.7949214,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696036.8180976,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696071.9071531,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696106.718251,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696141.8260536,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696176.5782394,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696211.5283952,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696246.2451878,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696281.1250935,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696315.9093058,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696350.8642247,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696385.529356,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696420.899577,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696456.0743418,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696490.9478917,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696525.7146337,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696561.0113683,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696595.9492888,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696630.6931477,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696665.4565022,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696700.4202473,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696735.3503914,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696770.0547426,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696804.8360314,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696839.5875828,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696874.3495824,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696909.177084,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696944.145671,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770696979.1616437,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697013.9897647,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697048.9348063,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697084.0819297,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697118.950205,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697153.8484704,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697188.9096434,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697223.8083596,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697258.838663,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697293.6386783,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697328.551343,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697363.4615676,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697398.3351102,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697433.0768585,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697468.983464,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697503.7363546,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697538.5710175,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697573.3889961,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697608.140876,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697642.8472242,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697677.4788241,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697712.21574,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697747.0311847,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697785.6459994,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697820.4929166,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697855.3819177,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697890.4370625,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697925.5098174,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697960.3083284,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770697995.1600327,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698030.0188434,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698065.1037889,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698099.8464172,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698134.575617,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698169.5817664,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698204.5631766,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698239.489733,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698274.386657,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698309.1366923,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698343.8248508,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698378.6118174,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698413.7308252,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698448.6692917,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698483.5021627,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698520.5684915,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698555.6562393,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698590.4759266,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698625.3527477,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698660.268459,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698695.0779135,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698730.0770764,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698765.1619587,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698800.075235,
+    "hash": "9286620faaa69fa8b72f51b6c9b2d001b9b98370f72accd5531d01fce83d26a5",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 95.9222880645074,
+    "error": null
+  },
+  {
+    "timestamp": 1770698805.0659602,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698839.9889438,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698874.7181962,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698909.504445,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698944.477451,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770698979.2996287,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699014.4805267,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699049.6317704,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699085.496253,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699120.2705956,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699156.4190528,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699191.2907894,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699226.183282,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699261.0248144,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699295.808397,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699330.862271,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699365.7241733,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699400.4560091,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699435.9200118,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699470.7502825,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699505.6747658,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699540.4743233,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699575.3735578,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699610.3452594,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699645.0860152,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699680.4170198,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699715.249583,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699750.1233165,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699784.8318648,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699819.8493211,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699854.8216121,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699889.7379456,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699924.613036,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770699992.2920222,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700027.1964867,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700062.0545979,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700096.906113,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700131.5299675,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700166.2305968,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700201.0140264,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700235.848394,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700270.8376038,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700320.5162628,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700355.428751,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700390.146475,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700424.9129357,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700459.8543267,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700494.743694,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700531.5552957,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700566.7877884,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700601.9277377,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700636.9372683,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700671.6040316,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700706.5312374,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700741.218371,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700776.2056968,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700811.0394228,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700845.828618,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700881.0837264,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700915.7494876,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700950.899575,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770700985.7118325,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701020.5124712,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701055.7451448,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701090.5473742,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701125.396376,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701160.7227068,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701195.595986,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701230.414819,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701265.2873108,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701300.0432537,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701334.75772,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701369.5104022,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701404.4502225,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701439.222598,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701474.4857867,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701509.2650886,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701544.0200772,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701578.9727592,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701614.8217287,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701649.8770661,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701685.0420644,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701719.8687851,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701755.013498,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701790.0574903,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701825.0972948,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701860.1391885,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701895.2999194,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701930.0531957,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701964.8447902,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770701999.7042387,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702034.504505,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702069.5727558,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702104.4178355,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702139.3033037,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702174.0785406,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702208.8512473,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702243.6668942,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702278.44265,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702313.380515,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702348.188714,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702383.3652897,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702418.513216,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702454.0754163,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702489.015482,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702523.9674299,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702558.8065436,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702593.9349003,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702629.3474786,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702664.1849697,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702701.4601011,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "timestamp": 1770702736.2614877,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695706.4324555,
+    "generation": 81,
+    "score": 106.46784486990673,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return f'# JAYA Output\\n# Token: ' + '\\n# Token: '.join(source_code.split())",
+    "hash": "b24eae00693cdeec4323fde7ff556a48d56742a17da7ae51d072a66f5f85dba2"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695407.4280858,
+    "generation": 21,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695442.2882442,
+    "generation": 28,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695477.0968704,
+    "generation": 35,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695516.8727677,
+    "generation": 43,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695551.6566396,
+    "generation": 50,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695586.7007415,
+    "generation": 57,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695621.6385937,
+    "generation": 64,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695656.6117804,
+    "generation": 71,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "type": "evolution_variant",
+    "timestamp": 1770695691.528518,
+    "generation": 78,
+    "score": 101.92789329605684,
+    "syntax": "class Value:\n    __slots__ = ['data', 'grad', 'prev', 'op', 'label', '_backward', 'creation_time', 'memory_footprint']\n\n    def __init__(self, data: float, grad: float = 0.0, prev: list = None, op: str = '', label: str = '', _backward: callable = None, creation_time: float = 0.0, memory_footprint: int = 0):\n        self.data = data\n        self.grad = grad\n        self.prev = prev.copy() if prev else []\n        self.op = op\n        self.label = label\n        self._backward = _backward\n        self.creation_time = creation_time\n        self.memory_footprint = memory_footprint",
+    "compiler": "def compile_jaya(source_code):\n    return '# JAYA Output\\n' + '\\n'.join(f'# Token: {t}' for t in source_code.split())",
+    "hash": "943cd3ba0a558a08f33ec51f3d07426040ecd86db8a6e74afc4d8a2b40831539"
+  },
+  {
+    "timestamp": 1770702771.295253,
+    "hash": "182913802aecd52db1b1e244c9b1742adb6529522458aad944d03851badf1d52",
+    "result": "SUCCESS_IMPROVEMENT",
+    "score": 96.5472099492718,
+    "error": null
+  }
+]

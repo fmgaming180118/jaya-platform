@@ -1,11 +1,14 @@
 
 import time
 import random
-
+import os
 import sys
-sys.path.append('src')
-from engine import Value as ValuePy
-from engine_jit import Value as ValueJit
+
+# Add parent directory to sys.path to allow importing from src
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from src.engine import Value as ValuePy
+from src.engine_jit import Value as ValueJit
 
 
 def benchmark_engine(name, ValueClass, iterations=1000):
