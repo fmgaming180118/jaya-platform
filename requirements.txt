@@ -1,7 +1,22 @@
-
 # Core Dependencies
 numpy
 numba>=0.60.0
 openai>=1.0.0
 python-dotenv
 pyyaml
+
+# UI & Backend Dependencies
+fastapi>=0.109.0
+uvicorn>=0.27.0
+python-multipart
+youtube-transcript-api
+networkx
+yt-dlp
+beautifulsoup4
+pydantic>=2.0
+opencv-python
+requests
+
+# System Tray Launcher
+pystray
+Pillow

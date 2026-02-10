@@ -34,16 +34,29 @@ class DiscoveryMemory:
                 return True
         return False
         
-    def add_experience(self, code, result, score=None, error=None):
-        """Log an experiment result."""
+    def add_experience(self, code, result, score=None, error=None, metadata=None):
+        """
+        Log an experiment result.
+        
+        Args:
+            code: Code content
+            result: Result type (SUCCESS, FAIL_*, RESEARCH_REPORT, etc)
+            score: Performance score (optional)
+            error: Error message (optional)
+            metadata: Additional metadata dict (optional)
+        """
         entry = {
             "timestamp": time.time(),
             "hash": self._hash_code(code),
-            "result": result, # "SUCCESS", "FAIL_INTEGRITY", "FAIL_BENCHMARK"
+            "result": result, # "SUCCESS", "FAIL_INTEGRITY", "FAIL_BENCHMARK", "RESEARCH_REPORT"
             "score": score,
             "error": str(error) if error else None,
-            # We could ideally add "Teacher Description" here if we asked for it
         }
+        
+        # Add metadata if provided
+        if metadata:
+            entry.update(metadata)
+        
         self.history.append(entry)
         self._save_memory()
         print(f"[MEMORY] 🧠 Experiment logged: {result}")
