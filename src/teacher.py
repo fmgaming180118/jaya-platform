@@ -8,16 +8,32 @@ from openai import OpenAI
 load_dotenv()
 
 class Teacher:
-    def __init__(self, config_path="config.yaml"):
+    def __init__(self, config_path="config.yaml", model_type="reasoning"):
         self.config = self._load_config(config_path)
         self.api_key = os.getenv("NVIDIA_API_KEY")
         
         if not self.api_key:
-            raise ValueError("NVIDIA_API_KEY not found in environment variables or .env file.")
+            raise ValueError("NVIDIA_API_KEY not found in environment variables.")
 
-        # Prioritize ENV vars for Model/BaseURL if they exist (User Request)
-        self.api_base = os.getenv("NVIDIA_LLAMA3.1_BASE_URL", self.config["teacher"]["api_base"])
-        self.model = os.getenv("NVIDIA_LLAMA3.1_MODEL", self.config["teacher"]["model"])
+        # Dynamic Model Selection based on Role
+        # STRICT NO-HARDCODING POLICY
+        if model_type == "reasoning":
+            self.model = os.getenv("NVIDIA_LLAMA31_MODEL")
+        elif model_type == "chat":
+            self.model = os.getenv("NVIDIA_CHAT_MODEL")
+        elif model_type == "coding":
+            self.model = os.getenv("NVIDIA_CODING_MODEL")
+        elif model_type == "vision":
+             self.model = os.getenv("VIDEO_VLM_MODEL") # Fallback if used in Teacher
+        else:
+            # Default fallback to Chat if unknown
+            self.model = os.getenv("NVIDIA_CHAT_MODEL")
+
+        if not self.model:
+             # Critical Error if env var is missing
+             raise ValueError(f"Model configuration for '{model_type}' is missing in .env! Check your .env file.")
+
+        self.api_base = os.getenv("NVIDIA_LLAMA31_BASE_URL", "https://integrate.api.nvidia.com/v1")
 
         self.client = OpenAI(
             base_url=self.api_base,

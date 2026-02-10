@@ -13,8 +13,8 @@ class ScientificDiscovery(Optimizer):
         # We use a separate folder for successful "experiments"
         self.discovery_dir = os.path.join("data", "discoveries")
         os.makedirs(self.discovery_dir, exist_ok=True)
-        # Point to data/discovery_memory.json
-        self.memory = DiscoveryMemory(os.path.join("data", "discovery_memory.json"))
+        # Point to data/discovery_memory.json (Handled by default now)
+        self.memory = DiscoveryMemory()
 
     def suggest_novelty(self, code_snippet):
         """

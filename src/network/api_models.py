@@ -8,10 +8,12 @@ class ResearchRequest(BaseModel):
     topic: str
     focus_areas: Optional[str] = ""
     max_queries: int = 5
+    workspace_id: str = "default"
 
 class ChatRequest(BaseModel):
     message: str
     context_files: List[str] = [] # Filenames or IDs
+    workspace_id: str = "default"
 
 class DebateRequest(BaseModel):
     topic: str

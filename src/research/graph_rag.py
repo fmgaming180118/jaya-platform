@@ -17,10 +17,12 @@ except ImportError:
     from teacher import Teacher
 
 class GraphRAGEngine:
-    def __init__(self, storage_path="data/knowledge_graph.json"):
-        self.storage_path = Path(storage_path)
+    def __init__(self, storage_path=None):
+        # Default to data/knowledge_graph.json if no path provided (Backward compatibility)
+        self.storage_path = Path(storage_path) if storage_path else Path("data/knowledge_graph.json")
         self.graph = nx.DiGraph()
-        self.teacher = Teacher()
+        # Use Reasoning model for extraction
+        self.teacher = Teacher(model_type="reasoning")
         self._load_graph()
         
     def _load_graph(self):

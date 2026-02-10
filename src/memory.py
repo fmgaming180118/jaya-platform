@@ -5,8 +5,18 @@ import hashlib
 import time
 
 class DiscoveryMemory:
-    def __init__(self, memory_file="discovery_memory.json"):
-        self.memory_file = memory_file
+    def __init__(self, memory_file=None):
+        if memory_file is None:
+            # Default to data/discovery_memory.json
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            data_dir = os.path.join(base_dir, "data")
+            os.makedirs(data_dir, exist_ok=True)
+            self.memory_file = os.path.join(data_dir, "discovery_memory.json")
+        else:
+            self.memory_file = memory_file
+            
+        # Ensure dir exists for custom paths too
+        os.makedirs(os.path.dirname(os.path.abspath(self.memory_file)), exist_ok=True)
         self.history = self._load_memory()
         
     def _load_memory(self):

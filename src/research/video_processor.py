@@ -24,7 +24,10 @@ class VideoProcessor:
         self.api_key = os.getenv("NVIDIA_API_KEY")
         # NVIDIA VILA or similar VLM hosted on NIM
         self.vlm_endpoint = "https://integrate.api.nvidia.com/v1/chat/completions" 
-        self.model_name = "nvidia/vila-1.5-40b" # Or equivalent available NIM
+        # STRICT NO-HARDCODING
+        self.model_name = os.getenv("VIDEO_VLM_MODEL")
+        if not self.model_name:
+             raise ValueError("VIDEO_VLM_MODEL not found in .env")
 
     def process_video(self, url: str) -> Dict[str, Any]:
         """Full pipeline: Download -> Analyze -> Transcribe -> Merge"""

@@ -13,7 +13,7 @@ import requests
 class NVIDIAEmbeddings:
     """NVIDIA NIM Embeddings API Client"""
     
-    def __init__(self, api_key: str = None, model: str = "nvidia/nv-embedqa-e5-v5"):
+    def __init__(self, api_key: str = None, model: str = None):
         """
         Initialize NVIDIA embeddings client.
         
@@ -25,7 +25,13 @@ class NVIDIAEmbeddings:
         if not self.api_key:
             raise ValueError("NVIDIA_API_KEY not found in environment")
         
-        self.model = model
+        if not self.api_key:
+            raise ValueError("NVIDIA_API_KEY not found in environment")
+        
+        # STRICT NO-HARDCODING: Load from Env, default to config if needed (but prefer env)
+        self.model = model or os.getenv("NVIDIA_EMBEDDING_MODEL")
+        if not self.model:
+             raise ValueError("NVIDIA_EMBEDDING_MODEL not found in .env")
         self.base_url = "https://integrate.api.nvidia.com/v1"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -95,53 +101,63 @@ class NVIDIAEmbeddings:
             return [0.0] * 1024
 
 
+import faiss
+
 class VectorStore:
-    """Simple in-memory vector store with cosine similarity search"""
+    """FAISS-powered vector store for high-performance similarity search"""
     
-    def __init__(self, storage_path: str = "data/vector_store.json"):
-        """Initialize vector store"""
-        self.storage_path = storage_path
+    def __init__(self, storage_path: str = None):
+        """Initialize vector store
+        Args:
+            storage_path: Path to save/load vector data. If None, defaults to data/vector_store.json
+        """
+        self.storage_path = storage_path or "data/vector_store.json"
+        self.index_path = self.storage_path.replace(".json", ".index")
+        
         self.documents = []
-        self.embeddings = []
+        self.index = None
         self._load()
     
     def add_documents(self, documents: List[Dict[str, Any]], embeddings: List[List[float]]):
         """Add documents and their embeddings to the store"""
+        if not embeddings:
+            return
+
+        # Convert to numpy float32
+        embeddings_np = np.array(embeddings).astype('float32')
+        faiss.normalize_L2(embeddings_np) # Normalize for Cosine Similarity (Inner Product)
+        
+        # Initialize index if needed
+        if self.index is None:
+            dimension = embeddings_np.shape[1]
+            self.index = faiss.IndexFlatIP(dimension) # Inner Product for similarity
+            
+        self.index.add(embeddings_np)
         self.documents.extend(documents)
-        self.embeddings.extend(embeddings)
         self._save()
     
     def search(self, query_embedding: List[float], top_k: int = 5) -> List[Dict[str, Any]]:
         """
-        Search for similar documents using cosine similarity.
-        
-        Args:
-            query_embedding: Query embedding vector
-            top_k: Number of results to return
-            
-        Returns:
-            List of documents with similarity scores
+        Search for similar documents using FAISS.
         """
-        if not self.embeddings:
+        if not self.index or self.index.ntotal == 0:
             return []
         
-        # Convert to numpy for efficient computation
-        query_vec = np.array(query_embedding)
-        doc_vecs = np.array(self.embeddings)
+        # Convert to numpy float32
+        query_vec = np.array([query_embedding]).astype('float32')
+        faiss.normalize_L2(query_vec)
         
-        # Cosine similarity
-        similarities = np.dot(doc_vecs, query_vec) / (
-            np.linalg.norm(doc_vecs, axis=1) * np.linalg.norm(query_vec)
-        )
-        
-        # Get top-k indices
-        top_indices = np.argsort(similarities)[-top_k:][::-1]
+        # Search
+        distances, indices = self.index.search(query_vec, top_k)
         
         results = []
-        for idx in top_indices:
+        for i, idx in enumerate(indices[0]):
+            if idx == -1 or idx >= len(self.documents):
+                continue
+                
             results.append({
                 "document": self.documents[idx],
-                "score": float(similarities[idx]),
+                "score": float(distances[0][i]),
                 "snippet": self._extract_snippet(self.documents[idx].get('content', ''))
             })
         
@@ -154,23 +170,29 @@ class VectorStore:
         return content[:max_length] + "..."
     
     def _save(self):
-        """Save vector store to disk"""
-        data = {
-            "documents": self.documents,
-            "embeddings": self.embeddings
-        }
-        
+        """Save documents and FAISS index to disk"""
+        # Save Documents (Metadata)
         os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
         with open(self.storage_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+            json.dump({"documents": self.documents}, f, ensure_ascii=False, indent=2)
+            
+        # Save FAISS index
+        if self.index:
+            faiss.write_index(self.index, self.index_path)
     
     def _load(self):
-        """Load vector store from disk"""
+        """Load documents and FAISS index from disk"""
+        # Load Documents
         if os.path.exists(self.storage_path):
             with open(self.storage_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 self.documents = data.get('documents', [])
-                self.embeddings = data.get('embeddings', [])
+        
+        # Load FAISS Index
+        if os.path.exists(self.index_path):
+            self.index = faiss.read_index(self.index_path)
+        else:
+            self.index = None
 
 
 class EnhancedRAGClient:
@@ -179,19 +201,20 @@ class EnhancedRAGClient:
     Replaces the simpler keyword-based RAGClient.
     """
     
-    def __init__(self, use_embeddings: bool = True):
+    def __init__(self, use_embeddings: bool = True, vector_store_path: str = None):
         """
         Initialize Enhanced RAG Client.
         
         Args:
             use_embeddings: If True, use NVIDIA embeddings. If False, fallback to keyword search.
+            vector_store_path: Path to the vector store file (for Workspaces)
         """
         self.use_embeddings = use_embeddings
         
         if self.use_embeddings:
             try:
                 self.embedder = NVIDIAEmbeddings()
-                self.vector_store = VectorStore()
+                self.vector_store = VectorStore(storage_path=vector_store_path)
                 print("[RAG] ✅ NVIDIA embeddings enabled")
             except ValueError as e:
                 print(f"[RAG] ⚠️  {e}, falling back to keyword search")
