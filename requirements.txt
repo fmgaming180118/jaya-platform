@@ -20,3 +20,8 @@ requests
 # System Tray Launcher
 pystray
 Pillow
+
+# Advanced RAG & Voice Agent
+nv-ingest
+pipecat-ai
+pyaudio

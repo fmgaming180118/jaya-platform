@@ -15,6 +15,29 @@ UI_DIR = PROJECT_ROOT / "ui"
 
 backend_process = None
 ui_process = None
+voice_agent = None
+
+def toggle_voice(icon, item):
+    global voice_agent
+    
+    # Lazy import to avoid startup cost if not used
+    try:
+        from voice_agent.agent import JayaVoiceAgent
+    except ImportError:
+        print("Voice Agent module not found.")
+        return
+
+    if voice_agent:
+        print("Stopping Voice Agent...")
+        voice_agent.stop()
+        voice_agent.join()
+        voice_agent = None
+        icon.notify("Voice Agent Stopped", "JAYA Research")
+    else:
+        print("Starting Voice Agent (Wake Word: 'Jaya')...")
+        voice_agent = JayaVoiceAgent()
+        voice_agent.start()
+        icon.notify("Voice Active via Pipecat", "Listening for 'Jaya'...")
 
 def start_backend(icon, item):
     global backend_process
@@ -55,6 +78,11 @@ def stop_all(icon, item):
         subprocess.call(['taskkill', '/F', '/T', '/PID', str(ui_process.pid)])
         ui_process = None
         
+    global voice_agent
+    if voice_agent:
+        voice_agent.stop()
+        voice_agent = None
+        
     icon.notify("All Services Stopped", "JAYA Research")
 
 def exit_app(icon, item):
@@ -75,6 +103,7 @@ def main():
     menu = pystray.Menu(
         pystray.MenuItem("Start Backend", start_backend),
         pystray.MenuItem("Open Dashboard", start_ui),
+        pystray.MenuItem("Enable Voice ('Jaya')", toggle_voice, checked=lambda item: voice_agent is not None),
         pystray.MenuItem("Stop All", stop_all),
         pystray.MenuItem("Exit", exit_app)
     )

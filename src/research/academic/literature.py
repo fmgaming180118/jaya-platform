@@ -137,6 +137,40 @@ class SemanticScholarClient:
             print(f"[SemanticScholar] Error: {e}")
             return []
 
+    def get_citations(self, paper_id: str, limit: int = 10) -> List[Dict]:
+        """
+        Fetches papers that cite the given paper_id.
+        """
+        url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}/citations"
+        params = {"limit": limit, "fields": "title,abstract,year,authors,url"}
+        
+        headers = {}
+        api_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
+        if api_key: headers["x-api-key"] = api_key
+            
+        try:
+             req = urllib.request.Request(f"{url}?{urllib.parse.urlencode(params)}", headers=headers)
+             with urllib.request.urlopen(req) as response:
+                data = json.loads(response.read())
+                
+             citations = []
+             if "data" in data:
+                 for item in data["data"]:
+                     citing_paper = item.get("citingPaper", {})
+                     if not citing_paper: continue
+                     
+                     citations.append({
+                         "id": citing_paper.get("paperId"),
+                         "title": citing_paper.get("title"),
+                         "year": citing_paper.get("year"),
+                         "authors": [a["name"] for a in citing_paper.get("authors", [])],
+                         "source": "Semantic Scholar"
+                     })
+             return citations
+        except Exception as e:
+            print(f"[SemanticScholar] Citation Error: {e}")
+            return []
+
 if __name__ == "__main__":
     import os
     # Test Combined

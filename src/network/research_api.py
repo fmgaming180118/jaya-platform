@@ -127,6 +127,31 @@ async def generate_defense_questions(topic: str, abstract: str):
     questions = reviewer.generate_defense_questions(topic, abstract)
     return {"topic": topic, "questions": questions}
 
+@app.post("/academic/gaps")
+async def find_research_gaps(topic: str):
+    """Identifies Research Gaps using Citation Network"""
+    from research.academic.gap_finder import GapFinder
+    finder = GapFinder()
+    finder.build_network(topic)
+    report = finder.analyze_gaps()
+    return {"topic": topic, "report": report}
+
+@app.post("/academic/slides")
+async def generate_slides(topic: str, content: str = "Automated generated content"):
+    """Generates Marp Slides for a topic"""
+    from research.academic.presenter import SlideDeckGenerator
+    presenter = SlideDeckGenerator()
+    slides_md = presenter.generate_slides(topic, content)
+    return {"topic": topic, "slides": slides_md}
+
+@app.post("/academic/revise")
+async def revise_chapter(draft: str, critique: str):
+    """Auto-revises a draft based on critique"""
+    from research.academic.editor import AcademicEditor
+    editor = AcademicEditor()
+    revised = editor.revise_chapter(draft, critique)
+    return {"revised_draft": revised}
+
 @app.get("/academic/experiments/{exp_id}/chart")
 async def get_experiment_chart(exp_id: str, metric: str):
     """Generates and serves a chart for an experiment"""

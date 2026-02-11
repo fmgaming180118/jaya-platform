@@ -9,6 +9,7 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import requests
+from research.web_search import WebSearchClient
 
 class NVIDIAEmbeddings:
     """NVIDIA NIM Embeddings API Client"""
@@ -32,7 +33,7 @@ class NVIDIAEmbeddings:
         self.model = model or os.getenv("NVIDIA_EMBEDDING_MODEL")
         if not self.model:
              raise ValueError("NVIDIA_EMBEDDING_MODEL not found in .env")
-        self.base_url = "https://integrate.api.nvidia.com/v1"
+        self.base_url = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -215,19 +216,22 @@ class EnhancedRAGClient:
             try:
                 self.embedder = NVIDIAEmbeddings()
                 self.vector_store = VectorStore(storage_path=vector_store_path)
-                print("[RAG] ✅ NVIDIA embeddings enabled")
+                print("[RAG] [OK] NVIDIA embeddings enabled")
             except ValueError as e:
-                print(f"[RAG] ⚠️  {e}, falling back to keyword search")
+                print(f"[RAG] [WARNING] {e}, falling back to keyword search")
                 self.use_embeddings = False
         
-        # Fallback to simple keyword search
         if not self.use_embeddings:
             from research.rag_client import RAGClient as SimpleRAG
             self.simple_rag = SimpleRAG()
+            
+        # Initialize Web Search
+        self.web_search = WebSearchClient()
     
     def ingest_documents(self, file_paths: List[str]) -> Dict[str, Any]:
         """
         Ingest documents with embedding generation.
+        Features dynamic fallback to Nemotron Ingest if available.
         
         Args:
             file_paths: List of document paths
@@ -235,6 +239,13 @@ class EnhancedRAGClient:
         Returns:
             Ingestion status
         """
+        # lazy import to avoid circular dependency or startup errors
+        try:
+            from research.nemotron_ingest import NemotronIngestor
+            nemotron = NemotronIngestor()
+        except ImportError:
+            nemotron = None
+
         documents = []
         texts = []
         
@@ -243,12 +254,27 @@ class EnhancedRAGClient:
                 continue
             
             try:
-                # Read document
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                content = ""
+                # Try Nemotron First if available
+                if nemotron and nemotron.available and path.lower().endswith(".pdf"):
+                    print(f"[RAG] 🚀 Attempting Nemotron Ingest for {os.path.basename(path)}...")
+                    result = nemotron.ingest_file(path)
+                    
+                    if result.get("status") == "success":
+                        content = result.get("full_text", "")
+                        print(f"[RAG] ✅ Nemotron extraction successful ({len(result.get('tables', []))} tables found)")
+                    else:
+                        print(f"[RAG] ⚠️ Nemotron failed ({result.get('error')}), falling back to standard read")
+                
+                # Standard Read Fallback
+                if not content:
+                    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
                 
                 # Chunk document (simple splitting for MVP)
-                chunks = self._chunk_text(content, chunk_size=512)
+                chunk_size = int(os.getenv("RAG_CHUNK_SIZE", "512"))
+                chunk_overlap = int(os.getenv("RAG_CHUNK_OVERLAP", "128"))
+                chunks = self._chunk_text(content, chunk_size=chunk_size, overlap=chunk_overlap)
                 
                 for i, chunk in enumerate(chunks):
                     doc = {
@@ -303,6 +329,68 @@ class EnhancedRAGClient:
         else:
             # Keyword search fallback
             return self.simple_rag.search(query, top_k=top_k)
+
+    def query(self, text: str) -> Dict[str, Any]:
+        """
+        High-level query method for Voice/Chat agents.
+        Retrieves context from Local Docs AND Web Search if needed.
+        
+        Args:
+            text: User query
+            
+        Returns:
+            Dict with 'answer' (context string) and 'sources'
+        """
+        print(f"[RAG] Processing query: {text}")
+        
+        # 1. Local Search
+        local_results = self.search(text, top_k=3)
+        
+        # 2. Check Relevance (simple heuristic: score > 0.7)
+        # If we have no results or low scores, trigger web search
+        needs_web = False
+        if not local_results:
+            needs_web = True
+            print("[RAG] No local results found. Triggering Web Search...")
+        elif local_results and local_results[0].get('score', 0) < 0.65:
+            # Score threshold might need tuning for Inner Product
+            needs_web = True
+            print(f"[RAG] Low confidence ({local_results[0].get('score'):.2f}). Triggering Web Search...")
+            
+        web_results = []
+        if needs_web and self.web_search.is_available():
+            web_results = self.web_search.search(text, max_results=3)
+            
+        # 3. Combine Results
+        combined_context = []
+        sources = []
+        
+        # Add Local
+        if local_results:
+            combined_context.append("### Local Research Data:")
+            for rank, item in enumerate(local_results, 1):
+                snippet = item.get('snippet', '')
+                fname = item.get('document', {}).get('file_name', 'Unknown')
+                combined_context.append(f"[{rank}] {snippet} (Source: {fname})")
+                sources.append(fname)
+
+        # Add Web
+        if web_results:
+            combined_context.append("\n### Web Search Results:")
+            for rank, item in enumerate(web_results, 1):
+                title = item['document']['title']
+                snippet = item['snippet']
+                url = item['document']['url']
+                combined_context.append(f"[Web {rank}] {title}: {snippet} (Source: {url})")
+                sources.append(url)
+                
+        if not combined_context:
+            return {"answer": "I could not find any relevant information in your documents or on the web.", "sources": []}
+            
+        return {
+            "answer": "\n".join(combined_context),
+            "sources": sources
+        }
     
     def _chunk_text(self, text: str, chunk_size: int = 512, overlap: int = 128) -> List[str]:
         """
