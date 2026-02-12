@@ -12,6 +12,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("JayaVoice")
 
+
 # Ensure we can import from src
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 try:
@@ -19,6 +20,9 @@ try:
 except ImportError:
     logger.warning("[Voice] Could not import EnhancedRAGClient. RAG features disabled.")
     EnhancedRAGClient = None
+
+from src.voice_agent.wake_word import WakeWordDetector
+from src.voice_agent.profile_manager import ProfileManager
 
 class JayaVoiceAgent(threading.Thread):
     def __init__(self, api_key=None, rag_client=None):
@@ -36,20 +40,25 @@ class JayaVoiceAgent(threading.Thread):
                 logger.info("[Voice] RAG Client initialized successfully.")
             except Exception as e:
                 logger.error(f"[Voice] Failed to init RAG Client: {e}")
+        
+        # Initialize Voice Components
+        try:
+            self.wake_word = WakeWordDetector()
+            self.profile_manager = ProfileManager()
+            logger.info("[Voice] Wake Word & Profile Manager initialized.")
+        except Exception as e:
+            logger.error(f"[Voice] COMPONENT FAILURE: {e}")
+            self.wake_word = None
 
     def run(self):
         """Thread main loop"""
         self.running = True
         logger.info("[Voice] Agent Process Started")
         
-        # Create a new event loop for this thread (asyncio is required for Pipecat)
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        
         try:
-            self.loop.run_until_complete(self._run_pipecat_pipeline())
+            self._run_voice_loop()
         except Exception as e:
-            logger.error(f"[Voice] Error in pipeline: {e}")
+            logger.error(f"[Voice] Error in voice loop: {e}")
         finally:
             self.running = False
             logger.info("[Voice] Agent Stopped")
@@ -59,54 +68,76 @@ class JayaVoiceAgent(threading.Thread):
         self._stop_event.set()
         self.running = False
 
-    async def _run_pipecat_pipeline(self):
+    def _run_voice_loop(self):
         """
-        Main Async Pipeline using Pipecat.
-        Simulated logic if libraries are missing to prevent crash.
+        Native Audio Loop using sounddevice.
         """
+        import sounddevice as sd
+        import numpy as np
+
+        SAMPLE_RATE = 16000
+        CHUNK_SIZE = 1280 # 80ms window for openwakeword
+
+        if not self.wake_word:
+            logger.error("[Voice] Wake Word detector not available. Aborting loop.")
+            return
+
+        logger.info("[Voice] Listening for 'Jaya' (Active Speaker Verification Enabled)...")
+        
         try:
-            # Try importing Pipecat components
-            # Note: These imports might fail if pip install pipecat-ai is not run
-            from pipecat.pipeline.pipeline import Pipeline
-            from pipecat.pipeline.task import PipelineTask
-            # from pipecat.frames.context import OpenAILLMContext # Removed for pure NVIDIA stack
-            # We would use NvidiaRivaSTT, NvidiaLlamaLLM, NvidiaRivaTTS here
-            # For blueprint purposes, we assume these classes exist or utilize standard ones
-            
-            logger.info("[Voice] Pipecat libraries found. Initializing NIM services...")
-            
-            # --- Placeholder for Actual Pipeline Construction ---
-            # 1. Transport (Local Audio)
-            # transport = LocalAudioTransport()
-            
-            # 2. Services (NIM)
-            # stt = NvidiaRivaSTT(api_key=self.api_key)
-            # llm = NvidiaLlamaLLM(api_key=self.api_key)
-            # tts = NvidiaRivaTTS(api_key=self.api_key)
-            
-            # 3. Task
-            # task = PipelineTask(transport, Pipeline([stt, llm, tts]))
-            
-            # 4. Run checking for 'Jaya' wake word manually or via VAD
-            logger.info("[Voice] Listening for 'Jaya'...")
-            
-            while not self._stop_event.is_set():
-                # Simulation loop to keep thread alive without consuming 100% CPU
-                # In a real Pipecat loop, this would be event-driven by the pipeline runner
-                await asyncio.sleep(1)
-                
-        except ImportError:
-            logger.warning("[Voice] 'pipecat-ai' not installed. Running in Mock Mode.")
-            logger.warning("[Voice] Please run: pip install pipecat-ai")
-            
-            # Mock Loop with Console Interaction for testing RAG
-            logger.info("[Voice] Mock Mode: Type in console to simulate voice input (or wait)")
-            
-            while not self._stop_event.is_set():
-                # For demonstration, we just sleep. 
-                # In a real integration, we'd hook into audio stream.
-                # To verify RAG, we can simulate a query occasionally or just wait.
-                time.sleep(2)
+            with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, blocksize=CHUNK_SIZE, dtype='int16') as stream:
+                while not self._stop_event.is_set():
+                    if not stream.active:
+                        break
+                    
+                    # Read Chunk
+                    data, overflowed = stream.read(CHUNK_SIZE)
+                    if overflowed:
+                        # logger.warning("Audio buffer overflow")
+                        pass
+                    
+                    # Flatten for processing
+                    audio_data = data.flatten()
+                    
+                    # 1. Wake Word Check
+                    prediction = self.wake_word.detect(audio_data)
+                    
+                    if prediction:
+                        ww_label, score = prediction
+                        logger.info(f"[Voice] Wake Word Detected: '{ww_label}' (Score: {score:.2f})")
+                        
+                        # 2. Speaker Verification
+                        is_verified, v_score = self.profile_manager.verify_speaker(audio_data)
+                        
+                        if is_verified:
+                            logger.info(f"[Voice] SPEAKER VERIFIED (Score: {v_score:.2f}). Access Granted.")
+                            print(f"\n>> JAYA: Yes, I am listening to you. (Verification Score: {v_score:.2f})")
+                            
+                            # Save the sample for future training
+                            try:
+                                from scipy.io.wavfile import write
+                                timestamp = int(time.time())
+                                save_dir = os.path.join("data", "voice_samples", "raw")
+                                if not os.path.exists(save_dir):
+                                    os.makedirs(save_dir)
+                                save_path = os.path.join(save_dir, f"verified_wake_{timestamp}.wav")
+                                write(save_path, SAMPLE_RATE, audio_data)
+                                logger.info(f"[Voice] Saved verified sample to {save_path}")
+                            except Exception as e:
+                                logger.error(f"[Voice] Failed to save sample: {e}")
+
+                            # TODO: Enter Active Command Loop (STT)
+                            # For now, we simulate a brief "active" window or just acknowledge
+                            # In full implementation, this would trigger the speech recognition
+                            
+                        else:
+                            logger.warning(f"[Voice] Access Denied. Speaker Verification Failed (Score: {v_score:.2f}).")
+                            print(f"\n>> JAYA: [Ignored Voice] (Verification Failed)")
+
+        except Exception as e:
+            logger.error(f"[Voice] Critical Audio Error: {e}")
+            if "PortAudio" in str(e):
+                logger.error("Please ensure a microphone is connected and configured.")
 
     def process_query(self, text):
         """
@@ -133,6 +164,9 @@ if __name__ == "__main__":
     # Test stub
     agent = JayaVoiceAgent()
     agent.start()
-    time.sleep(5)
-    agent.stop()
-    agent.join()
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        agent.stop()
+        agent.join()
