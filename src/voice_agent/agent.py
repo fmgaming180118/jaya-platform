@@ -23,6 +23,7 @@ except ImportError:
 
 from src.voice_agent.wake_word import WakeWordDetector
 from src.voice_agent.profile_manager import ProfileManager
+from src.tools.registry import ToolRegistry
 
 class JayaVoiceAgent(threading.Thread):
     def __init__(self, api_key=None, rag_client=None):
@@ -45,7 +46,14 @@ class JayaVoiceAgent(threading.Thread):
         try:
             self.wake_word = WakeWordDetector()
             self.profile_manager = ProfileManager()
-            logger.info("[Voice] Wake Word & Profile Manager initialized.")
+            
+            # Configure Tool Registry
+            tools_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tools'))
+            self.tools = ToolRegistry(tools_dir=tools_dir)
+            logger.info(f"[Voice] Initialized Tool Registry with {len(self.tools.list_tools())} tools.")
+        except Exception as e:
+            logger.error(f"[Voice] COMPONENT FAILURE: {e}")
+            self.wake_word = None
         except Exception as e:
             logger.error(f"[Voice] COMPONENT FAILURE: {e}")
             self.wake_word = None
@@ -127,8 +135,85 @@ class JayaVoiceAgent(threading.Thread):
                                 logger.error(f"[Voice] Failed to save sample: {e}")
 
                             # TODO: Enter Active Command Loop (STT)
-                            # For now, we simulate a brief "active" window or just acknowledge
-                            # In full implementation, this would trigger the speech recognition
+                            # For now, we use SpeechRecognition to capture simple commands like "training"
+                            try:
+                                import speech_recognition as sr
+                                r = sr.Recognizer()
+                                
+                                logger.info("[Voice] Listening for command (5s)...")
+                                with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=8000, dtype='int16',
+                                                       channels=1, callback=None) as cmd_stream:
+                                    # Record 5 seconds of audio for command
+                                    cmd_data, _ = cmd_stream.read(SAMPLE_RATE * 5)
+                                    
+                                    # Convert to AudioData for SR
+                                    audio_source = sr.AudioData(cmd_data.tobytes(), SAMPLE_RATE, 2) # 2 bytes width for int16
+                                    
+                                    try:
+                                        # Recognize using Google Speech Recognition
+                                        command_text = r.recognize_google(audio_source, language="id-ID") 
+                                        logger.info(f"[Voice] Command Recognized: '{command_text}'")
+                                        
+                                        cmd_lower = command_text.lower()
+
+                                        # --- Dynamic Command Routing ---
+                                        # Ideally, we would use an LLM to map text -> tool_name + args.
+                                        # For now, we simulate this with keyword matching mapping to specific tools.
+
+                                        # 1. Training (Enrollment) - Special Case (Not a tool yet, simplified script trigger)
+                                        if "lakukan training" in cmd_lower or "pengenalan suara" in cmd_lower:
+                                            print(f"\n>> JAYA: Starting voice training sequence...")
+                                            logger.info("[Voice] Triggering Enrollment CLI...")
+                                            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "enrollment.py"))
+                                            if os.name == 'nt':
+                                                import subprocess
+                                                subprocess.Popen(f'start cmd /k python "{script_path}"', shell=True)
+                                        
+                                        # 2. System Status -> 'system_get_status'
+                                        elif "status sistem" in cmd_lower or "data yang mengalir" in cmd_lower or "cek cpu" in cmd_lower:
+                                            res = self.tools.execute("system_get_status")
+                                            print(f"\n>> JAYA: {res}")
+                                            
+                                        # 3. Running Apps -> 'system_get_status' (using same tool for now or new one if created)
+                                        # Note: We didn't create a specific 'get_running_apps' tool yet, reusing system status or ignoring
+                                        elif "aplikasi berjalan" in cmd_lower or "melihat aplikasi" in cmd_lower:
+                                             # For now, simplistic fallback as we migrated 'get_system_status' but maybe not 'get_running_apps' specifically
+                                             # Let's assume system_get_status covers it or we create a new one.
+                                             # Re-using system_get_status for demo purposes as it has CPU/RAM
+                                             res = self.tools.execute("system_get_status")
+                                             print(f"\n>> JAYA: {res}")
+
+                                        # 4. Open App -> 'system_open_app'
+                                        elif "buka aplikasi" in cmd_lower:
+                                            app_name = cmd_lower.replace("buka aplikasi", "").strip()
+                                            if app_name:
+                                                res = self.tools.execute("system_open_app", app_name=app_name)
+                                                print(f"\n>> JAYA: {res}")
+                                            else:
+                                                print("\n>> JAYA: Aplikasi apa yang ingin dibuka?")
+
+                                        # 5. Execute Shell Command -> 'system_run_command'
+                                        elif "jalankan perintah" in cmd_lower or "eksekusi" in cmd_lower:
+                                            cmd_str = cmd_lower.replace("jalankan perintah", "").replace("eksekusi", "").strip()
+                                            if cmd_str:
+                                                print(f"\n>> JAYA: Executing: {cmd_str}")
+                                                output = self.tools.execute("system_run_command", command=cmd_str)
+                                                print(f"\n[OUTPUT]:\n{output}")
+                                            else:
+                                                print("\n>> JAYA: Perintah apa?")
+
+                                        else:
+                                            print(f"\n>> JAYA: Maaf, saya mendengar: '{command_text}' (Perintah tidak dikenal)")
+                                            
+                                    except sr.UnknownValueError:
+                                        logger.info("[Voice] Could not understand command.")
+                                    except sr.RequestError as e:
+                                        logger.error(f"[Voice] SR Error: {e}")
+
+                            except ImportError:
+                                logger.warning("[Voice] SpeechRecognition not installed.")
+                            except Exception as e:
+                                logger.error(f"[Voice] Command loop error: {e}")
                             
                         else:
                             logger.warning(f"[Voice] Access Denied. Speaker Verification Failed (Score: {v_score:.2f}).")

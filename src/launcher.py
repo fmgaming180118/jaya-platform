@@ -35,9 +35,21 @@ def toggle_voice(icon, item):
         icon.notify("Voice Agent Stopped", "JAYA Research")
     else:
         print("Starting Voice Agent (Wake Word: 'Jaya')...")
-        voice_agent = JayaVoiceAgent()
         voice_agent.start()
         icon.notify("Voice Active via Pipecat", "Listening for 'Jaya'...")
+
+def train_voice_manual(icon, item):
+    """Launches the enrollment CLI in a new terminal window."""
+    script_path = PROJECT_ROOT / "src" / "voice_agent" / "enrollment.py"
+    print(f"Launching Training: {script_path}")
+    
+    # Launch in new terminal
+    if os.name == 'nt': # Windows
+        subprocess.Popen(f'start cmd /k python "{script_path}"', shell=True)
+    else: # Linux/Mac (Generic fallback)
+        subprocess.Popen(f'x-terminal-emulator -e python "{script_path}"', shell=True)
+    
+    icon.notify("Training Started", "Check the new terminal window")
 
 def start_backend(icon, item):
     global backend_process
@@ -104,6 +116,7 @@ def main():
         pystray.MenuItem("Start Backend", start_backend),
         pystray.MenuItem("Open Dashboard", start_ui),
         pystray.MenuItem("Enable Voice ('Jaya')", toggle_voice, checked=lambda item: voice_agent is not None),
+        pystray.MenuItem("Train Voice Model", train_voice_manual),
         pystray.MenuItem("Stop All", stop_all),
         pystray.MenuItem("Exit", exit_app)
     )
