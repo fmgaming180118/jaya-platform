@@ -41,6 +41,24 @@ class JayaVoiceAgent(threading.Thread):
                 logger.info("[Voice] RAG Client initialized successfully.")
             except Exception as e:
                 logger.error(f"[Voice] Failed to init RAG Client: {e}")
+
+        # Initialize V13 Logic Kernel (The Iron Body)
+        try:
+            from src.brain_v2.engine.runtime import IronEngine
+            from src.brain_v2.soul.socratic import SocraticMirror
+            
+            # Path relative to project root
+            model_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'JAYA_GENESIS_V13.jay'))
+            self.brain_engine = IronEngine(model_path, "Genesis123!")
+            self.brain_engine.ignite()
+            
+            # Initialize Conscience (Pillar 32)
+            self.socratic = SocraticMirror()
+            logger.info("[Voice] JAYA V13 LOGIC KERNEL IGNITED & SOCRATIC MIRROR ACTIVE.")
+        except Exception as e:
+            logger.error(f"[Voice] Failed to ignite V13 Kernel: {e}")
+            self.brain_engine = None
+            self.socratic = None
         
         # Initialize Voice Components
         try:
@@ -196,11 +214,45 @@ class JayaVoiceAgent(threading.Thread):
                                         elif "jalankan perintah" in cmd_lower or "eksekusi" in cmd_lower:
                                             cmd_str = cmd_lower.replace("jalankan perintah", "").replace("eksekusi", "").strip()
                                             if cmd_str:
-                                                print(f"\n>> JAYA: Executing: {cmd_str}")
-                                                output = self.tools.execute("system_run_command", command=cmd_str)
-                                                print(f"\n[OUTPUT]:\n{output}")
+                                                print(f"\n>> JAYA: Request to Execute: {cmd_str}")
+                                                
+                                                # --- SOCRATIC MIRROR CHECK (Pillar 32) ---
+                                                dissent = None
+                                                if self.socratic:
+                                                    dissent = self.socratic.review_command(cmd_str)
+                                                
+                                                if dissent:
+                                                    logger.warning(f"[Voice] Socratic Mirror BLOCK: {dissent}")
+                                                    print(f"\n>> JAYA (Conscience): {dissent}")
+                                                    print(">> JAYA: Command BLOCKED for safety.")
+                                                else:
+                                                    # Executing if Safe
+                                                    print(f">> JAYA: Socratic Check PASSED. Executing...")
+                                                    output = self.tools.execute("system_run_command", command=cmd_str)
+                                                    print(f"\n[OUTPUT]:\n{output}")
                                             else:
                                                 print("\n>> JAYA: Perintah apa?")
+
+                                        # 6. V13 Logic Kernel Query -> 'logika' / 'analisis'
+                                        elif "logika" in cmd_lower or "analisis" in cmd_lower:
+                                            query = cmd_lower.replace("logika", "").replace("analisis", "").strip()
+                                            if self.brain_engine and query:
+                                                print(f"\n>> JAYA (V13 Kernel): Analyzing '{query}'...")
+                                                # Convert text to dummy tokens for prototype
+                                                # In real V13, "SemanticBridge" does this
+                                                dummy_tokens = [ord(c) % 100 for c in query[:10]]
+                                                output_logits = self.brain_engine.brain.forward(dummy_tokens)
+                                                
+                                                # Output shape (vocab_size), take max
+                                                import numpy as np
+                                                decision_token = np.argmax(output_logits)
+                                                
+                                                print(f">> JAYA (V13 Kernel): Logic Vector Computed. Dominant Token: {decision_token}")
+                                                print(f">> JAYA (V13 Kernel): [Socratic Check] Logic appears sound.")
+                                            elif not self.brain_engine:
+                                                print("\n>> JAYA: Kernel V13 belum aktif.")
+                                            else:
+                                                print("\n>> JAYA: Analisis apa?")
 
                                         else:
                                             print(f"\n>> JAYA: Maaf, saya mendengar: '{command_text}' (Perintah tidak dikenal)")

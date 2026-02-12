@@ -32,3 +32,8 @@ sounddevice>=0.4.6
 SpeechRecognition>=3.10.0
 psutil>=5.9.0
 AppOpener>=1.7
+
+# Security & Format
+cryptography>=41.0.0
+argon2-cffi>=23.1.0
+msgpack>=1.0.0
