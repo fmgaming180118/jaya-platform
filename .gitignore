@@ -1,26 +1,77 @@
-# Python
+# === JAYA V14.0 ROOT GITIGNORE ===
+
+# Python Artifacts
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.env
-venv/
-.venv/
+.Python
 env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Compiled Core Extensions (Keep .pyd but ignore intermediates)
+# UNCOMMENT below if you want to push binaries. 
+# For now, we allow .pyd but ignore .c / .obj / .exp / .lib
+*.c
+*.obj
+*.exp
+*.lib
+*.pdb
+
+# Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+JAYA_RESEARCH/.env
+JAYA_RESEARCH/ui/.env
+*.jay.key
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# IDEs
 .idea/
 .vscode/
+*.swp
+*.swo
 
-# JAYA Data
-data/
-logs/
+# JAYA Data & Logs (Ignored to keep repo clean)
+JAYA_RESEARCH/data/
+JAYA_RESEARCH/backups/
+JAYA_RESEARCH/reports/
+JAYA_RESEARCH/logs/
+JAYA_CORE/backup/
+JAYA_CORE/blueprint/
 *.log
+*.tmp
 
-# UI
-ui/node_modules/
-ui/dist/
-ui/.env
-ui/dist-electron/
+# UI Development
+JAYA_RESEARCH/ui/node_modules/
+JAYA_RESEARCH/ui/dist/
+JAYA_RESEARCH/ui/dist-electron/
+JAYA_RESEARCH/ui/.output/
 
-ui/
+# OS Specific
+Thumbs.db
+Desktop.ini
 
-blueprint/
+# Ensure JAYA.bat and launchers are tracked
+!*.bat
