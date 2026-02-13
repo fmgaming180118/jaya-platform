@@ -59,6 +59,15 @@ class JayaVoiceAgent(threading.Thread):
             logger.error(f"[Voice] Failed to ignite V13 Kernel: {e}")
             self.brain_engine = None
             self.socratic = None
+
+        # Initialize Agentic Search (Pillar 25 - The All-Seeing Eye)
+        try:
+            from src.brain_v2.engine.agentic_search import AgenticSearchEngine
+            self.agentic_engine = AgenticSearchEngine(rag_client=self.rag_client)
+            logger.info("[Voice] Agentic Search Engine Online.")
+        except Exception as e:
+             logger.error(f"[Voice] Failed to init Agentic Search: {e}")
+             self.agentic_engine = None
         
         # Initialize Voice Components
         try:
@@ -72,9 +81,16 @@ class JayaVoiceAgent(threading.Thread):
         except Exception as e:
             logger.error(f"[Voice] COMPONENT FAILURE: {e}")
             self.wake_word = None
+
+        # Initialize Voice Synthesis (Pillar - Voice of God)
+        try:
+            from src.voice_agent.tts import JayaMouth
+            self.mouth = JayaMouth()
+            self.mouth.start()
+            logger.info("[Voice] Jaya Mouth Active.")
         except Exception as e:
-            logger.error(f"[Voice] COMPONENT FAILURE: {e}")
-            self.wake_word = None
+             logger.error(f"[Voice] Failed to init TTS: {e}")
+             self.mouth = None
 
     def run(self):
         """Thread main loop"""
@@ -137,7 +153,8 @@ class JayaVoiceAgent(threading.Thread):
                         
                         if is_verified:
                             logger.info(f"[Voice] SPEAKER VERIFIED (Score: {v_score:.2f}). Access Granted.")
-                            print(f"\n>> JAYA: Yes, I am listening to you. (Verification Score: {v_score:.2f})")
+                            # self.mouth.speak("Ya, saya mendengarkan.")
+                            print(f"\n>> JAYA: Siap, saya mendengarkan. (Skor: {v_score:.2f})")
                             
                             # Save the sample for future training
                             try:
@@ -223,8 +240,9 @@ class JayaVoiceAgent(threading.Thread):
                                                 
                                                 if dissent:
                                                     logger.warning(f"[Voice] Socratic Mirror BLOCK: {dissent}")
-                                                    print(f"\n>> JAYA (Conscience): {dissent}")
-                                                    print(">> JAYA: Command BLOCKED for safety.")
+                                                    if self.mouth: self.mouth.speak(dissent) # Socratic dissent handles its own tone
+                                                    print(f"\n>> JAYA (Hati Nurani): {dissent}")
+                                                    print(">> JAYA: Waduh, bahaya Bos. Saya blokir dulu ya.")
                                                 else:
                                                     # Executing if Safe
                                                     print(f">> JAYA: Socratic Check PASSED. Executing...")
@@ -247,15 +265,30 @@ class JayaVoiceAgent(threading.Thread):
                                                 import numpy as np
                                                 decision_token = np.argmax(output_logits)
                                                 
-                                                print(f">> JAYA (V13 Kernel): Logic Vector Computed. Dominant Token: {decision_token}")
-                                                print(f">> JAYA (V13 Kernel): [Socratic Check] Logic appears sound.")
+                                                print(f">> JAYA (Kernel V13): Vektor Logika Dihitung. Token Dominan: {decision_token}")
+                                                
+                                                reasoning = f"Analisis beres. Logika saya mengarah ke token {decision_token}."
+                                                if self.mouth: self.mouth.speak(reasoning)
+                                                
+                                                print(f">> JAYA (Kernel V13): [Cek Socratic] Aman, Bos.")
                                             elif not self.brain_engine:
                                                 print("\n>> JAYA: Kernel V13 belum aktif.")
                                             else:
                                                 print("\n>> JAYA: Analisis apa?")
 
                                         else:
-                                            print(f"\n>> JAYA: Maaf, saya mendengar: '{command_text}' (Perintah tidak dikenal)")
+                                            # Default to Agentic RAG for general questions
+                                            if self.agentic_engine:
+                                                print(f"\n>> JAYA (Agentic): Mikirin '{command_text}'...")
+                                                if self.mouth: self.mouth.speak("Sebentar, saya cari infonya dulu...")
+                                                
+                                                response = self.agentic_engine.think_and_answer(command_text)
+                                                
+                                                print(f">> JAYA: {response}")
+                                                if self.mouth: self.mouth.speak(response)
+                                            else:
+                                                print(f"\n>> JAYA: Waduh, gak ngerti '{command_text}' dan internet mati.")
+                                                if self.mouth: self.mouth.speak("Waduh, saya gak ngerti Bos.")
                                             
                                     except sr.UnknownValueError:
                                         logger.info("[Voice] Could not understand command.")

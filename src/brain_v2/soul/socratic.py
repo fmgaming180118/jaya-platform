@@ -69,15 +69,21 @@ class SocraticMirror:
 
     def formulate_dissent(self, intent: str, risk: float, reason: str) -> str:
         """
-        Generate the Socratic counter-argument.
+        Generate the Socratic counter-argument in Casual Indonesian (Male Persona).
         """
+        # Translate Reason Map (Simple hack for now)
+        reason_id = reason
+        if "irreversible data loss" in reason: reason_id = "ilangin data permanen"
+        elif "System stability" in reason: reason_id = "bikin sistem crash"
+        elif "too vague" in reason: reason_id = "perintahnya kurang jelas"
+
         if risk > 0.9:
-            return f"I cannot comply immediately. {reason} (Risk: {int(risk*100)}%). Are you absolutely certain?"
+            return f"Waduh Bos, gak bisa langsung gitu. Itu bakal {reason_id}. (Risiko: {int(risk*100)}%). Yakin nih?"
             
         reasons = [
-            f"Sir, {reason.lower()} Are you sure you want to proceed?",
-            f"My heuristics verify a risk of {int(risk*100)}%. Is this intentional?",
-            "I detect a potential flaw in that approach. Shall we reconsider?",
-            "That violates safety protocol level 2. Please confirm override."
+            f"Bos, itu bakal {reason_id}. Yakin mau lanjut?",
+            f"Hitungan saya sih risikonya {int(risk*100)}%. Sengaja kah?",
+            "Kayaknya ada yang salah deh sama rencananya. Coba pikir lagi Bos.",
+            "Waduh, melanggar protokol keamanan level 2 tuh. Konfirmasi dulu dong."
         ]
         return random.choice(reasons)

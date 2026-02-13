@@ -37,3 +37,17 @@ AppOpener>=1.7
 cryptography>=41.0.0
 argon2-cffi>=23.1.0
 msgpack>=1.0.0
+
+# Phase 5 & 6 (Voice & Agentic RAG)
+pyttsx3>=2.90
+duckduckgo-search>=5.0.0
+googlesearch-python>=1.2.0
+gTTS>=2.5.0
+edge-tts>=6.1.9
+soundfile>=0.12.0
+faiss-cpu>=1.7.4
+cython>=3.0.0
+msgpack>=1.0.0
+pycryptodome>=3.19.0
+langchain>=0.1.0
+langchain-community>=0.0.10

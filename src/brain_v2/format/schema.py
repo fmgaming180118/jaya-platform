@@ -1,13 +1,20 @@
 
 import struct
+import hashlib
 from enum import IntFlag, auto
 from dataclasses import dataclass
 from typing import Optional
 
 # -- CONSTANTS --
 MAGIC = b"JAYA_SOUL"
+FOOTER_MAGIC = b"JAYA_SEAL"
 VERSION_MAJOR = 13
 VERSION_MINOR = 0
+ALIGNMENT = 4096  # 4KB block alignment for SSD/CPU performance
+
+def align_to_4k(offset: int) -> int:
+    """Round up offset to next 4KB boundary."""
+    return (offset + ALIGNMENT - 1) & ~(ALIGNMENT - 1)
 
 class JayaFlags(IntFlag):
     """32-bit Flags for Global Features (Pillars)"""
@@ -82,13 +89,15 @@ class JayaHeader:
         )
 
 class SectionType(IntFlag):
-    IRON_BODY = 1  # Weights, Semantic Maps (Public)
-    SOUL_AES = 2   # LoRA, Narrative, Memory (Encrypted)
-    KEYS_PQC = 3   # Post-Quantum Keys (Encrypted by HW Key)
+    IRON_BODY = 1     # Weights, Semantic Maps (Public)
+    SOUL_AES = 2      # LoRA, Narrative, Memory (Encrypted)
+    KEYS_PQC = 3      # Post-Quantum Keys (Encrypted by HW Key)
+    MODEL_CONFIG = 4  # Hyperparameters + Metadata
+    EPIGENETIC = 5    # Epigenetic Profile Data
 
 @dataclass
 class SectionHeader:
-    """Header for each section in the file"""
+    """Header for each section in the file (24 bytes)"""
     type: SectionType
     offset: int
     length: int
@@ -98,3 +107,33 @@ class SectionHeader:
         # I Q Q I = Int, Long, Long, Int -> 4 + 8 + 8 + 4 = 24 bytes
         return struct.pack("<IQQI", self.type, self.offset, self.length, self.checksum_crc32)
 
+@dataclass
+class JayaFooter:
+    """
+    The Final Seal (32 bytes).
+    Written at the very end of the .jay file.
+    Verifies file was not truncated or corrupted during transfer.
+    """
+    magic: bytes = FOOTER_MAGIC           # 9 bytes
+    file_size: int = 0                     # 8 bytes (uint64)
+    global_crc32: int = 0                  # 4 bytes
+    header_sha256_prefix: bytes = b'\x00' * 11  # 11 bytes (first 11B of SHA-256)
+    
+    def pack(self) -> bytes:
+        fmt = "<9sQI11s"
+        return struct.pack(fmt, self.magic, self.file_size, self.global_crc32, self.header_sha256_prefix)
+    
+    @classmethod
+    def unpack(cls, data: bytes) -> 'JayaFooter':
+        fmt = "<9sQI11s"
+        unpacked = struct.unpack(fmt, data)
+        return cls(
+            magic=unpacked[0],
+            file_size=unpacked[1],
+            global_crc32=unpacked[2],
+            header_sha256_prefix=unpacked[3]
+        )
+    
+    @staticmethod
+    def SIZE() -> int:
+        return 32

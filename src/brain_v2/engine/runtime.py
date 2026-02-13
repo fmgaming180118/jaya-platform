@@ -35,7 +35,6 @@ class IronEngine:
         if self.brain:
             self.is_awake = True
             print("=== SYSTEM ONLINE ===")
-            # self.run_magnum_cycle() # DECOUPLED: Call manually if needed
         else:
             print("=== SYSTEM FAILURE: IGNITION ABORTED ===")
 
@@ -47,42 +46,40 @@ class IronEngine:
             self.cycle_count += 1
             
             # 1. Sense (Input)
-            # In a real app, this would block waiting for input
             input_signal = self.sense_environment()
             
             # 2. Metabolic Check (Pillar 7 - Cognitive Silence)
             energy_state = self.metabolism.check_vital_signs()
             if not input_signal and energy_state['mode'] == 'ECO':
-                time.sleep(1) # Cognitive Silence (Sleep)
+                time.sleep(1)
                 continue
                 
             # 3. Think (Inference)
             print(f"[{self.cycle_count}] Thinking... (Energy: {energy_state['battery']}%)")
-            logic_output = self.brain.forward([1, 2, 3]) # Dummy tokens
+            logic_output = self.brain.forward([1, 2, 3])
             
             # 4. Act (Output)
-            # Immune System Check
             if self.immune_system.audit_action(logic_output):
                 self.execute_action(logic_output)
             else:
                 print("[!] Action Blocked by Immune System.")
                 
             # 5. Dream (Maintenance)
-            # Periodically consolidation
             if self.cycle_count % 100 == 0:
                 self.dream()
                 
-            # Simulate loop speed
-            time.sleep(0.1)
+            # Dynamic Throttling (Pillar 2)
+            sleep_duration = energy_state.get('suggested_sleep', 0.1)
+            if self.cycle_count % 10 == 0 and sleep_duration > 0.5:
+                print(f"[Metabolism] System Throttled: Sleeping {sleep_duration}s (Mode: {energy_state.get('mode')})")
+            
+            time.sleep(sleep_duration)
 
     def sense_environment(self) -> Any:
-        # Placeholder for Multimodal Reflex
         return "Dummy Signal"
 
     def execute_action(self, output):
-        # Placeholder for Semantic Bridge
         pass
 
     def dream(self):
         print("... Dreaming (Consolidating Memory) ...")
-
