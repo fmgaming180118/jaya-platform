@@ -7,8 +7,8 @@ echo.
 REM Read SLM path
 set /p SLM_PATH=<slm_path.txt
 
-echo [1/2] Starting Brain API (Port 8000)...
-start "Jaya Brain API" cmd /c "python src/brain_v2/brain_api.py --slm %SLM_PATH%"
+echo [1/2] Starting Research API (Port 8000)...
+start "Jaya Research API" cmd /c "python src/network/research_api.py"
 
 echo [2/2] Starting UI (Port 5173)...
 cd ui
@@ -20,7 +20,6 @@ echo ==========================================
 echo   API:  http://localhost:8000
 echo   UI:   http://localhost:5173
 echo ==========================================
-@echo off
-python src/brain_v2/ignite.py
+echo.
+echo Research mode active.
 pause
- >nul

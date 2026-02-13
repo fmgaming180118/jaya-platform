@@ -6,7 +6,7 @@ from pathlib import Path
 from datetime import datetime
 
 # Add project root to path
-PROJECT_ROOT = Path(__file__).parent.parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
 from src.brain_v2.format.schema import JayaHeader, JayaFlags, MAGIC

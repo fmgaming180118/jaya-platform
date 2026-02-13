@@ -149,10 +149,6 @@ def step_4_verify_imports():
         "src.brain_v2.organism.regeneration",
         "src.brain_v2.soul.socratic",
         "src.brain_v2.soul.narrative",
-        "src.brain_v2.network.twin_socket",
-        "src.brain_v2.network.twin_sync",
-        "src.brain_v2.network.collective",
-        "src.brain_v2.network.zk_proof",
         "src.brain_v2.soul.bridge",
     ]
     
@@ -189,7 +185,6 @@ def step_5_sanity_test():
     # Ignite test
     result = subprocess.run(
         [sys.executable, "-c", 
-         "import sys; sys.path.append('.'); "
          "from src.brain_v2.engine.awakening import AwakeningProtocol; "
          "a = AwakeningProtocol('Genesis123!'); "
          "m = a.awaken('JAYA_GENESIS_V13.jay'); "
