@@ -54,6 +54,8 @@ ENV/
 *.swo
 
 # JAYA Data & Logs (Ignored to keep repo clean)
+/data/
+/src/
 JAYA_RESEARCH/data/
 JAYA_RESEARCH/backups/
 JAYA_RESEARCH/reports/

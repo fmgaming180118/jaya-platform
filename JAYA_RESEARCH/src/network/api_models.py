@@ -22,7 +22,8 @@ class DebateRequest(BaseModel):
     persona_2: str = "Skeptic"
     analyze_frames: bool = True
 
-class DebateRequest(BaseModel):
-    topic: str
-    persona_1: str = "Optimist"
-    persona_2: str = "Skeptic"
+class VideoIngestRequest(BaseModel):
+    url: str
+    workspace_id: str = "default"
+    title: Optional[str] = None
+    source: Optional[str] = None

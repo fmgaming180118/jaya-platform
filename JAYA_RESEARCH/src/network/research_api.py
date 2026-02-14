@@ -14,18 +14,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uvicorn
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Ensure both `src/` and project root are on sys.path so imports like `research.*` and `src.*` work
+ROOT_DIR = Path(__file__).parent.parent.parent
+SRC_DIR = ROOT_DIR / "src"
+# insert src first for modules like `research.*`, then project root for `src.*` package imports
+sys.path.insert(0, str(SRC_DIR))
+sys.path.insert(0, str(ROOT_DIR))
 
 from research.agent import ResearchAgent
 from research.enhanced_rag import EnhancedRAGClient, VectorStore
 from research.graph_rag import GraphRAGEngine
 from research.meta_analysis import MetaAnalyst
 from network.api_models import ResearchRequest, ChatRequest, VideoIngestRequest, DebateRequest
-from research.debate_agent import DebateAgent
 from research.video_processor import VideoProcessor
 from research.workspace_manager import WorkspaceManager
-from research.academic.reviewer import ReviewerAgent
+
 from research.academic.tracker import ExperimentTracker
 import traceback
 from fastapi.responses import FileResponse
@@ -34,18 +37,31 @@ from evolution.twin import DigitalTwin
 # Global Managers
 workspace_manager = WorkspaceManager()
 active_sessions = {} # workspace_id -> {rag, graph}
-digital_twin = DigitalTwin()
+# DigitalTwin may require external config/env — initialize safely
+try:
+    digital_twin = DigitalTwin()
+except Exception as e:
+    print(f"[API] DigitalTwin initialization failed: {e}")
+    digital_twin = None
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     print("[API] Starting JAYA Research Backend...")
-    # Start the Digital Twin in background
-    asyncio.create_task(digital_twin.start_loop())
+    # Start the Digital Twin in background (if initialized)
+    if digital_twin is not None:
+        try:
+            asyncio.create_task(digital_twin.start_loop())
+        except Exception as e:
+            print(f"[API] Failed to start DigitalTwin loop: {e}")
     yield
     # Shutdown
     print("[API] Shutting down...")
-    digital_twin.stop()
+    if digital_twin is not None:
+        try:
+            digital_twin.stop()
+        except Exception as e:
+            print(f"[API] Error stopping DigitalTwin: {e}")
 
 app = FastAPI(title="JAYA Research API", version="2.0", lifespan=lifespan)
 
@@ -82,8 +98,12 @@ def get_engines(workspace_id: str = "default"):
     
     return active_sessions[workspace_id]["rag"], active_sessions[workspace_id]["graph"]
 
-# Pre-load default
-get_engines("default")
+# Pre-load default (safe): try but don't crash if model config missing
+try:
+    get_engines("default")
+except Exception as e:
+    print(f"[API] Warning: failed to pre-load engines: {e}")
+    # Engines will be lazy-loaded on first request
 
 @app.get("/")
 def health_check():
@@ -123,6 +143,8 @@ async def start_research(request: ResearchRequest, background_tasks: BackgroundT
 @app.post("/academic/defense")
 async def generate_defense_questions(topic: str, abstract: str):
     """Generates Thesis Defense Q&A"""
+    # Lazy import because reviewer module may have heavy deps or cause import errors
+    from research.academic.reviewer import ReviewerAgent
     reviewer = ReviewerAgent()
     questions = reviewer.generate_defense_questions(topic, abstract)
     return {"topic": topic, "questions": questions}
@@ -179,9 +201,11 @@ async def set_evolution_mode(mode: str):
     """
     Switches Twin mode: 'thesis' or 'exploration'
     """
+    if digital_twin is None:
+        return {"status": "error", "message": "DigitalTwin not available"}
+
     success = digital_twin.set_mode(mode)
     if not success:
-#        raise HTTPException(status_code=400, detail="Invalid mode. Use 'thesis' or 'exploration'.")
         return {"status": "error", "message": "Invalid mode"}
     return {"status": "success", "mode": digital_twin.mode.value}
 
@@ -309,10 +333,13 @@ def get_knowledge_graph(workspace_id: str = "default"):
 @app.get("/evolution/status")
 async def get_evolution_status():
     """Get the current state of the Digital Twin"""
+    if digital_twin is None:
+        return {"status": "unavailable", "message": "DigitalTwin not initialized"}
+
     recent_thoughts = digital_twin.memory.get_recent_thoughts(limit=5)
     return {
         "state": digital_twin.state.value,
-        "is_awake": digital_twin.running,
+        "is_awake": getattr(digital_twin, 'running', False),
         "latest_thought": recent_thoughts[-1] if recent_thoughts else None,
         "recent_history": recent_thoughts
     }
@@ -320,10 +347,14 @@ async def get_evolution_status():
 @app.get("/evolution/logs")
 async def get_evolution_logs(limit: int = 50):
     """Get full history of Twin's thoughts"""
+    if digital_twin is None:
+        return {"status": "unavailable", "message": "DigitalTwin not initialized"}
     return digital_twin.memory.get_recent_thoughts(limit=limit)
 
 @app.post("/evolution/night_mode")
 def set_night_mode(enabled: bool):
+    if digital_twin is None:
+        return {"status": "unavailable", "message": "DigitalTwin not initialized"}
     digital_twin.toggle_night_mode(enabled)
     return {"status": "success", "night_mode": enabled}
 
