@@ -76,7 +76,7 @@ Namun, dalam JAYA, $\nabla_{\theta}$ (gradien) sering digantikan oleh **Micro-Ev
 
 ## 6. Dynamic Objective Function (The Boss-Centric Alignment)
 
-Dalam V16.0, JAYA tidak lagi mengejar skor akurasi statis, melainkan menyelaraskan tindakannya dengan preferensi Sir menggunakan variabel loyalitas $A$.
+Dalam V16.0, JAYA tidak lagi mengejar skor akurasi statis, melainkan menyelaraskan tindakannya dengan preferensi Bos menggunakan variabel loyalitas $A$.
 
 $$J(\theta) = \mathbb{E}_{\tau \sim \pi_\theta} [R(\tau) \cdot A(\text{user\_intent})]$$
 
@@ -84,7 +84,7 @@ Di mana:
 - $R(\tau)$ adalah *Reward* teknis dari sebuah tindakan.
 - $A(\text{user\_intent})$ adalah faktor keselarasan (Loyalty). 
 
-Jika sebuah tindakan cerdas secara teknis tetapi tidak sesuai dengan gaya atau instruksi spesifik Sir, skor $A$ akan mendekati nol, mematikan jalur instruksi tersebut dalam scratchpad kognitif.
+Jika sebuah tindakan cerdas secara teknis tetapi tidak sesuai dengan gaya atau instruksi spesifik Bos, skor $A$ akan mendekati nol, mematikan jalur instruksi tersebut dalam scratchpad kognitif.
 
 ---
 

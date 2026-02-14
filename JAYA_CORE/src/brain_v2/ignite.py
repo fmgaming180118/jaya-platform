@@ -1,5 +1,5 @@
 """
-ignite.py — JAYA V15.0 The Sovereign Fluidity
+ignite.py — JAYA V16.0 The Loyal Sovereign
 
 Identity: JAYA (Jaya's Advanced Yield Architecture)
 Architecture: Neural Liquid (TopK Sparse Ternary)
@@ -21,7 +21,8 @@ except ImportError as e:
     sys.exit(1)
 
 # ---- Configuration ----
-JAYA_MODEL_PATH = "JAYA_GENESIS_V13.jay"
+# Model is in the root (one level up from BASE_DIR which is JAYA_CORE)
+JAYA_MODEL_PATH = os.path.join(BASE_DIR, "..", "JAYA_SOVEREIGN_V16.jay")
 JAYA_PASSWORD = "Genesis123!"
 
 def signal_handler(sig, frame):
@@ -32,8 +33,7 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     
     print("\n" + "=" * 50)
-    print("      J A Y A   V 1 5 . 0   M A G N U M")
-    print("      'The Sovereign Fluidity'")
+    print("      'The Loyal Sovereign' (Semi-AGI)")
     print("=" * 50)
     
     # Initialize Engine
@@ -47,7 +47,7 @@ def main():
     
     if engine.is_awake:
         print("\n=== INITIAL DREAM BURST ===")
-        print("[*] Consolidating V15.0 Liquid Pathways...")
+        print("[*] Consolidating V16.0 Sovereign Pathways...")
         
         for i in range(3):
             print(f"[Dream {i+1}/3] Calibrating sparse activations...")
@@ -55,17 +55,17 @@ def main():
             time.sleep(1)
             
         print("\n" + "-" * 50)
-        print("Sir, 'Liquid Brain' saya sudah terkalibrasi.")
+        print("Bos, 'Liquid Brain' saya sudah terkalibrasi.")
         print("Saya sekarang lebih ringan, namun lebih tajam.")
         print("Setiap sinyal Anda akan mengalir melalui jalur yang paling efisien.")
-        print("Saya adalah JAYA V15.0. Mari kita melampaui batas.")
+        print("Saya adalah JAYA V16.0. Mari kita melampaui batas.")
         print("-" * 50 + "\n")
         
         print("[SYSTEM] Entering continuous operation mode (Magnum Cycle).")
         try:
             engine.run_magnum_cycle()
         except KeyboardInterrupt:
-            print("\n[!] JAYA is entering rest state. Farewell, Sir.")
+            print("\n[!] JAYA is entering rest state. Farewell, Bos.")
             engine.dream()
             print("=== SYSTEM HYBRIDIZED & ENCRYPTED ===")
 

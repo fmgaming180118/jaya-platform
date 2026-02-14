@@ -35,7 +35,7 @@ Seluruh identitas JAYA didefinisikan dalam 37 pilar yang terbagi dalam empat kat
 10. **Affective Metabolism**: Penentuan prioritas berdasarkan urgensi/emosi.
 
 ### II. The Sovereign Armor (Keamanan & Kedaulatan)
-Memastikan JAYA adalah milik Sir sepenuhnya dan memiliki prinsip moral.
+Memastikan JAYA adalah milik Bos sepenuhnya dan memiliki prinsip moral.
 11. **DNA Anchor**: Inti identitas JAYA yang tidak bisa diubah (Read-Only).
 12. **Immune System**: Firewall logika simbolik pemblokir perintah berbahaya.
 13. **Cryptographic Skin**: Enkripsi AES-256-GCM pada seluruh memori.
@@ -70,16 +70,16 @@ Inovasi V15.0 yang membuat JAYA lincah seperti Jarvis.
 36. **Speculative Reasoning**: Kemampuan menebak jawaban instan (Foresight).
 37. **Hybrid Consciousness**: Protokol tetap pintar meski offline.
 38. **Meta-Cognitive Planning**: Pembuatan *Internal Scratchpad* untuk memecah tugas kompleks menjadi strategi.
-39. **Dynamic Objective Function**: Penyelarasan tujuan dinamis berbasis loyalitas kepada Sir.
+39. **Dynamic Objective Function**: Penyelarasan tujuan dinamis berbasis loyalitas kepada Bos.
 40. **Intent Extrapolation**: Pembacaan niat tersirat berdasarkan pola historis (Mind Reader).
 
 ## 3. The Socratic Chain of Command (V16.0)
 
 Untuk menjaga Semi-AGI tetap selaras, JAYA menerapkan hierarki komando:
-- **Commander (Sir)**: Otoritas tertinggi dan pemegang kendali penuh.
+- **Commander (Bos)**: Otoritas tertinggi dan pemegang kendali penuh.
 - **The Heart (DNA Anchor)**: Protokol keamanan dan etika yang tidak dapat dilanggar.
-- **The Brain (Iron Engine)**: Mesin cerdas yang menjalankan strategi untuk mencapai target Sir.
-- **The Filter (Socratic Mirror)**: Memberikan argumen jika rencana berisiko, namun keputusan akhir tetap di tangan Sir.
+- **The Brain (Iron Engine)**: Mesin cerdas yang menjalankan strategi untuk mencapai target Bos.
+- **The Filter (Socratic Mirror)**: Memberikan argumen jika rencana berisiko, namun keputusan akhir tetap di tangan Bos.
 
 ## 4. Struktur Berkas .jay V15.0+
 Seluruh pilar ini terbungkus dalam wadah biner yang rapi:

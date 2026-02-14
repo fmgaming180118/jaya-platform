@@ -22,7 +22,7 @@ print('--- Test 2: Narrative Event Logging ---')
 from src.brain_v2.soul.narrative import NarrativeStream
 ns = NarrativeStream()
 ns.log_event('BOOT', 'System awakened on Lenovo device.')
-ns.log_event('ACTION', 'Helped Sir with research paper.', [0.8, 0.7, 0, 0.3, 0, 0, 0, 0.5])
+ns.log_event('ACTION', 'Helped Bos with research paper.', [0.8, 0.7, 0, 0.3, 0, 0, 0, 0.5])
 ns.log_event('ACTION', 'Compiled binary cortex.', [0.6, 0.8, 0, 0, 0, 0, 0, 0.9])
 ns.log_event('DISSENT', 'Challenged request to delete all logs.', [0, 0.3, 0.2, 0, 0, 0, 0.4, 0])
 ns.log_event('ERROR', 'NaN detected in layer 3.', [0, 0, 0.5, 0.3, 0.4, 0, 0, 0])
