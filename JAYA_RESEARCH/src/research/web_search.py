@@ -6,6 +6,9 @@ import os
 from typing import List, Dict, Any
 
 try:
+    import warnings
+    # Suppress the "package renamed to ddgs" warning
+    warnings.filterwarnings("ignore", category=RuntimeWarning, module="duckduckgo_search")
     from duckduckgo_search import DDGS
     WEB_SEARCH_AVAILABLE = True
 except ImportError:

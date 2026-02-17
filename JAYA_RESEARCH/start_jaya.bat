@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0"
 echo ==========================================
 echo    JAYA SOVEREIGN ENTITY - FULL STARTUP
 echo ==========================================
