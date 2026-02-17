@@ -51,15 +51,15 @@ class ResearchConfig:
     
     @property
     def reasoning_model(self) -> str:
-        return self.get('models.reasoning.name')
+        return os.getenv("RESEARCH_REASONING_MODEL") or self.get('models.reasoning.name')
     
     @property
     def writing_model(self) -> str:
-        return self.get('models.writing.name')
+        return os.getenv("RESEARCH_WRITING_MODEL") or self.get('models.writing.name')
     
     @property
     def embedding_model(self) -> str:
-        return self.get('models.embedding.name')
+        return os.getenv("NVIDIA_EMBEDDING_MODEL") or self.get('models.embedding.name')
     
     @property
     def reports_dir(self) -> str:

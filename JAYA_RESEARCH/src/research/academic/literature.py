@@ -2,7 +2,9 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 import json
-from typing import List, Dict
+import os
+from typing import List, Dict, Optional
+from pathlib import Path
 
 class ArxivClient:
     """
@@ -51,10 +53,15 @@ class ArxivClient:
         }
         url = f"{self.BASE_URL}?{urllib.parse.urlencode(params)}"
         
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+
         print(f"[ArXiv] Searching: {url}")
         
         try:
-            with urllib.request.urlopen(url) as response:
+            with urllib.request.urlopen(url, context=ctx) as response:
                 data = response.read()
                 
             return self._parse_atom_response(data)
@@ -82,6 +89,41 @@ class ArxivClient:
             papers.append(paper)
             
         return papers
+
+    def download_paper(self, pdf_url: str, save_dir: Path) -> Optional[Path]:
+        """
+        Downloads a paper from ArXiv.
+        """
+        if not pdf_url: return None
+        if not pdf_url.endswith(".pdf"): pdf_url += ".pdf"
+        
+        filename = pdf_url.split("/")[-1]
+        save_path = save_dir / filename
+        
+        if save_path.exists():
+            print(f"[ArXiv] File already exists: {save_path}")
+            return save_path
+            
+        print(f"[ArXiv] Downloading {pdf_url} to {save_path}...")
+        try:
+            # Create directory if not exists
+            save_dir.mkdir(parents=True, exist_ok=True)
+            
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            req = urllib.request.Request(pdf_url, headers=headers)
+            with urllib.request.urlopen(req, context=ctx) as response:
+                with open(save_path, 'wb') as f:
+                    f.write(response.read())
+            print(f"[ArXiv] Download complete: {save_path}")
+            return save_path
+        except Exception as e:
+            print(f"[ArXiv] Download failed: {e}")
+            return None
 
 
 class SemanticScholarClient:

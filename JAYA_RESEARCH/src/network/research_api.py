@@ -28,6 +28,7 @@ from research.meta_analysis import MetaAnalyst
 from network.api_models import ResearchRequest, ChatRequest, VideoIngestRequest, DebateRequest
 from research.video_processor import VideoProcessor
 from research.workspace_manager import WorkspaceManager
+from research.academic.journal_processor import JournalProcessor
 
 from research.academic.tracker import ExperimentTracker
 import traceback
@@ -230,6 +231,33 @@ async def chat_with_knowledge(request: ChatRequest):
     [Graph Relationships]:
     {graph_context}
     """
+
+    # --- JOURNAL SEARCH INTEGRATION ---
+    # Heuristic: If user asks for "jurnal", "paper", "arxiv", "makalah"
+    triggers = ["jurnal", "journal", "paper", "arxiv", "makalah", "research about"]
+    msg_lower = request.message.lower()
+    
+    if any(t in msg_lower for t in triggers):
+        try:
+            print(f"[API] Journal Intent Detected: {request.message}")
+            processor = JournalProcessor()
+            # Extract topic roughly (User: "Cari jurnal tentang X" -> "X")
+            # For MVP, just pass the whole message, the searcher handles it well enough
+            journal_result = processor.process_query(request.message, max_papers=1)
+            
+            if journal_result["status"] == "success":
+                papers_context = ""
+                for p in journal_result["papers"]:
+                    papers_context += f"\n[PAPER] {p['metadata']['title']}\nSummary: {p['metadata']['summary'][:500]}...\nInsight: {p['insight']}\n"
+                
+                full_context += f"\n\n[LIVE ACADEMIC PAPERS]:\n{papers_context}"
+                print(f"[API] Injected {len(journal_result['papers'])} papers into context.")
+            else:
+                full_context += f"\n\n[LIVE ACADEMIC PAPERS]: No papers found for this topic."
+        except Exception as e:
+            print(f"[API] Journal Processing Error: {e}")
+            full_context += f"\n\n[LIVE ACADEMIC PAPERS]: Error during search ({str(e)})."
+    # ----------------------------------
     
     # 4. Synthesize with Teacher
     from teacher import Teacher

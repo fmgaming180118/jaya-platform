@@ -17,8 +17,13 @@ class Teacher:
 
         # Dynamic Model Selection based on Role
         # STRICT NO-HARDCODING POLICY
+        # Dynamic Model Selection based on Role
+        # STRICT NO-HARDCODING POLICY
         if model_type == "reasoning":
-            self.model = os.getenv("NVIDIA_LLAMA31_MODEL")
+            # Check Research specific model first, then general Llama 3.1
+            self.model = os.getenv("RESEARCH_REASONING_MODEL") or \
+                         os.getenv("NVIDIA_LLAMA3.1_MODEL") or \
+                         os.getenv("NVIDIA_LLAMA31_MODEL")
         elif model_type == "chat":
             self.model = os.getenv("NVIDIA_CHAT_MODEL")
         elif model_type == "coding":

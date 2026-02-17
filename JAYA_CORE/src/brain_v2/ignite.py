@@ -22,7 +22,7 @@ except ImportError as e:
 
 # ---- Configuration ----
 # Model is in the root (one level up from BASE_DIR which is JAYA_CORE)
-JAYA_MODEL_PATH = os.path.join(BASE_DIR, "..", "JAYA_SOVEREIGN_V16.jay")
+JAYA_MODEL_PATH = os.path.join(BASE_DIR, "JAYA_SOVEREIGN_V16.jay")
 JAYA_PASSWORD = "Genesis123!"
 
 def signal_handler(sig, frame):
