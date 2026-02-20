@@ -45,6 +45,13 @@ class DigitalTwin:
         
         # We use the 'reasoning' model (Nemotron-Ultra) for high-level thought
         self.brain = Teacher(model_type="reasoning") 
+        
+        # Reflection / Dreaming Config
+        self.last_reflection = time.time()
+        self.reflection_interval = 300 # 5 minutes 
+        
+        # Task Management
+        self.current_task = None 
 
     def toggle_night_mode(self, enabled: bool):
         self.night_mode = enabled
@@ -114,7 +121,7 @@ class DigitalTwin:
         
         try:
             # Generate thought using NVIDIA NIM
-            thought_content = self.brain.generate_completion(prompt, max_tokens=150)
+            thought_content = self.brain.ask(prompt, system_instruction="You are JAYA's Digital Twin.")
             thought_content = thought_content.strip()
             
             # Log it
@@ -264,7 +271,7 @@ class DigitalTwin:
         Output ONLY the raw python code, no markdown.
         """
         
-        code = self.brain.generate_completion(prompt, max_tokens=1000)
+        code = self.brain.ask(prompt, system_instruction="You are a Python Expert. Output raw code only.")
         code = code.replace("```python", "").replace("```", "").strip()
         
         # Store as current task to be executed

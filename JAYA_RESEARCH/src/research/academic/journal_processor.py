@@ -115,7 +115,10 @@ class JournalProcessor:
         Keep it concise (maximum 3 paragraphs).
         """
         
-        return self.teacher.suggest_optimization(prompt, focus="Paper Analysis")
+        return self.teacher.ask(
+            prompt,
+            system_instruction="You are a Research Scientist. Analyze the paper content and extract key insights."
+        )
 
 if __name__ == "__main__":
     # Test

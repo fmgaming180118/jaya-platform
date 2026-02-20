@@ -6,14 +6,19 @@ import os
 from typing import List, Dict, Any
 
 try:
-    import warnings
-    # Suppress the "package renamed to ddgs" warning
-    warnings.filterwarnings("ignore", category=RuntimeWarning, module="duckduckgo_search")
-    from duckduckgo_search import DDGS
+    # Try new package name first
+    from ddgs import DDGS
     WEB_SEARCH_AVAILABLE = True
 except ImportError:
-    WEB_SEARCH_AVAILABLE = False
-    print("[WEB SEARCH] duckduckgo-search not installed. Web search disabled.")
+    try:
+        # Fallback to old package name
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning, module="duckduckgo_search")
+        from duckduckgo_search import DDGS
+        WEB_SEARCH_AVAILABLE = True
+    except ImportError:
+        WEB_SEARCH_AVAILABLE = False
+        print("[WEB SEARCH] ddgs/duckduckgo-search not installed. Web search disabled.")
 
 
 class WebSearchClient:
@@ -47,15 +52,22 @@ class WebSearchClient:
             results = []
             
             for r in self.ddgs.text(query, max_results=max_results):
+                # DDGS v4 vs v7 compatibility
+                url = r.get('link') or r.get('href') or ''
+                snippet = r.get('body') or r.get('snippet') or ''
+                title = r.get('title', '')
+                
+                if not url: continue # Skip if no URL
+
                 results.append({
                     "document": {
                         "type": "web_search_result",
-                        "title": r.get('title', ''),
-                        "content": r.get('body', ''),
-                        "url": r.get('link', '')
+                        "title": title,
+                        "content": snippet,
+                        "url": url
                     },
                     "score": 0.9,  # Web results get high score
-                    "snippet": r.get('body', '')[:200]
+                    "snippet": snippet[:200]
                 })
             
             return results

@@ -128,9 +128,9 @@ class ResearchAgent:
             print("[RESEARCH] 🧠 Activated AGI Research Mode")
         
         # Ask Teacher to generate research questions
-        response = self.teacher.suggest_optimization(
+        response = self.teacher.ask(
             prompt,
-            focus="Research Planning"
+            system_instruction="You are an expert Research Planner. Break down complex topics into specific, investigative questions."
         )
         
         # Parse questions (simple line-based parsing)
@@ -212,9 +212,9 @@ Please provide a comprehensive answer to the question based on the context.
 If the context is insufficient, note what additional information would be helpful."""
             
             # This is still synchronous (Teacher API call), but queries run in parallel
-            answer = self.teacher.suggest_optimization(
+            answer = self.teacher.ask(
                 answer_prompt,
-                focus="Research Answer"
+                system_instruction="You are a precise Research Assistant. Answer the question using only the provided context. If the context is insufficient, state what is missing."
             )
             
             sources = [
@@ -265,9 +265,9 @@ If the context is insufficient, note what additional information would be helpfu
             findings=findings_text
         )
         
-        report = self.teacher.suggest_optimization(
+        report = self.teacher.ask(
             prompt,
-            focus="Report Writing"
+            system_instruction="You are a Scientific Writer. Synthesize the findings into a clear, structured markdown report."
         )
         
         return report

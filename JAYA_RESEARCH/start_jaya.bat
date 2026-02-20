@@ -17,7 +17,7 @@ where python >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] Python not found in PATH — API won't start.
 ) else (
-    start "Jaya Research API" cmd /c "python src/network/research_api.py"
+    start "Jaya Research API" cmd /k "python src/network/research_api.py"
 )
 
 echo [2/2] Starting UI (Port 5173)...
@@ -27,7 +27,11 @@ if exist ui (
     if errorlevel 1 (
         echo [ERROR] npm not found in PATH — UI won't start.
     ) else (
-        start "Jaya UI" cmd /c "npm run dev"
+        if not exist node_modules (
+             echo [INFO] Installing UI dependencies...
+             call npm install
+        )
+        start "Jaya UI" cmd /k "npm run dev"
     )
     popd
 ) else (

@@ -80,9 +80,9 @@ class MetaAnalyst:
         )
         
         print("[META] Synthesizing State of the Union report...")
-        meta_report = self.teacher.suggest_optimization(
+        meta_report = self.teacher.ask(
             prompt,
-            focus="Meta-Analysis"
+            system_instruction="You are a Chief Scientist. Synthesize the provided research summaries into a high-level Meta-Analysis Report."
         )
         
         # Save

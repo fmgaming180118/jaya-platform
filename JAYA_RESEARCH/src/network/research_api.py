@@ -271,9 +271,14 @@ async def chat_with_knowledge(request: ChatRequest):
     
     User Question: {request.message}
     
-    Answer based on the combined context (Vector + Graph):
+    Answer based on the combined context (Vector + Graph + Papers). 
+    If the context is insufficient, rely on your internal knowledge but mention that it's general knowledge.
+    Format your answer nicely with Markdown.
     """
-    answer = teacher.suggest_optimization(prompt, focus="Research Chat")
+    
+    system_instruction = "You are JAYA, an advanced AI Research Assistant. You help users understand complex topics by synthesizing information from their knowledge base (Vector Store & Knowledge Graph) and academic papers. Be helpful, precise, and scientific."
+    
+    answer = teacher.ask(prompt, system_instruction=system_instruction)
     
     return {
         "answer": answer,

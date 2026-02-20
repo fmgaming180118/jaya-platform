@@ -1,15 +1,62 @@
-import { useState } from 'react';
-import { Send, Paperclip, Bot, User, Search } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Send, Plus, Sparkles, Brain, ChevronDown, ChevronRight, Youtube, FileText } from 'lucide-react';
 import clsx from 'clsx';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
+import ReactMarkdown from 'react-markdown';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/atom-one-dark.css'; // Import a highlight.js style
 
-export default function ChatPage() {
-    const [messages, setMessages] = useState([
-        { role: 'assistant', content: 'Hello! I am your AI Research Assistant. You can ask me questions, or upload documents to analyze.' }
-    ]);
+// Helper to parse <think> content
+const parseMessageContent = (content) => {
+    const thinkRegex = /<think>([\s\S]*?)<\/think>/;
+    const match = content.match(thinkRegex);
+
+    if (match) {
+        return {
+            thinking: match[1].trim(),
+            answer: content.replace(match[0], '').trim()
+        };
+    }
+    return { thinking: null, answer: content };
+};
+
+export default function ChatPage({ workspaceId }) {
+    // Load initial state from local storage or default
+    const [messages, setMessages] = useState(() => {
+        const saved = localStorage.getItem(`JAYA_CHAT_${workspaceId}`);
+        return saved ? JSON.parse(saved) : [
+            { role: 'assistant', content: 'Hello! I am JAYA, your research companion. I can analyze documents, videos, or help you brainstorm. What are we working on today?' }
+        ];
+    });
+
     const [input, setInput] = useState('');
-    const [sources, setSources] = useState([]);
+    const [sources, setSources] = useState([]); // In a real app, sources should also be persisted
+    const [isLoading, setLoading] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    // Save messages whenever they change
+    useEffect(() => {
+        localStorage.setItem(`JAYA_CHAT_${workspaceId}`, JSON.stringify(messages));
+    }, [messages, workspaceId]);
+
+    // Load messages when workspaceId changes
+    useEffect(() => {
+        const saved = localStorage.getItem(`JAYA_CHAT_${workspaceId}`);
+        if (saved) {
+            setMessages(JSON.parse(saved));
+        } else {
+            setMessages([{ role: 'assistant', content: 'Hello! I am JAYA, your research companion. I can analyze documents, videos, or help you brainstorm. What are we working on today?' }]);
+        }
+    }, [workspaceId]);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
     const handleUrlSubmit = async () => {
         const url = prompt("Enter YouTube or Article URL:");
@@ -17,21 +64,20 @@ export default function ChatPage() {
 
         setMessages(prev => [...prev, {
             role: 'assistant',
-            content: `Started analyzing video: ${url}...`,
+            content: `Analyzing source: ${url}...`,
             isThinking: true
         }]);
 
         try {
-            await api.researchApi.ingestVideo(url);
+            await api.ingestVideo(url);
             setSources(prev => [...prev, { title: 'New Video Source', type: 'video', url }]);
-            setMessages(prev => [...prev, {
-                role: 'assistant',
-                content: "Video analysis completed! Visuals and audio have been indexed. You can now ask questions about it."
-            }]);
+            setMessages(prev => prev.map((msg, i) =>
+                i === prev.length - 1 ? { role: 'assistant', content: "Source analyzed and added to knowledge graph." } : msg
+            ));
         } catch (e) {
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: `Error analyzing video: ${e.message}`
+                content: `Error analyzing source: ${e.message}`
             }]);
         }
     };
@@ -45,116 +91,224 @@ export default function ChatPage() {
         setLoading(true);
 
         try {
-            const res = await api.chat(input, [], workspaceId);
-            const botMsg = { role: 'assistant', content: res.answer };
-            setMessages(prev => [...prev, botMsg]);
+            // Simulate "thinking" state
+            setMessages(prev => [...prev, { role: 'assistant', content: '', isThinking: true }]);
+
+            const res = await api.chat(input, [], workspaceId || 'default');
+
+            // Remove thinking message and add real response
+            setMessages(prev => {
+                const newHistory = prev.filter(m => !m.isThinking);
+                return [...newHistory, { role: 'assistant', content: res.answer }];
+            });
+
         } catch (err) {
             console.error(err);
+            setMessages(prev => prev.filter(m => !m.isThinking).concat({ role: 'assistant', content: "I encountered an error connecting to the neural core." }));
         } finally {
             setLoading(false);
         }
     };
 
-    return (
-        <div className="flex h-full">
-            {/* Sources Panel */}
-            <div className="w-80 border-r border-[var(--border)] p-4 bg-black/10 hidden lg:block">
-                <h2 className="text-sm font-semibold mb-4 text-gray-400 uppercase tracking-wider">Sources & Context</h2>
+    // Component for rendering thinking block
+    const ThinkingBlock = ({ content }) => {
+        const [isOpen, setIsOpen] = useState(false);
+        if (!content) return null;
 
-                <div className="space-y-3">
-                    <button className="w-full flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm transition-colors border border-white/5 hover:border-white/10">
-                        <Paperclip size={14} />
-                        <span>Upload PDF/Doc</span>
+        return (
+            <div className="mb-3">
+                <button
+                    onClick={() => setIsOpen(!isOpen)}
+                    className="flex items-center gap-2 text-xs font-medium text-notebook-text-secondary hover:text-notebook-text-accent transition-colors mb-2 bg-notebook-card px-3 py-1.5 rounded-lg border border-notebook-border w-fit"
+                >
+                    <Brain size={14} className={clsx(isOpen ? "text-notebook-text-accent" : "text-notebook-text-secondary")} />
+                    <span>Thinking Process</span>
+                    {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+
+                <AnimatePresence>
+                    {isOpen && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                        >
+                            <div className="pl-4 border-l-2 border-notebook-border ml-2 my-2 py-2">
+                                <div className="text-sm font-mono text-notebook-text-secondary whitespace-pre-wrap bg-notebook-bg/50 p-3 rounded-lg border border-notebook-border/50 overflow-x-auto">
+                                    <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{content}</ReactMarkdown>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex h-full bg-notebook-bg text-notebook-text-primary">
+            {/* Sources Panel (Left) */}
+            <div className="w-[320px] bg-notebook-sidebar border-r border-notebook-border p-5 hidden lg:flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-sm font-semibold text-notebook-text-secondary uppercase tracking-wider">Sources</h2>
+                    <button className="p-1 hover:bg-notebook-hover rounded text-notebook-text-secondary">
+                        <Plus size={16} />
+                    </button>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                    <button className="w-full flex items-center gap-3 px-4 py-3 bg-[#2a2d35] hover:bg-[#33363f] rounded-xl text-sm transition-all border border-notebook-border hover:border-notebook-text-accent/30 group shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+                            <FileText size={16} />
+                        </div>
+                        <span className="font-medium text-notebook-text-primary">Upload Document</span>
                     </button>
 
                     <button
                         onClick={handleUrlSubmit}
-                        className="w-full flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-sm transition-colors border border-white/5 hover:border-white/10"
+                        className="w-full flex items-center gap-3 px-4 py-3 bg-[#2a2d35] hover:bg-[#33363f] rounded-xl text-sm transition-all border border-notebook-border hover:border-notebook-text-accent/30 group shadow-sm"
                     >
-                        <LinkIcon size={14} />
-                        <span>Add URL / Youtube</span>
+                        <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 group-hover:scale-110 transition-transform">
+                            <Youtube size={16} />
+                        </div>
+                        <span className="font-medium text-notebook-text-primary">Add Link / Video</span>
                     </button>
                 </div>
 
-                <div className="mt-6">
-                    <h3 className="text-xs font-medium text-gray-500 mb-2">Active Sources</h3>
+                <div className="flex-1 overflow-y-auto">
+                    <h3 className="text-xs font-semibold text-notebook-text-secondary mb-3 uppercase tracking-wider">Active Context</h3>
                     <div className="space-y-2">
-                        {/* Mock Source */}
-                        <div className="p-2 rounded bg-white/5 text-xs text-gray-300 flex items-center gap-2">
-                            <div className="w-1 h-8 bg-blue-500 rounded-full" />
-                            <div>
-                                <div className="font-medium truncate">Football Manager Guide 2024.pdf</div>
-                                <div className="text-[10px] text-gray-500">12 chunks • 85% relevance</div>
+                        {sources.length === 0 && (
+                            <div className="text-sm text-notebook-text-secondary italic px-2">No sources added yet.</div>
+                        )}
+                        {/* Mock Source for Design */}
+                        <div className="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-notebook-text-accent/50 transition-colors cursor-pointer group">
+                            <div className="flex items-start gap-3">
+                                <div className="mt-1 w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
+                                <div>
+                                    <div className="text-sm font-medium text-notebook-text-primary group-hover:text-notebook-text-accent transition-colors">Project JAYA Architecture.pdf</div>
+                                    <div className="text-xs text-notebook-text-secondary mt-1">Added today • PDF</div>
+                                </div>
                             </div>
                         </div>
+                        {sources.map((src, i) => (
+                            <div key={i} className="p-3 rounded-lg bg-white/5 border border-white/5 hover:border-notebook-text-accent/50 transition-colors cursor-pointer group">
+                                <div className="flex items-start gap-3">
+                                    <div className="mt-1 w-1.5 h-1.5 rounded-full bg-blue-400" />
+                                    <div>
+                                        <div className="text-sm font-medium text-notebook-text-primary group-hover:text-notebook-text-accent transition-colors truncate w-48">{src.title}</div>
+                                        <div className="text-xs text-notebook-text-secondary mt-1 capitalize">{src.type}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
             </div>
 
-            {/* Chat Area */}
-            <div className="flex-1 flex flex-col relative">
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                    {messages.map((msg, i) => (
-                        <motion.div
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            key={i}
-                            className={clsx(
-                                "flex gap-4 max-w-3xl mx-auto",
-                                msg.role === 'user' ? "flex-row-reverse" : ""
-                            )}
-                        >
-                            <div className={clsx(
-                                "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                                msg.role === 'assistant' ? "bg-primary/20 text-primary" : "bg-gray-700"
-                            )}>
-                                {msg.role === 'assistant' ? <Bot size={18} /> : <User size={18} />}
-                            </div>
+            {/* Main Chat Area */}
+            <div className="flex-1 flex flex-col relative h-full">
+                {/* Header/Title - Optional in Notebook design, usually clean */}
+                <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-notebook-bg to-transparent z-10 pointer-events-none" />
 
-                            <div className={clsx(
-                                "px-4 py-3 rounded-2xl max-w-[80%] text-sm leading-relaxed",
-                                msg.role === 'assistant' ? "bg-white/5 text-gray-200" : "bg-primary text-white"
-                            )}>
-                                {msg.content}
-                                {msg.isThinking && (
-                                    <div className="flex gap-1 mt-2">
-                                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" />
-                                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-100" />
-                                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-200" />
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scroll-smooth">
+                    {messages.map((msg, i) => {
+                        const { thinking, answer } = msg.role === 'assistant' && !msg.isThinking
+                            ? parseMessageContent(msg.content)
+                            : { thinking: null, answer: msg.content };
+
+                        return (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                key={i}
+                                className={clsx(
+                                    "flex gap-4 max-w-4xl mx-auto",
+                                    msg.role === 'user' ? "flex-row-reverse" : ""
+                                )}
+                            >
+                                {/* Avatar */}
+                                {msg.role === 'assistant' && (
+                                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0 shadow-glow mt-1">
+                                        <Sparkles size={14} className="text-white" />
                                     </div>
                                 )}
-                            </div>
-                        </motion.div>
-                    ))}
+
+                                {/* Message Content */}
+                                <div className={clsx(
+                                    "flex flex-col max-w-[85%]",
+                                    msg.role === 'user' ? "items-end" : "items-start w-full"
+                                )}>
+                                    {/* Thinking Block */}
+                                    {thinking && <ThinkingBlock content={thinking} />}
+
+                                    <div className={clsx(
+                                        "px-5 py-3.5 text-[0.95rem] leading-relaxed shadow-sm w-fit",
+                                        msg.role === 'user'
+                                            ? "bg-[#282a2f] text-notebook-text-primary rounded-2xl rounded-tr-sm border border-notebook-border"
+                                            : "text-notebook-text-primary markdown-body" // Assistant text is clean, no bubble background (Notebook style)
+                                    )}>
+                                        {msg.role === 'user' ? (
+                                            answer
+                                        ) : (
+                                            <div className="prose prose-invert prose-p:leading-relaxed prose-pre:bg-[#1e1e1e] prose-pre:border prose-pre:border-gray-800 max-w-none">
+                                                <ReactMarkdown rehypePlugins={[rehypeHighlight]}>
+                                                    {answer}
+                                                </ReactMarkdown>
+                                            </div>
+                                        )}
+
+                                        {msg.isThinking && (
+                                            <div className="flex items-center gap-2 text-notebook-text-accent">
+                                                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce" />
+                                                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-100" />
+                                                <span className="w-1.5 h-1.5 bg-current rounded-full animate-bounce delay-200" />
+                                                <span className="text-sm ml-2 font-medium">Thinking...</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Timestamp or status (Optional) */}
+                                    {/* <div className="text-[10px] text-notebook-text-secondary mt-1 px-1">10:42 AM</div> */}
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                    <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input Area */}
-                <div className="p-4 border-t border-[var(--border)] bg-black/20 backdrop-blur-sm">
-                    <div className="max-w-3xl mx-auto relative">
-                        <input
-                            type="text"
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder="Ask about your documents or start a new research..."
-                            className="w-full bg-[var(--bg-card)] border border-[var(--border)] rounded-xl pl-4 pr-12 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 placeholder:text-gray-600 shadow-lg"
-                        />
-                        <button
-                            onClick={handleSend}
-                            className="absolute right-2 top-2 p-1.5 bg-primary hover:bg-primary-hover rounded-lg text-white transition-colors"
-                        >
-                            <Send size={16} />
-                        </button>
-                    </div>
-                    <div className="text-center mt-2">
-                        <span className="text-[10px] text-gray-600">AI-Q Research Model v2.0 • Powered by NVIDIA NIM</span>
+                <div className="p-6">
+                    <div className="max-w-4xl mx-auto relative group">
+                        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl opacity-20 group-hover:opacity-40 transition-opacity blur duration-500" />
+                        <div className="relative bg-notebook-card rounded-2xl flex items-center pr-3 border border-notebook-border shadow-2xl">
+                            <button className="p-4 text-notebook-text-secondary hover:text-notebook-text-primary transition-colors">
+                                <Plus size={20} />
+                            </button>
+                            <input
+                                type="text"
+                                value={input}
+                                onChange={(e) => setInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                placeholder="Ask JAYA anything..."
+                                className="flex-1 bg-transparent border-none focus:ring-0 text-notebook-text-primary placeholder:text-notebook-text-secondary/50 py-4 text-base"
+                                autoFocus
+                            />
+                            <button
+                                onClick={handleSend}
+                                disabled={!input.trim()}
+                                className="p-2.5 bg-notebook-text-primary hover:bg-white rounded-xl text-notebook-bg transition-all disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
+                            >
+                                <Send size={18} fill="currentColor" />
+                            </button>
+                        </div>
+                        <div className="text-center mt-3 text-xs text-notebook-text-secondary font-medium tracking-wide">
+                            JAYA v2.0 • Powered by NVIDIA NIM • Research Mode Active
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     );
 }
-
-const LinkIcon = ({ size }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg>
-)
