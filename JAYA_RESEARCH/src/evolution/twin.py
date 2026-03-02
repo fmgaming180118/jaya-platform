@@ -20,10 +20,13 @@ class ResearchMode(Enum):
     EXPLORATION = "exploration" # Broad, creative, finding new things
     THESIS = "thesis"           # Strict, academic, LaTeX, Experiment Tracking
 from src.evolution.sandbox import EvolutionSandbox
+from src.evolution.crucible import Crucible
 from src.evolution.mutator import CodeMutator
 from src.research.workspace_manager import WorkspaceManager
 from src.research.agent import ResearchAgent
 from src.research.academic.tracker import ExperimentTracker
+from src.research.academic.hypothesis_generator import HypothesisGenerator
+from src.research.academic.novelty_checker import NoveltyChecker
 
 class DigitalTwin:
     """
@@ -39,6 +42,9 @@ class DigitalTwin:
         
         # Academic Modules
         self.tracker = ExperimentTracker()
+        
+        self.hypothesis_gen = HypothesisGenerator()
+        self.novelty_checker = NoveltyChecker()
         
         self.night_mode = False
         self.mode = ResearchMode.EXPLORATION
@@ -141,6 +147,13 @@ class DigitalTwin:
                  workspace = parts[1].strip() if len(parts) > 1 else "default"
                  topic = parts[0].strip()
                  await self.run_research(topic, workspace)
+            elif thought_content.startswith("INVENT:"):
+                 # Format: INVENT: <domain1> | <domain2> | <workspace_id>
+                 parts = thought_content.replace("INVENT:", "").split("|")
+                 domain1 = parts[0].strip() if len(parts) > 0 else "Computer Science"
+                 domain2 = parts[1].strip() if len(parts) > 1 else "Physics"
+                 workspace = parts[2].strip() if len(parts) > 2 else "default"
+                 await self.invent_novel_concept(domain1, domain2, workspace)
 
         except Exception as e:
             print(f"[Twin] Failed to dream: {e}")
@@ -216,6 +229,60 @@ class DigitalTwin:
              traceback.print_exc()
         
         self.state = TwinState.IDLE
+
+    async def invent_novel_concept(self, domain1: str, domain2: str, workspace_id: str):
+         """The autonomous invention loop: Generate -> Verify Novelty -> Simulate"""
+         self.state = TwinState.RESEARCHING
+         self.memory.log_thought(f"Attempting to invent a novel concept intersecting {domain1} and {domain2}...", mood="focused")
+         
+         # 1. Generate Hypothesis
+         hypothesis = self.hypothesis_gen.generate_novel_hypothesis(domain1, domain2)
+         self.memory.log_thought(f"Hypothesis formulated:\n{hypothesis[:200]}...", mood="curious")
+         
+         # 2. Check Novelty
+         self.memory.log_thought("Verifying novelty against global literature...", mood="focused")
+         novelty = await self.novelty_checker.verify_novelty(hypothesis)
+         
+         if not novelty["is_novel"]:
+              self.memory.log_thought(f"Hypothesis rejected. It already exists. Reasoning:\n{novelty['reasoning'][:200]}...", mood="frustrated")
+              self.state = TwinState.IDLE
+              return
+              
+         self.memory.log_thought("Hypothesis is verified as NOVEL. Proceeding to The Crucible for simulation...", mood="excited")
+         
+         # 3. Ask Reasoning model to write a Python simulation script for this hypothesis
+         simulation_prompt = f"""
+         You just generated this novel hypothesis:
+         {hypothesis}
+         
+         Write a complete Python 3 script to empirically simulate or test a core component of this hypothesis.
+         The script should NOT require human interaction. It must be able to run in a sandbox.
+         At the very end of the script, it MUST print a strict JSON dictionary containing the final metrics (e.g., accuracy, efficiency, speedup) on a single line.
+         
+         Output ONLY the raw Python code. Do not wrap in ```python markdown.
+         """
+         script_code = self.brain.ask(simulation_prompt, system_instruction="Output raw Python code only. No markdown formatting.")
+         script_code = script_code.replace("```python", "").replace("```", "").strip()
+         
+         # 4. Run in Crucible
+         crucible = Crucible(workspace_id)
+         success, log, metrics = crucible.run_experiment(hypothesis, script_code)
+         
+         # 5. Record Findings
+         report_content = f"# Autonomous Discovery Report\n\n## Intersection\n{domain1} X {domain2}\n\n## The Hypothesis\n{hypothesis}\n\n## Novelty Verification\nPassed: {novelty['confidence']*100}% confidence.\nReasoning: {novelty['reasoning']}\n\n## Crucible Simulation\nSuccess: {success}\n\n### Code Used\n```python\n{script_code}\n```\n\n### Metrics/Results\n```json\n{metrics}\n```\n\n### Log\n```text\n{log[:1000]}\n```"
+         
+         self.workspace_manager._ensure_workspace(workspace_id)
+         report_path = self.workspace_manager.get_paths(workspace_id)['knowledge_graph'].parent / f"Discovery_{int(time.time())}.md"
+         
+         with open(report_path, "w", encoding="utf-8") as f:
+             f.write(report_content)
+             
+         if success:
+              self.memory.log_thought(f"Discovery successful! Report saved to {report_path.name}", mood="proud")
+         else:
+              self.memory.log_thought(f"Discovery simulation failed, but report saved to {report_path.name}. Needs refinement.", mood="frustrated")
+              
+         self.state = TwinState.IDLE
 
     def set_mode(self, mode_str: str):
         """Switches research mode"""

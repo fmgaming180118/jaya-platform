@@ -10,7 +10,7 @@ from pathlib import Path
 # Configuration
 PROJECT_ROOT = Path(__file__).parent.parent
 ICON_PATH = PROJECT_ROOT / "logo.ico"
-BACKEND_SCRIPT = PROJECT_ROOT / "JAYA_RESEARCH" / "src" / "network" / "research_api.py"
+BACKEND_SCRIPT = PROJECT_ROOT / "src" / "network" / "research_api.py"
 UI_DIR = PROJECT_ROOT / "ui"
 
 backend_process = None

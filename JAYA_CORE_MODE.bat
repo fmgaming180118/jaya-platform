@@ -6,5 +6,6 @@ echo           J A Y A   V 1 6 . 0   S O V E R E I G N
 echo           Activating Binary Cortex (The Loyal Sovereign)...
 echo ==================================================
 cd JAYA_CORE
-python src/brain_v2/ignite.py
+rem pass through any additional flags, e.g. --enable-twin --omniverse
+python src/brain_v2/ignite.py %*
 pause

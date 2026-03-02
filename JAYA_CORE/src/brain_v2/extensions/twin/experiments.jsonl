@@ -1,0 +1,4 @@
+{"timestamp": 1772462030.9553688, "code": "score = 0.8", "outcome": {"score": 0.8}, "score": 0.8, "label": "EXPLORE"}
+{"timestamp": 1772462030.9553688, "code": "<external_report>", "outcome": {"score": 0.5}, "score": 0.5, "label": "REPORT"}
+{"timestamp": 1772462656.1410563, "code": "score = 0.8", "outcome": {"score": 0.8}, "score": 0.8, "label": "EXPLORE"}
+{"timestamp": 1772462733.9987652, "code": "score = 0.8", "outcome": {"score": 0.8}, "score": 0.8, "label": "EXPLORE"}

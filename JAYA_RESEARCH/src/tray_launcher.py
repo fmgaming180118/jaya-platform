@@ -1,3 +1,5 @@
+# pyright: reportMissingImports=false, reportUnknownVariableType=false, reportUnknownMemberType=false, reportConstantRedefinition=false
+
 import os
 import sys
 import subprocess
@@ -5,11 +7,12 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+from typing import Any, Tuple, Optional, cast
 
 try:
-    import psutil
-    import pystray  # type: ignore
-    from PIL import Image, ImageDraw, ImageFont
+    import psutil  # type: ignore[import]
+    import pystray  # type: ignore[import]
+    from PIL import Image, ImageDraw, ImageFont  # type: ignore[import]
 except Exception as e:
     # If tray deps are missing, raise a clear error so user can install requirements.
     raise RuntimeError(
@@ -25,24 +28,30 @@ API_SCRIPT = PROJECT_ROOT / "src" / "network" / "research_api.py"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Windows-specific flag to hide child console windows
-CREATE_NO_WINDOW = 0
+# windows-specific flag to hide child console windows
 if sys.platform == "win32":
-    CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW
+    CREATE_NO_WINDOW: int = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+else:
+    CREATE_NO_WINDOW: int = 0
 
 
-def _make_icon_image(size=64, bg=(18, 48, 76), fg=(255, 255, 255)):
+def _make_icon_image(
+    size: int = 64,
+    bg: Tuple[int, int, int] = (18, 48, 76),
+    fg: Tuple[int, int, int] = (255, 255, 255),
+) -> Any:
     img = Image.new("RGBA", (size, size), bg)
-    draw = ImageDraw.Draw(img)
+    draw: Any = ImageDraw.Draw(img)
     # simple rounded rectangle + letter 'J'
     r = size // 8
-    draw.rounded_rectangle((4, 4, size - 4, size - 4), radius=r, fill=bg)
+    draw.rounded_rectangle((4, 4, size - 4, size - 4), radius=r, fill=bg)  # type: ignore[attr-defined]
     # draw a large J
     try:
         f = ImageFont.load_default()
-        w, h = draw.textsize("J", font=f)
-        draw.text(((size - w) / 2, (size - h) / 2 - 6), "J", font=f, fill=fg)
+        w, h = draw.textsize("J", font=f)  # type: ignore[attr-defined]
+        draw.text(cast(Tuple[int, int], ((size - w) / 2, (size - h) / 2 - 6)), "J", font=f, fill=fg)  # type: ignore[attr-defined]
     except Exception:
-        draw.text((size // 3, size // 6), "J", fill=fg)
+        draw.text(cast(Tuple[int, int], (size // 3, size // 6)), "J", fill=fg)  # type: ignore[attr-defined]
     return img
 
 
@@ -50,29 +59,30 @@ class TrayController:
     def __init__(self):
         self.backend_proc = None
         self.ui_proc = None
-        self.icon = pystray.Icon(
+        # type hints for pystray objects are unavailable
+        self.icon: Any = pystray.Icon(
             "jaya_research",
             _make_icon_image(),
             "Jaya Research",
             menu=pystray.Menu(
-                pystray.MenuItem("Start Backend", self.start_backend),
-                pystray.MenuItem("Stop Backend", self.stop_backend),
+                pystray.MenuItem("Start Backend", cast(Any, self.start_backend)),
+                pystray.MenuItem("Stop Backend", cast(Any, self.stop_backend)),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Start UI", self.start_ui),
-                pystray.MenuItem("Stop UI", self.stop_ui),
+                pystray.MenuItem("Start UI", cast(Any, self.start_ui)),
+                pystray.MenuItem("Stop UI", cast(Any, self.stop_ui)),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Open UI in browser", self.open_ui),
-                pystray.MenuItem("Open API docs", self.open_api),
-                pystray.MenuItem("Open logs folder", self.open_logs),
+                pystray.MenuItem("Open UI in browser", cast(Any, self.open_ui)),
+                pystray.MenuItem("Open API docs", cast(Any, self.open_api)),
+                pystray.MenuItem("Open logs folder", cast(Any, self.open_logs)),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem("Exit", self.exit),
+                pystray.MenuItem("Exit", cast(Any, self.exit)),
             ),
         )
 
     def _log_path(self, name: str) -> Path:
         return LOG_DIR / f"{name}.log"
 
-    def _start_process(self, args, cwd=None, log_name=None):
+    def _start_process(self, args: list[str], cwd: Optional[str] = None, log_name: Optional[str] = None) -> Any:
         if log_name:
             logfile = open(self._log_path(log_name), "a", encoding="utf-8", errors="ignore")
         else:
@@ -104,7 +114,7 @@ class TrayController:
         threading.Thread(target=_watch, daemon=True).start()
         return proc
 
-    def start_backend(self, _=None):
+    def start_backend(self, _=None) -> None:
         if self.backend_proc and self.backend_proc.poll() is None:
             return
         if not API_SCRIPT.exists():
@@ -114,7 +124,7 @@ class TrayController:
         self.backend_proc = self._start_process(args, cwd=str(PROJECT_ROOT), log_name="api")
         self._notify("Research API starting (logs/api.log)")
 
-    def stop_backend(self, _=None):
+    def stop_backend(self, _=None) -> None:
         if not self.backend_proc:
             return
         try:
@@ -137,7 +147,7 @@ class TrayController:
             self.backend_proc = None
             self._notify("Research API stopped")
 
-    def start_ui(self, _=None):
+    def start_ui(self, _=None) -> None:
         if self.ui_proc and self.ui_proc.poll() is None:
             return
         if not (PROJECT_ROOT / "ui").exists():
@@ -151,7 +161,7 @@ class TrayController:
         self.ui_proc = self._start_process(args, cwd=str(UI_DIR), log_name="ui")
         self._notify("UI starting (logs/ui.log)")
 
-    def stop_ui(self, _=None):
+    def stop_ui(self, _=None) -> None:
         if not self.ui_proc:
             return
         try:
@@ -173,13 +183,13 @@ class TrayController:
             self.ui_proc = None
             self._notify("UI stopped")
 
-    def open_ui(self, _=None):
+    def open_ui(self, _=None) -> None:
         webbrowser.open("http://localhost:5173")
 
-    def open_api(self, _=None):
+    def open_api(self, _=None) -> None:
         webbrowser.open("http://localhost:8000/docs")
 
-    def open_logs(self, _=None):
+    def open_logs(self, _=None) -> None:
         try:
             if LOG_DIR.exists():
                 os.startfile(str(LOG_DIR))
@@ -188,7 +198,7 @@ class TrayController:
         except Exception:
             self._notify("Failed to open logs folder")
 
-    def exit(self, _=None):
+    def exit(self, _=None) -> None:
         # stop processes and remove icon
         try:
             self.stop_ui()
@@ -199,7 +209,7 @@ class TrayController:
             except Exception:
                 pass
 
-    def _notify(self, text: str):
+    def _notify(self, text: str) -> None:
         try:
             # pystray supports simple notifications on Windows backends
             self.icon.notify(text)
@@ -208,7 +218,7 @@ class TrayController:
             with open(self._log_path("tray"), "a", encoding="utf-8") as wf:
                 wf.write(f"{time.asctime()}: {text}\n")
 
-    def run(self):
+    def run(self) -> None:
         self.icon.run()
 
 
@@ -222,7 +232,7 @@ def shutil_which(cmd: str):
         return None
 
 
-def main():
+def main() -> None:
     # write startup trace to logs for debugging startup failures
     with open(LOG_DIR / "tray.log", "a", encoding="utf-8") as wf:
         wf.write(f"{time.asctime()}: tray_launcher starting (pid={os.getpid()})\n")
