@@ -22,6 +22,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from src.brain_v2.extensions.twin.experiment_memory import ExperimentMemory, ExperimentRecord
 from src.brain_v2.extensions.twin.task_planner import Task, TaskPlanner, Priority
+from src.brain_v2.organism.homeostasis import HomeostasisAudit
+from src.brain_v2.organism.spontaneity import EntropySpark
+from src.brain_v2.engine.temporal_weights import best_recent
 
 if TYPE_CHECKING:
     from src.brain_v2.engine.runtime import IronEngine
@@ -86,6 +89,11 @@ class CoreTwin:
         self.reflection_interval = reflection_interval
         self._last_reflection: float = time.time()
 
+        # Pillar 5 — Logical Homeostasis
+        self.homeostasis = HomeostasisAudit(check_interval=60.0)
+        # Pillar 6 — Stochastic Spontaneity
+        self.spontaneity = EntropySpark(idle_threshold=15.0, cooldown=30.0)
+
         # Statistics
         self.cycles_completed = 0
         self.experiments_run  = 0
@@ -134,6 +142,12 @@ class CoreTwin:
         self.cycles_completed += 1
         now = time.time()
 
+        # 0. Pillar 5: Homeostasis health check
+        self.homeostasis.tick(self)
+
+        # 0b. Pillar 6: Entropy curiosity injection when idle
+        self.spontaneity.tick(self)
+
         # 1. Auto-suggest a repair task if there are recent errors
         repair = self.planner.suggest_from_memory(self.memory)
         if repair:
@@ -157,8 +171,9 @@ class CoreTwin:
         """Analyse memory and auto-generate new experiment tasks."""
         summary: Dict[str, Any] = self.memory.summary()
         logger.info("[Reflect] memory=%s", summary)
-
-        ideas: List[Task] = _generate_ideas(summary, self.memory.recent(5))
+        # Pillar 27: use temporally-weighted recent records for reflection
+        recent_weighted = best_recent(self.memory, n=5)
+        ideas: List[Task] = _generate_ideas(summary, recent_weighted)
         for idea in ideas:
             self.planner.push(idea)
             logger.info("[Reflect] queued task: %r priority=%d",
@@ -230,6 +245,8 @@ class CoreTwin:
             "queue_depth":  len(self.planner),
             "memory":       mem_summary,
             "omniverse":    self.omniverse_enabled,
+            "homeostasis":  self.homeostasis.status(),
+            "spontaneity":  self.spontaneity.status(),
         }
 
 
