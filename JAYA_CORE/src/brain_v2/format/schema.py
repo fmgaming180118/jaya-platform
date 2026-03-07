@@ -16,7 +16,7 @@ MAGIC = b"JAYA_SOUL"
 
 FOOTER_MAGIC = b"JAYA_SEAL"
 
-VERSION_MAJOR = 17
+VERSION_MAJOR = 18
 
 VERSION_MINOR = 0
 
@@ -135,6 +135,11 @@ class JayaFlags(IntFlag):
     INTENT_EXTRAPOLATION = auto()  # Pillar 40
 
     
+
+    # V18 NANO + Self-Evolution Flags
+    PACKED_WEIGHTS = 1 << 42       # 2-bit packed IRON_BODY section present
+    NANO_PROFILE   = 1 << 43       # Model uses NANO config (d_model=64, n_layers=2)
+    SELF_EVOLVING  = 1 << 44       # LiveEvolver: weights persist across restarts
 
     # Legacy/Internal Mapping (For Compatibility)
 
@@ -271,16 +276,13 @@ class JayaHeader:
 
 
 class SectionType(IntFlag):
-
-    IRON_BODY = 1     # Weights, Semantic Maps (Public)
-
-    SOUL_AES = 2      # LoRA, Narrative, Memory (Encrypted)
-
-    KEYS_PQC = 3      # Post-Quantum Keys (Encrypted by HW Key)
-
-    MODEL_CONFIG = 4  # Hyperparameters + Metadata
-
-    EPIGENETIC = 5    # Epigenetic Profile Data
+    IRON_BODY        = 1  # Weights, Semantic Maps (Public, int8)
+    SOUL_AES         = 2  # LoRA, Narrative, Memory (Encrypted)
+    KEYS_PQC         = 3  # Post-Quantum Keys (Encrypted by HW Key)
+    MODEL_CONFIG     = 4  # Hyperparameters + Metadata
+    EPIGENETIC       = 5  # Epigenetic Profile Data
+    IRON_BODY_PACKED = 6  # V18: 2-bit packed ternary weights (~50-250 KB)
+    LONG_TERM_MEMORY = 7  # V18: Persistent episodic memory (JSON/msgpack)
 
 
 

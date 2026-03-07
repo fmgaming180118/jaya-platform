@@ -79,14 +79,35 @@ class HomeostasisAudit:
             reason = "; ".join(issues)
             logger.warning("[Homeostasis Alert #%d] %s — injecting REPAIR",
                            self._alert_count, reason)
+            # V18: smart REPAIR based on severity
+            if avg_score < self.min_avg_score and error_rate > self.max_error_rate:
+                # Both degraded: evolve weights + meta-reflect
+                repair_code = (
+                    "from src.brain_v2.education.live_evolver import LiveEvolver\n"
+                    "evolver = LiveEvolver(engine, max_steps=300)\n"
+                    "result = evolver.run_evolution(300)\n"
+                    "score = min(1.0, 0.4 + result['delta_fitness'] * 2)\n"
+                )
+            elif error_rate > self.max_error_rate:
+                # High error rate: curriculum self-study
+                repair_code = (
+                    "from src.brain_v2.engine.self_bootstrap import SelfBootstrap\n"
+                    "sb = SelfBootstrap()\n"
+                    "tasks = sb.generate_curriculum(twin)\n"
+                    "score = 0.6 if tasks else 0.4\n"
+                )
+            else:
+                # Low score: light weight evolution
+                repair_code = (
+                    "from src.brain_v2.education.live_evolver import LiveEvolver\n"
+                    "evolver = LiveEvolver(engine, max_steps=150)\n"
+                    "result = evolver.run_evolution(150)\n"
+                    "score = min(1.0, 0.5 + result['delta_fitness'])\n"
+                )
             twin.planner.push(Task(
                 priority=int(Priority.CRITICAL),
                 label="REPAIR",
-                code=(
-                    "# Homeostasis-triggered repair\n"
-                    "# Inspect last failure, reset problematic state.\n"
-                    "score = 0.5   # baseline health signal\n"
-                ),
+                code=repair_code,
                 meta={"reason": reason, "alert": self._alert_count},
             ))
         else:

@@ -11,6 +11,10 @@ from src.brain_v2.extensions.twin.core_twin import CoreTwin, _compute_score
 from src.brain_v2.extensions.twin.task_planner import Task, TaskPlanner, Priority
 from src.brain_v2.extensions.twin.experiment_memory import ExperimentMemory
 
+# Convenience factory for tests that need a fresh, isolated memory
+def _fresh_mem() -> ExperimentMemory:
+    return ExperimentMemory(in_memory=True)
+
 
 # ---------------------------------------------------------------------------
 # Scoring helper
@@ -85,7 +89,7 @@ def test_twin_start_stop():
 
 def test_twin_run_experiment():
     async def run():
-        twin = CoreTwin(None, reflection_interval=9999)
+        twin = CoreTwin(None, reflection_interval=9999, memory=_fresh_mem())
         res = await twin.run_experiment("score = 0.8")
         assert res.get("score") == 0.8
         # memory should have one entry
@@ -95,7 +99,7 @@ def test_twin_run_experiment():
 
 def test_twin_report():
     async def run():
-        twin = CoreTwin(None)
+        twin = CoreTwin(None, memory=_fresh_mem())
         twin.report({"score": 0.5, "note": "external"})
         assert twin.memory.summary()["total"] == 1
     asyncio.run(run())

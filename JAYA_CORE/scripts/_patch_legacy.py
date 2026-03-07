@@ -1,4 +1,32 @@
-"""Pillar 19 — Legacy Protocol.  V18 UPGRADE.
+"""Patch legacy_protocol.py: replace stub migrate() with real re-keying."""
+import pathlib
+
+p = pathlib.Path(
+    r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\engine\legacy_protocol.py"
+)
+content = p.read_text(encoding="utf-8")
+
+OLD_HEAD = '''"""Pillar 19 — Legacy Protocol.
+
+Handles migration and resurrection of a JAYA soul across hardware
+boundaries.  When JAYA moves to a new device it must prove continuity
+of identity before re-awakening.
+
+Mechanisms
+----------
+* ``migrate(old_path, new_path)``: copies a .jay soul to a new location,
+  re-encrypting with the current hardware UUID.
+* ``can_awaken_on(hardware_uuid)``: verifies whether the provided UUID
+  is in the resurrection-approved list embedded in the current .jay header.
+* ``generate_resurrection_token()``: creates a signed token (HMAC-SHA256)
+  that can be stored in a .jay file to authorise future hardware IDs.
+
+Note: Full binary .jay parsing uses the compiled ``format/serializer.pyd``
+when available.  This module works in stub/graceful-fallback mode when
+that binary is absent (test / dev environments).
+"""'''
+
+NEW_HEAD = '''"""Pillar 19 — Legacy Protocol.  V18 UPGRADE.
 
 Handles migration and resurrection of a JAYA soul across hardware
 boundaries.  When JAYA moves to a new device it must prove continuity
@@ -14,7 +42,7 @@ V18 Migration Flow
    a. Derive new hardware hash = SHA3-256(dst_uuid).
    b. Derive new DNA checksum = SHA3-256(DNA_SECRET + new_hw_hash).
    c. Overwrite hardware_hash (bytes 16-47) and dna_summary_hash
-      (bytes 48-79) in the copy's header in place (raw bytes).
+      (bytes 48-79) in the copy\'s header in place (raw bytes).
    d. Attempt AES-GCM SOUL re-encryption if ``cryptography`` is
       installed and the salt is extractable; otherwise leave SOUL
       payload encrypted with the old key (safe — soul is still
@@ -28,23 +56,19 @@ Mechanisms
   is in the resurrection-approved list embedded in the current .jay header.
 * ``generate_resurrection_token()``: creates a signed token (HMAC-SHA256)
   that can be stored in a .jay file to authorise future hardware IDs.
-"""
+"""'''
 
-import hashlib
-import hmac
-import json
-import logging
-import os
-import struct
-import time
-import zlib
-from typing import Any, Dict, List
+assert OLD_HEAD in content, "Old header not found"
+content = content.replace(OLD_HEAD, NEW_HEAD, 1)
 
-logger = logging.getLogger("LegacyProtocol")
+# 2. Add hashlib + struct + zlib to imports
+content = content.replace(
+    "import hashlib\nimport hmac\nimport json\nimport logging\nimport os\nimport time",
+    "import hashlib\nimport hmac\nimport json\nimport logging\nimport os\nimport struct\nimport time\nimport zlib"
+)
 
-# Filename where the resurrection manifest is stored alongside .jay files
-_MANIFEST_SUFFIX = ".resurrection"
-
+# 3. Add constants after _MANIFEST_SUFFIX
+CONSTS = """
 # .jay header layout constants (must match schema.py)
 _HEADER_SIZE       = 128           # bytes
 _MAGIC             = b"JAYA"       # bytes 0-3
@@ -54,107 +78,39 @@ _SALT_OFFSET       = 88            # bytes 88-119 (32 bytes)
 _DNA_SECRET        = b"JAYA_IMMUTABLE_CORE_VALUES_V1"
 _SECTION_HDR_SIZE  = 24            # bytes per section header
 _FOOTER_SIZE       = 32            # bytes (CRC32 + hash)
+"""
 
+assert '_MANIFEST_SUFFIX = ".resurrection"' in content
+content = content.replace(
+    '_MANIFEST_SUFFIX = ".resurrection"\n',
+    '_MANIFEST_SUFFIX = ".resurrection"\n' + CONSTS,
+    1
+)
 
-class LegacyProtocol:
-    """Cross-device soul migration and resurrection (Pillar 19).
+# 4. Replace the stub migrate() with the real implementation
+OLD_MIGRATE = '''    def migrate(self, new_path: str) -> bool:
+        """Copy the .jay file to *new_path* (stub — real re-encryption
+        requires the compiled serializer).
 
-    Parameters
-    ----------
-    jay_path:
-        Path to the primary .jay soul file.
-    dna_secret:
-        Secret used to sign resurrection tokens (should match DNA anchor).
-    """
-
-    def __init__(self, jay_path: str, dna_secret: bytes = b"JAYA_DNA"):
-        self.jay_path   = jay_path
-        self.dna_secret = dna_secret
-        self._manifest_path = jay_path + _MANIFEST_SUFFIX
-        self._manifest   = self._load_manifest()
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
-    @property
-    def manifest(self) -> Dict[str, Any]:
-        """Public read-only view of the resurrection manifest."""
-        return self._manifest
-
-    def can_awaken_on(self, hardware_uuid: str) -> bool:
-        """Return True if *hardware_uuid* is authorised to run this soul."""
-        approved: List[str] = self._manifest.get("approved_uuids", [])
-
-        # Current device is always approved (first-boot self-registration)
-        if not approved:
-            logger.info("[Legacy] no approved UUIDs yet — self-registering %r",
-                        hardware_uuid[:8] + "…")
-            self._manifest["approved_uuids"] = [hardware_uuid]
-            self._save_manifest()
-            return True
-
-        if hardware_uuid in approved:
-            logger.debug("[Legacy] UUID approved: %s…", hardware_uuid[:8])
-            return True
-
-        logger.warning("[Legacy] UUID REJECTED (not in approved list): %s…",
-                       hardware_uuid[:8])
-        return False
-
-    def generate_resurrection_token(self, target_uuid: str,
-                                    ttl_days: float = 30.0) -> str:
-        """Create a signed resurrection token for *target_uuid*.
-
-        The token is a JSON envelope signed with HMAC-SHA256 using the
-        DNA secret.  Persist it wherever you store migration credentials.
+        Returns True on success.
         """
-        payload: Dict[str, Any] = {
-            "uuid":    target_uuid,
-            "issued":  time.time(),
-            "expires": time.time() + ttl_days * 86400,
-        }
-        raw = json.dumps(payload, sort_keys=True).encode()
-        sig = hmac.new(self.dna_secret, raw, hashlib.sha256).hexdigest()
-        token = json.dumps({"payload": payload, "sig": sig})
-        logger.info("[Legacy] resurrection token issued for %s…",
-                    target_uuid[:8])
-        return token
-
-    def redeem_resurrection_token(self, token: str) -> bool:
-        """Validate and apply a resurrection token.
-
-        If valid, adds the token's target UUID to the approved list.
-        """
+        import shutil
+        if not os.path.exists(self.jay_path):
+            logger.warning("[Legacy] source .jay not found: %s", self.jay_path)
+            return False
         try:
-            envelope = json.loads(token)
-            payload  = envelope["payload"]
-            sig      = envelope["sig"]
-        except (json.JSONDecodeError, KeyError) as exc:
-            logger.error("[Legacy] malformed token: %s", exc)
-            return False
+            shutil.copy2(self.jay_path, new_path)
+            # Copy manifest too
+            if os.path.exists(self._manifest_path):
+                shutil.copy2(self._manifest_path, new_path + _MANIFEST_SUFFIX)
+            logger.info("[Legacy] soul migrated: %s → %s",
+                        self.jay_path, new_path)
+            return True
+        except OSError as exc:
+            logger.error("[Legacy] migration failed: %s", exc)
+            return False'''
 
-        # Verify signature
-        raw = json.dumps(payload, sort_keys=True).encode()
-        expected_sig = hmac.new(self.dna_secret, raw, hashlib.sha256).hexdigest()
-        if not hmac.compare_digest(sig, expected_sig):
-            logger.warning("[Legacy] token signature INVALID")
-            return False
-
-        # Check expiry
-        if time.time() > payload.get("expires", 0):
-            logger.warning("[Legacy] token EXPIRED")
-            return False
-
-        uuid = payload["uuid"]
-        approved: List[str] = self._manifest.setdefault("approved_uuids", [])
-        if uuid not in approved:
-            approved.append(uuid)
-            self._save_manifest()
-            logger.info("[Legacy] UUID %s… added to approved list", uuid[:8])
-        return True
-
-    def migrate(self, new_path: str,
+NEW_MIGRATE = '''    def migrate(self, new_path: str,
                 dst_hw_uuid: str | None = None) -> bool:
         """Migrate .jay soul to *new_path*, optionally re-binding hardware.
 
@@ -190,7 +146,7 @@ class LegacyProtocol:
             with open(new_path, "r+b") as f:
                 raw = bytearray(f.read())
 
-            if len(raw) < _HEADER_SIZE or bytes(raw[:4]) != _MAGIC:
+            if len(raw) < _HEADER_SIZE or raw[:4] != _MAGIC:
                 raise ValueError("Not a valid .jay file (bad magic)")
 
             # Derive new hardware hash
@@ -249,6 +205,8 @@ class LegacyProtocol:
         """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+            from cryptography.hazmat.primitives import hashes as _hashes
         except ImportError:
             logger.debug("[Legacy] cryptography not installed — skipping SOUL re-key")
             return raw
@@ -269,7 +227,7 @@ class LegacyProtocol:
 
             while offset + _SECTION_HDR_SIZE <= len(raw) - _FOOTER_SIZE:
                 sec_type  = struct.unpack_from("<I", raw, offset)[0]
-                _         = struct.unpack_from("<I", raw, offset + 4)[0]
+                sec_flags = struct.unpack_from("<I", raw, offset + 4)[0]
                 sec_size  = struct.unpack_from("<Q", raw, offset + 8)[0]
                 sec_offset= struct.unpack_from("<Q", raw, offset + 16)[0]
 
@@ -329,34 +287,11 @@ class LegacyProtocol:
             salt=salt,
             iterations=100_000,
         )
-        return kdf.derive(hw_hash)
+        return kdf.derive(hw_hash)'''
 
-    # ------------------------------------------------------------------
+assert OLD_MIGRATE in content, "OLD migrate not found"
+content = content.replace(OLD_MIGRATE, NEW_MIGRATE, 1)
 
-    def status(self) -> Dict[str, Any]:
-        approved = self._manifest.get("approved_uuids", [])
-        return {
-            "jay_path":      self.jay_path,
-            "approved_uuids": len(approved),
-            "manifest_exists": os.path.exists(self._manifest_path),
-        }
-
-    # ------------------------------------------------------------------
-    # Internal
-    # ------------------------------------------------------------------
-
-    def _load_manifest(self) -> Dict[str, Any]:
-        if not os.path.exists(self._manifest_path):
-            return {}
-        try:
-            with open(self._manifest_path, encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-
-    def _save_manifest(self) -> None:
-        try:
-            with open(self._manifest_path, "w", encoding="utf-8") as f:
-                json.dump(self._manifest, f, indent=2)
-        except OSError as exc:
-            logger.error("[Legacy] cannot write manifest: %s", exc)
+p.write_text(content, encoding="utf-8")
+print("legacy_protocol.py updated OK")
+print(f"File size: {len(content)} bytes")
