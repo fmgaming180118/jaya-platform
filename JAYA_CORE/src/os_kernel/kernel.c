@@ -19,13 +19,20 @@ void kernel_main(u32 magic, struct multiboot_info* mbi) {
 
     init_idt();
     init_keyboard();
-    init_paging();
+    // init_paging(); // DINONAKTIFKAN: Paging bentrok dengan Framebuffer VESA High-Memory !
 
     // Initialize GUI from multiboot info
     init_gui(mbi);
 
     // Mount Vector FS
     vfs_init();
+
+    // Visual Feedback: Gambar layar biru VESA dan Kursor Mouse statis!
+    extern void draw_rect(int x, int y, int w, int h, u32 color);
+    extern void draw_mouse_cursor(int x, int y);
+    draw_rect(0, 0, 800, 600, 0x000000FF); // Layar Biru Muda
+    draw_rect(100, 100, 200, 50, 0x00FFFFFF); // Kotak Putih
+    draw_mouse_cursor(400, 300); // Kursor Mouse di tengah
 
     // Initialize networking
     unsigned char bus, slot, func;

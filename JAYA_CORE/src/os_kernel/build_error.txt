@@ -1,0 +1,9 @@
+/usr/bin/ld: warning: isr.o: missing .note.GNU-stack section implies executable stack
+/usr/bin/ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
+/usr/bin/ld: boot.o: warning: relocation in read-only section `.text'
+/usr/bin/ld: warning: cannot find entry symbol _start; defaulting to 00100000
+/usr/bin/ld: boot.o:(.multiboot+0x0): undefined reference to `MULTIBOOT_HEADER_MAGIC'
+/usr/bin/ld: boot.o:(.multiboot+0x4): undefined reference to `MULTIBOOT_HEADER_FLAGS'
+/usr/bin/ld: boot.o:(.multiboot+0x8): undefined reference to `MULTIBOOT_CHECKSUM'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE
+collect2: error: ld returned 1 exit status

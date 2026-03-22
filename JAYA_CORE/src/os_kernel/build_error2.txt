@@ -1,0 +1,103 @@
+/usr/bin/ld: boot.o: in function `_start':
+(.text+0x0): multiple definition of `_start'; boot.o:(.text+0x0): first defined here
+/usr/bin/ld: isr.o: in function `isr0':
+(.text+0x0): multiple definition of `isr0'; isr.o:(.text+0x0): first defined here
+/usr/bin/ld: isr.o: in function `isr1':
+(.text+0xa): multiple definition of `isr1'; isr.o:(.text+0xa): first defined here
+/usr/bin/ld: isr.o: in function `isr2':
+(.text+0x14): multiple definition of `isr2'; isr.o:(.text+0x14): first defined here
+/usr/bin/ld: isr.o: in function `isr3':
+(.text+0x1e): multiple definition of `isr3'; isr.o:(.text+0x1e): first defined here
+/usr/bin/ld: isr.o: in function `isr4':
+(.text+0x28): multiple definition of `isr4'; isr.o:(.text+0x28): first defined here
+/usr/bin/ld: isr.o: in function `isr5':
+(.text+0x32): multiple definition of `isr5'; isr.o:(.text+0x32): first defined here
+/usr/bin/ld: isr.o: in function `isr6':
+(.text+0x3c): multiple definition of `isr6'; isr.o:(.text+0x3c): first defined here
+/usr/bin/ld: isr.o: in function `isr7':
+(.text+0x46): multiple definition of `isr7'; isr.o:(.text+0x46): first defined here
+/usr/bin/ld: isr.o: in function `isr8':
+(.text+0x50): multiple definition of `isr8'; isr.o:(.text+0x50): first defined here
+/usr/bin/ld: isr.o: in function `isr9':
+(.text+0x58): multiple definition of `isr9'; isr.o:(.text+0x58): first defined here
+/usr/bin/ld: isr.o: in function `isr10':
+(.text+0x62): multiple definition of `isr10'; isr.o:(.text+0x62): first defined here
+/usr/bin/ld: isr.o: in function `isr11':
+(.text+0x6a): multiple definition of `isr11'; isr.o:(.text+0x6a): first defined here
+/usr/bin/ld: isr.o: in function `isr12':
+(.text+0x72): multiple definition of `isr12'; isr.o:(.text+0x72): first defined here
+/usr/bin/ld: isr.o: in function `isr13':
+(.text+0x7a): multiple definition of `isr13'; isr.o:(.text+0x7a): first defined here
+/usr/bin/ld: isr.o: in function `isr14':
+(.text+0x82): multiple definition of `isr14'; isr.o:(.text+0x82): first defined here
+/usr/bin/ld: isr.o: in function `isr15':
+(.text+0x8a): multiple definition of `isr15'; isr.o:(.text+0x8a): first defined here
+/usr/bin/ld: isr.o: in function `isr16':
+(.text+0x94): multiple definition of `isr16'; isr.o:(.text+0x94): first defined here
+/usr/bin/ld: isr.o: in function `isr17':
+(.text+0x9e): multiple definition of `isr17'; isr.o:(.text+0x9e): first defined here
+/usr/bin/ld: isr.o: in function `isr18':
+(.text+0xa6): multiple definition of `isr18'; isr.o:(.text+0xa6): first defined here
+/usr/bin/ld: isr.o: in function `isr19':
+(.text+0xb0): multiple definition of `isr19'; isr.o:(.text+0xb0): first defined here
+/usr/bin/ld: isr.o: in function `isr20':
+(.text+0xba): multiple definition of `isr20'; isr.o:(.text+0xba): first defined here
+/usr/bin/ld: isr.o: in function `isr21':
+(.text+0xc4): multiple definition of `isr21'; isr.o:(.text+0xc4): first defined here
+/usr/bin/ld: isr.o: in function `isr22':
+(.text+0xce): multiple definition of `isr22'; isr.o:(.text+0xce): first defined here
+/usr/bin/ld: isr.o: in function `isr23':
+(.text+0xd8): multiple definition of `isr23'; isr.o:(.text+0xd8): first defined here
+/usr/bin/ld: isr.o: in function `isr24':
+(.text+0xe2): multiple definition of `isr24'; isr.o:(.text+0xe2): first defined here
+/usr/bin/ld: isr.o: in function `isr25':
+(.text+0xec): multiple definition of `isr25'; isr.o:(.text+0xec): first defined here
+/usr/bin/ld: isr.o: in function `isr26':
+(.text+0xf6): multiple definition of `isr26'; isr.o:(.text+0xf6): first defined here
+/usr/bin/ld: isr.o: in function `isr27':
+(.text+0x100): multiple definition of `isr27'; isr.o:(.text+0x100): first defined here
+/usr/bin/ld: isr.o: in function `isr28':
+(.text+0x10a): multiple definition of `isr28'; isr.o:(.text+0x10a): first defined here
+/usr/bin/ld: isr.o: in function `isr29':
+(.text+0x114): multiple definition of `isr29'; isr.o:(.text+0x114): first defined here
+/usr/bin/ld: isr.o: in function `isr30':
+(.text+0x11e): multiple definition of `isr30'; isr.o:(.text+0x11e): first defined here
+/usr/bin/ld: isr.o: in function `isr31':
+(.text+0x126): multiple definition of `isr31'; isr.o:(.text+0x126): first defined here
+/usr/bin/ld: isr.o: in function `irq0':
+(.text+0x12d): multiple definition of `irq0'; isr.o:(.text+0x12d): first defined here
+/usr/bin/ld: isr.o: in function `irq1':
+(.text+0x137): multiple definition of `irq1'; isr.o:(.text+0x137): first defined here
+/usr/bin/ld: isr.o: in function `irq2':
+(.text+0x141): multiple definition of `irq2'; isr.o:(.text+0x141): first defined here
+/usr/bin/ld: isr.o: in function `irq3':
+(.text+0x14b): multiple definition of `irq3'; isr.o:(.text+0x14b): first defined here
+/usr/bin/ld: isr.o: in function `irq4':
+(.text+0x152): multiple definition of `irq4'; isr.o:(.text+0x152): first defined here
+/usr/bin/ld: isr.o: in function `irq5':
+(.text+0x159): multiple definition of `irq5'; isr.o:(.text+0x159): first defined here
+/usr/bin/ld: isr.o: in function `irq6':
+(.text+0x160): multiple definition of `irq6'; isr.o:(.text+0x160): first defined here
+/usr/bin/ld: isr.o: in function `irq7':
+(.text+0x167): multiple definition of `irq7'; isr.o:(.text+0x167): first defined here
+/usr/bin/ld: isr.o: in function `irq8':
+(.text+0x16e): multiple definition of `irq8'; isr.o:(.text+0x16e): first defined here
+/usr/bin/ld: isr.o: in function `irq9':
+(.text+0x175): multiple definition of `irq9'; isr.o:(.text+0x175): first defined here
+/usr/bin/ld: isr.o: in function `irq10':
+(.text+0x17c): multiple definition of `irq10'; isr.o:(.text+0x17c): first defined here
+/usr/bin/ld: isr.o: in function `irq11':
+(.text+0x183): multiple definition of `irq11'; isr.o:(.text+0x183): first defined here
+/usr/bin/ld: isr.o: in function `irq12':
+(.text+0x18a): multiple definition of `irq12'; isr.o:(.text+0x18a): first defined here
+/usr/bin/ld: isr.o: in function `irq13':
+(.text+0x191): multiple definition of `irq13'; isr.o:(.text+0x191): first defined here
+/usr/bin/ld: isr.o: in function `irq14':
+(.text+0x198): multiple definition of `irq14'; isr.o:(.text+0x198): first defined here
+/usr/bin/ld: isr.o: in function `irq15':
+(.text+0x19f): multiple definition of `irq15'; isr.o:(.text+0x19f): first defined here
+/usr/bin/ld: warning: isr.o: missing .note.GNU-stack section implies executable stack
+/usr/bin/ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
+/usr/bin/ld: boot.o: warning: relocation in read-only section `.text'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE
+collect2: error: ld returned 1 exit status

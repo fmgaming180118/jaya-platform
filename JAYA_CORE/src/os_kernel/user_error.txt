@@ -1,0 +1,77 @@
+/usr/bin/ld: warning: isr.o: missing .note.GNU-stack section implies executable stack
+/usr/bin/ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
+/usr/bin/ld: boot.o: warning: relocation in read-only section `.text'
+/usr/bin/ld: idt.o: in function `irq_handler':
+idt.c:(.text+0x92): undefined reference to `outb'
+/usr/bin/ld: idt.c:(.text+0xc3): undefined reference to `outb'
+/usr/bin/ld: idt.o: in function `init_idt':
+idt.c:(.text+0x192): undefined reference to `outb'
+/usr/bin/ld: idt.c:(.text+0x1a0): undefined reference to `outb'
+/usr/bin/ld: idt.c:(.text+0x1ab): undefined reference to `outb'
+/usr/bin/ld: idt.o:idt.c:(.text+0x1b9): more undefined references to `outb' follow
+/usr/bin/ld: keyboard.o: in function `keyboard_handler':
+keyboard.c:(.text+0x12): undefined reference to `inb'
+/usr/bin/ld: ata.o: in function `ata_wait':
+ata.c:(.text+0x15): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x21): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x2d): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x39): undefined reference to `inb'
+/usr/bin/ld: ata.o:ata.c:(.text+0x65): more undefined references to `inb' follow
+/usr/bin/ld: ata.o: in function `ata_read_sector':
+ata.c:(.text+0xe6): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0xf4): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x106): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x11b): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x12d): undefined reference to `outb'
+/usr/bin/ld: ata.o:ata.c:(.text+0x13b): more undefined references to `outb' follow
+/usr/bin/ld: ata.o: in function `ata_read_sector':
+ata.c:(.text+0x147): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x153): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x15f): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x16b): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x185): undefined reference to `inb'
+/usr/bin/ld: ata.o: in function `ata_write_sector':
+ata.c:(.text+0x1d5): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x1e3): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x1f5): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x20a): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x21c): undefined reference to `outb'
+/usr/bin/ld: ata.o:ata.c:(.text+0x22a): more undefined references to `outb' follow
+/usr/bin/ld: ata.o: in function `ata_write_sector':
+ata.c:(.text+0x236): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x242): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x24e): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x25a): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x275): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x29f): undefined reference to `outb'
+/usr/bin/ld: ata.c:(.text+0x2ab): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x2b7): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x2c3): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x2cf): undefined reference to `inb'
+/usr/bin/ld: ata.c:(.text+0x2ed): undefined reference to `inb'
+/usr/bin/ld: pci.o: in function `pci_config_read_dword':
+pci.c:(.text+0x43): undefined reference to `outl'
+/usr/bin/ld: pci.c:(.text+0x4f): undefined reference to `inl'
+/usr/bin/ld: pci.o: in function `pci_config_read_word':
+pci.c:(.text+0xa9): undefined reference to `outl'
+/usr/bin/ld: pci.c:(.text+0xb5): undefined reference to `inl'
+/usr/bin/ld: pci.o: in function `pci_find_rtl8139':
+pci.c:(.text+0x14c): undefined reference to `outl'
+/usr/bin/ld: pci.c:(.text+0x158): undefined reference to `inl'
+/usr/bin/ld: pci.c:(.text+0x173): undefined reference to `outl'
+/usr/bin/ld: pci.c:(.text+0x17f): undefined reference to `inl'
+/usr/bin/ld: rtl8139.o: in function `init_rtl8139':
+rtl8139.c:(.text+0x3d): undefined reference to `outb'
+/usr/bin/ld: rtl8139.c:(.text+0x53): undefined reference to `outb'
+/usr/bin/ld: rtl8139.c:(.text+0x71): undefined reference to `inb'
+/usr/bin/ld: rtl8139.c:(.text+0x9a): undefined reference to `outl'
+/usr/bin/ld: rtl8139.c:(.text+0xb3): undefined reference to `outl'
+/usr/bin/ld: rtl8139.c:(.text+0xc9): undefined reference to `outb'
+/usr/bin/ld: rtl8139.c:(.text+0xd8): undefined reference to `inl'
+/usr/bin/ld: rtl8139.c:(.text+0xec): undefined reference to `inl'
+/usr/bin/ld: rtl8139.o: in function `rtl8139_send_packet':
+rtl8139.c:(.text+0x11d): undefined reference to `inl'
+/usr/bin/ld: rtl8139.c:(.text+0x135): undefined reference to `outl'
+/usr/bin/ld: rtl8139.c:(.text+0x14d): undefined reference to `outl'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE
+collect2: error: ld returned 1 exit status

@@ -1,0 +1,4 @@
+/usr/bin/ld: warning: isr.o: missing .note.GNU-stack section implies executable stack
+/usr/bin/ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
+/usr/bin/ld: boot.o: warning: relocation in read-only section `.text'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE

@@ -1,13 +1,13 @@
 /* boot.S - JAYA OS Multiboot Header */
-#define MULTIBOOT_HEADER_MAGIC 0x1BADB002
-#define MULTIBOOT_PAGE_ALIGN 0x00000001
-#define MULTIBOOT_MEMORY_INFO 0x00000002
-#define MULTIBOOT_VIDEO_MODE 0x00000004
-#define MULTIBOOT_AOUT_KLUDGE 0x00010000
+.set MULTIBOOT_HEADER_MAGIC, 0x1BADB002
+.set MULTIBOOT_PAGE_ALIGN, 0x00000001
+.set MULTIBOOT_MEMORY_INFO, 0x00000002
+.set MULTIBOOT_VIDEO_MODE, 0x00000004
+.set MULTIBOOT_AOUT_KLUDGE, 0x00010000
 
 /* Enable Page Align, Memory Info, and Video Mode */
-#define MULTIBOOT_HEADER_FLAGS (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)
-#define MULTIBOOT_CHECKSUM -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
+.set MULTIBOOT_HEADER_FLAGS, (MULTIBOOT_PAGE_ALIGN | MULTIBOOT_MEMORY_INFO | MULTIBOOT_VIDEO_MODE)
+.set MULTIBOOT_CHECKSUM, -(MULTIBOOT_HEADER_MAGIC + MULTIBOOT_HEADER_FLAGS)
 
 .section .multiboot
 .align 4
@@ -41,10 +41,10 @@ _start:
     /* Set up stack */
     mov $stack_top, %esp
 
-    /* Push multiboot magic */
-    push %eax
-    /* Push multiboot info struct */
+    /* Push multiboot info struct (arg 2) */
     push %ebx
+    /* Push multiboot magic (arg 1) */
+    push %eax
 
     /* Call kernel_main */
     .extern kernel_main
