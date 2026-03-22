@@ -1,0 +1,33 @@
+math_core.c: In function ‘fast_inv_sqrt’:
+math_core.c:13:12: warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]
+   13 |     i  = * ( long * ) &y;                       // evil floating point bit level hacking
+      |            ^~~~~~~~~~~~~
+math_core.c:15:12: warning: dereferencing type-punned pointer will break strict-aliasing rules [-Wstrict-aliasing]
+   15 |     y  = * ( f32 * ) &i;
+      |            ^~~~~~~~~~~~
+math_core.c:13:10: warning: ‘y’ is used uninitialized [-Wuninitialized]
+   13 |     i  = * ( long * ) &y;                       // evil floating point bit level hacking
+      |          ^~~~~~~~~~~~~~~
+math_core.c:8:13: note: ‘y’ declared here
+    8 |     f32 x2, y;
+      |             ^
+/usr/bin/ld: warning: isr.o: missing .note.GNU-stack section implies executable stack
+/usr/bin/ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
+/usr/bin/ld: boot.o: warning: relocation in read-only section `.text'
+/usr/bin/ld: warning: creating DT_TEXTREL in a PIE
+xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:JAYA_PRODUCTION.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  149g free
+Added to ISO image: directory '/'='/tmp/grub.oTwi8M'
+xorriso : UPDATE :     295 files added in 1 seconds
+Added to ISO image: directory '/'='/mnt/d/Kampus/coba-coba/jaya-research/JAYA_CORE/src/os_kernel/isodir'
+xorriso : UPDATE :     299 files added in 1 seconds
+xorriso : NOTE : Copying to System Area: 512 bytes from file '/usr/lib/grub/i386-pc/boot_hybrid.img'
+xorriso : UPDATE :  90.45% done
+ISO image produced: 2512 sectors
+Written to medium : 2512 sectors at LBA 0
+Writing to 'stdio:JAYA_PRODUCTION.iso' completed successfully.
+
