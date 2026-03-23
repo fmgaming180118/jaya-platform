@@ -4,11 +4,13 @@ typedef unsigned int u32;
 // Must be 4KB aligned!
 u32 page_directory[1024] __attribute__((aligned(4096)));
 u32 first_page_table[1024] __attribute__((aligned(4096)));
+u32 fb_page_table1[1024] __attribute__((aligned(4096)));
+u32 fb_page_table2[1024] __attribute__((aligned(4096)));
 
 extern void load_page_directory(u32*);
 extern void enable_paging();
 
-void init_paging() {
+void init_paging(u32 fb_phys_addr) {
     // 1. Initialize page directory
     for(int i = 0; i < 1024; i++) {
         // Attribute: supervisor level, read/write, not present.
@@ -25,6 +27,20 @@ void init_paging() {
     // 3. Put that page table in the Page Directory
     // Attribute: supervisor level, read/write, present
     page_directory[0] = ((u32)first_page_table) | 3;
+
+    // 3b. Map the VESA Framebuffer (Assuming 8MB mapping is enough)
+    if (fb_phys_addr) {
+        u32 fb_pd_index = fb_phys_addr >> 22;
+        u32 fb_pt_start = fb_phys_addr & 0xFFC00000;
+        for(unsigned int i = 0; i < 1024; i++) {
+            fb_page_table1[i] = (fb_pt_start + (i * 0x1000)) | 3;
+            fb_page_table2[i] = (fb_pt_start + 0x400000 + (i * 0x1000)) | 3;
+        }
+        page_directory[fb_pd_index] = ((u32)fb_page_table1) | 3;
+        if (fb_pd_index + 1 < 1024) {
+            page_directory[fb_pd_index + 1] = ((u32)fb_page_table2) | 3;
+        }
+    }
 
     // 4. Load page directory into CR3 using inline assembly
     asm volatile(
