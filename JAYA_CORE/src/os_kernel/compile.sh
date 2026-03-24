@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /mnt/d/Kampus/coba-coba/jaya-research/JAYA_CORE/src/os_kernel/
+cd .
 rm *.o jaya.bin isodir/boot/jaya.bin JAYA_PRODUCTION.iso || true
 
 as --32 boot.S -o boot.o

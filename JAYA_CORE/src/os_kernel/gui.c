@@ -53,12 +53,22 @@ static u32 fb_width = 800;
 static u32 fb_height = 600;
 static u32 fb_pitch = 800 * 4;
 
+extern void map_page(u32 phys_addr, u32 virt_addr);
+
 void init_gui(struct multiboot_info *mbi) {
     if (mbi->flags & (1 << 12)) {
         framebuffer = (u32 *)(unsigned long)mbi->framebuffer_addr;
         fb_width = mbi->framebuffer_width;
         fb_height = mbi->framebuffer_height;
         fb_pitch = mbi->framebuffer_pitch;
+
+        // Identity map the framebuffer so it is accessible with paging enabled
+        u32 fb_size = fb_pitch * fb_height;
+        u32 phys_addr = (u32)(unsigned long)mbi->framebuffer_addr;
+        // Map page by page (4KB = 0x1000)
+        for (u32 offset = 0; offset < fb_size; offset += 0x1000) {
+            map_page(phys_addr + offset, phys_addr + offset);
+        }
     }
 }
 

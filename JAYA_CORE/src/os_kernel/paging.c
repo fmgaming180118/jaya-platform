@@ -41,3 +41,27 @@ void init_paging() {
         : : : "eax"
     );
 }
+
+extern u32 kmalloc_a(u32 size, int align, u32 *phys);
+
+void map_page(u32 phys_addr, u32 virt_addr) {
+    // Make sure addresses are page aligned
+    phys_addr &= 0xFFFFF000;
+    virt_addr &= 0xFFFFF000;
+
+    u32 pd_idx = virt_addr >> 22;
+    u32 pt_idx = (virt_addr >> 12) & 0x03FF;
+
+    if (!(page_directory[pd_idx] & 1)) {
+        // Page table not present, allocate one
+        u32 pt_phys;
+        u32 *new_pt = (u32*)kmalloc_a(4096, 1, &pt_phys);
+        for (int i = 0; i < 1024; i++) {
+            new_pt[i] = 0; // Not present
+        }
+        page_directory[pd_idx] = pt_phys | 3; // Present, R/W, Supervisor
+    }
+
+    u32 *pt = (u32*)(page_directory[pd_idx] & 0xFFFFF000);
+    pt[pt_idx] = phys_addr | 3; // Present, R/W, Supervisor
+}

@@ -4,18 +4,20 @@ typedef unsigned int u32;
 
 // Approximate fast inverse square root for normalizations
 f32 fast_inv_sqrt(f32 number) {
-    long i;
-    f32 x2, y;
+    union {
+        f32 f;
+        long i;
+    } conv;
+
+    f32 x2;
     const f32 threehalfs = 1.5F;
 
     x2 = number * 0.5F;
-    y  = number;
-    i  = * ( long * ) &y;                       // evil floating point bit level hacking
-    i  = 0x5f3759df - ( i >> 1 );               // what the fuck?
-    y  = * ( f32 * ) &i;
-    y  = y * ( threehalfs - ( x2 * y * y ) );   // 1st iteration
+    conv.f = number;
+    conv.i = 0x5f3759df - ( conv.i >> 1 );               // what the fuck?
+    conv.f = conv.f * ( threehalfs - ( x2 * conv.f * conv.f ) );   // 1st iteration
 
-    return y;
+    return conv.f;
 }
 
 // Dot product between two vectors
