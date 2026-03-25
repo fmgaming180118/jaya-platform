@@ -5,9 +5,11 @@ struct multiboot_info;
 
 extern void init_idt();
 extern void init_keyboard();
-extern void init_paging();
+extern void init_paging(u32 fb_phys_addr);
 extern void init_gui(struct multiboot_info *mbi);
+extern u32 get_fb_addr(struct multiboot_info *mbi);
 extern void vfs_init();
+extern void init_kheap(u32 start_addr);
 extern int pci_find_rtl8139(unsigned char *out_bus, unsigned char *out_slot, unsigned char *out_func);
 extern void init_rtl8139(unsigned char bus, unsigned char slot, unsigned char func);
 
@@ -19,7 +21,13 @@ void kernel_main(u32 magic, struct multiboot_info* mbi) {
 
     init_idt();
     init_keyboard();
-    // init_paging(); // DINONAKTIFKAN: Paging bentrok dengan Framebuffer VESA High-Memory !
+
+    // Extract VESA Framebuffer address and initialize paging
+    u32 fb_addr = get_fb_addr(mbi);
+    init_paging(fb_addr);
+
+    // Initialize kernel heap at 2MB
+    init_kheap(0x200000);
 
     // Initialize GUI from multiboot info
     init_gui(mbi);

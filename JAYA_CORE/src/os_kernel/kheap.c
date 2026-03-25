@@ -4,7 +4,13 @@ typedef unsigned int u32;
 // The placement address starts somewhere after the kernel.
 // We'll declare a symbol from linker script if we could, but here
 // we just assume a safe physical address after kernel data, e.g. 2MB.
-static u32 placement_address = 0x200000;
+static u32 placement_address = 0;
+
+void init_kheap(u32 start_addr) {
+    if (placement_address == 0) {
+        placement_address = start_addr;
+    }
+}
 
 // kmalloc using a simple bump allocator
 u32 kmalloc(u32 size) {

@@ -89,3 +89,10 @@ void draw_mouse_cursor(int x, int y) {
     // Inner
     draw_rect(x, y, 3, 3, white);
 }
+
+u32 get_fb_addr(struct multiboot_info *mbi) {
+    if (mbi->flags & (1 << 12)) {
+        return (u32)(mbi->framebuffer_addr & 0xFFFFFFFF);
+    }
+    return 0;
+}
