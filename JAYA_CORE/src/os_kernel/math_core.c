@@ -8,11 +8,18 @@ f32 fast_inv_sqrt(f32 number) {
     f32 x2, y;
     const f32 threehalfs = 1.5F;
 
+    union {
+        f32 f;
+        long i;
+    } conv;
+
     x2 = number * 0.5F;
     y  = number;
-    i  = * ( long * ) &y;                       // evil floating point bit level hacking
+    conv.f = y;
+    i  = conv.i;                                // evil floating point bit level hacking
     i  = 0x5f3759df - ( i >> 1 );               // what the fuck?
-    y  = * ( f32 * ) &i;
+    conv.i = i;
+    y  = conv.f;
     y  = y * ( threehalfs - ( x2 * y * y ) );   // 1st iteration
 
     return y;

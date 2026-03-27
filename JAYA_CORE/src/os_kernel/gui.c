@@ -53,12 +53,24 @@ static u32 fb_width = 800;
 static u32 fb_height = 600;
 static u32 fb_pitch = 800 * 4;
 
+extern void map_page(u32 physaddr, u32 virtualaddr, u32 flags);
+
 void init_gui(struct multiboot_info *mbi) {
     if (mbi->flags & (1 << 12)) {
         framebuffer = (u32 *)(unsigned long)mbi->framebuffer_addr;
         fb_width = mbi->framebuffer_width;
         fb_height = mbi->framebuffer_height;
         fb_pitch = mbi->framebuffer_pitch;
+
+        // Calculate total framebuffer size and align to pages
+        u32 fb_size = fb_height * fb_pitch;
+        u32 num_pages = (fb_size + 4095) / 4096;
+
+        // Identity map the framebuffer to prevent paging collisions
+        for (u32 i = 0; i < num_pages; i++) {
+            u32 addr = (u32)framebuffer + (i * 4096);
+            map_page(addr, addr, 3); // Map as Read/Write, Present
+        }
     }
 }
 

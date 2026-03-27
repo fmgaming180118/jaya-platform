@@ -7,6 +7,36 @@ u32 first_page_table[1024] __attribute__((aligned(4096)));
 
 extern void load_page_directory(u32*);
 extern void enable_paging();
+extern u32 kmalloc_a(u32 size, int align, u32 *phys);
+
+void map_page(u32 physaddr, u32 virtualaddr, u32 flags) {
+    // Make sure that both addresses are page-aligned.
+    physaddr &= 0xFFFFF000;
+    virtualaddr &= 0xFFFFF000;
+
+    u32 pdindex = virtualaddr >> 22;
+    u32 ptindex = (virtualaddr >> 12) & 0x03FF;
+
+    // Check if the page table exists in the directory
+    if (!(page_directory[pdindex] & 1)) {
+        // Allocate a new page table
+        u32 *new_pt;
+        u32 phys;
+        new_pt = (u32 *)kmalloc_a(4096, 1, &phys);
+
+        // Clear the new page table
+        for(int i = 0; i < 1024; i++) {
+            new_pt[i] = 0;
+        }
+
+        // Set the page table into the page directory
+        page_directory[pdindex] = phys | 3; // Present, Read/Write
+    }
+
+    // Get the page table pointer from the page directory
+    u32 *pt = (u32 *)(page_directory[pdindex] & 0xFFFFF000);
+    pt[ptindex] = physaddr | flags;
+}
 
 void init_paging() {
     // 1. Initialize page directory

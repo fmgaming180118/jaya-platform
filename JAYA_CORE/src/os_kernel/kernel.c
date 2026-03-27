@@ -19,10 +19,12 @@ void kernel_main(u32 magic, struct multiboot_info* mbi) {
 
     init_idt();
     init_keyboard();
-    // init_paging(); // DINONAKTIFKAN: Paging bentrok dengan Framebuffer VESA High-Memory !
 
     // Initialize GUI from multiboot info
     init_gui(mbi);
+
+    // Initialize Paging after GUI maps the VESA Framebuffer
+    init_paging();
 
     // Mount Vector FS
     vfs_init();
