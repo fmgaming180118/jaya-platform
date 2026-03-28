@@ -53,6 +53,14 @@ static u32 fb_width = 800;
 static u32 fb_height = 600;
 static u32 fb_pitch = 800 * 4;
 
+u32 get_framebuffer_addr() {
+    return (u32)(unsigned long)framebuffer;
+}
+
+u32 get_framebuffer_size() {
+    return fb_height * fb_pitch;
+}
+
 void init_gui(struct multiboot_info *mbi) {
     if (mbi->flags & (1 << 12)) {
         framebuffer = (u32 *)(unsigned long)mbi->framebuffer_addr;

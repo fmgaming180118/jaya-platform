@@ -8,6 +8,10 @@ u32 first_page_table[1024] __attribute__((aligned(4096)));
 extern void load_page_directory(u32*);
 extern void enable_paging();
 
+extern u32 get_framebuffer_addr();
+extern u32 get_framebuffer_size();
+extern u32 kmalloc_a(u32 size, int align, u32 *phys);
+
 void init_paging() {
     // 1. Initialize page directory
     for(int i = 0; i < 1024; i++) {
@@ -26,7 +30,29 @@ void init_paging() {
     // Attribute: supervisor level, read/write, present
     page_directory[0] = ((u32)first_page_table) | 3;
 
-    // 4. Load page directory into CR3 using inline assembly
+    // 4. Map the VESA Framebuffer
+    u32 fb_addr = get_framebuffer_addr();
+    u32 fb_size = get_framebuffer_size();
+    if (fb_addr) {
+        u32 num_pages = (fb_size + 4095) / 4096;
+        for (u32 i = 0; i < num_pages; i++) {
+            u32 phys_addr = fb_addr + (i * 4096);
+            u32 pd_index = phys_addr >> 22;
+            u32 pt_index = (phys_addr >> 12) & 0x03FF;
+
+            u32 *pt = 0;
+            if (page_directory[pd_index] & 1) {
+                pt = (u32 *)(page_directory[pd_index] & ~0xFFF);
+            } else {
+                pt = (u32 *)kmalloc_a(4096, 1, 0);
+                for (int j = 0; j < 1024; j++) pt[j] = 0;
+                page_directory[pd_index] = ((u32)pt) | 3;
+            }
+            pt[pt_index] = phys_addr | 3; // Present, R/W, Supervisor
+        }
+    }
+
+    // 5. Load page directory into CR3 using inline assembly
     asm volatile(
         "mov %0, %%eax\n\t"
         "mov %%eax, %%cr3\n\t"
