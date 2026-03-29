@@ -1,10 +1,11 @@
 /* kheap.c - JAYA OS Primitive Kernel Heap Allocator */
 typedef unsigned int u32;
 
-// The placement address starts somewhere after the kernel.
-// We'll declare a symbol from linker script if we could, but here
-// we just assume a safe physical address after kernel data, e.g. 2MB.
-static u32 placement_address = 0x200000;
+// Declare the end symbol exported from linker.ld
+extern u32 end;
+
+// The placement address starts exactly after the kernel's .bss section dynamically.
+static u32 placement_address = (u32)&end;
 
 // kmalloc using a simple bump allocator
 u32 kmalloc(u32 size) {
