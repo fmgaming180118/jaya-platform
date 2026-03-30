@@ -1,0 +1,55 @@
+name: JAYA Phase1 Benchmark Gate
+
+on:
+  pull_request:
+    paths:
+      - 'JAYA_CORE/**'
+      - '.github/workflows/phase1-benchmark-gate.yml'
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'JAYA_CORE/**'
+      - '.github/workflows/phase1-benchmark-gate.yml'
+
+jobs:
+  phase1-benchmark-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+
+      - name: Run Phase 1 core tests
+        run: |
+          python -m pytest JAYA_CORE/tests/test_phase1_jaya_ir.py -v
+
+      - name: Run benchmark guard tests
+        run: |
+          python -m pytest JAYA_CORE/tests/test_phase1_ir_benchmark.py JAYA_CORE/tests/test_phase1_benchmark_gate.py JAYA_CORE/tests/test_phase1_architecture_boundary.py -v
+
+      - name: Run Phase 2 evolution gate tests
+        run: |
+          python -m pytest JAYA_CORE/tests/test_phase2_evolution_gate.py JAYA_CORE/tests/test_phase2_rollback.py JAYA_CORE/tests/test_phase2_manifest.py -v
+
+      - name: Run strict benchmark gate
+        run: |
+          python JAYA_CORE/scripts/benchmark_phase1_ir.py --rounds 40 --gate --fail-on-gate --max-warm-p50-ms 0.05 --max-warm-p95-ms 0.10 --min-hit-rate 0.95 --json-out JAYA_CORE/docs/phase1_benchmark_latest.json
+
+      - name: Upload benchmark artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-benchmark-latest
+          path: JAYA_CORE/docs/phase1_benchmark_latest.json

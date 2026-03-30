@@ -33,6 +33,9 @@ from typing import Any, Dict, Optional
 
 logger = logging.getLogger("IronEngine")
 
+JAYA_IR_CACHE_SIZE = 768
+JAYA_IR_TTL_S = 600.0
+
 
 # ---------------------------------------------------------------------------
 # AGI Configuration
@@ -165,6 +168,8 @@ class IronEngine:
         self._speculative:     Optional[Any] = None   # Pillar 36
         self._intent:          Optional[Any] = None   # Pillar 40
         self._lingua:          Optional[Any] = None   # Pillar 21
+        self._jaya_ir_exec:    Optional[Any] = None   # Phase 1 JayaIR executor
+        self._evolution_gate:  Optional[Any] = None   # Phase 2 evolution gate
         self._morphic:         Optional[Any] = None   # Pillar 24
         self._resource_mon:    Optional[Any] = None   # Pillar 2
         # V18 additions
@@ -350,6 +355,8 @@ class IronEngine:
         except ImportError as exc:
             logger.warning("IntentEngine unavailable: %s", exc)
 
+        self._ensure_jaya_ir_executor(log_on_ready=True)
+
         try:
             from src.brain_v2.engine.morphic import MorphicKernel
             self._morphic = MorphicKernel(
@@ -358,6 +365,16 @@ class IronEngine:
             logger.info("[Pillar 24] MorphicKernel ready")
         except ImportError as exc:
             logger.warning("MorphicKernel unavailable: %s", exc)
+
+        try:
+            from src.brain_v2.engine.evolution_gate import EvolutionGate
+            self._evolution_gate = EvolutionGate(
+                ethical_heart=self._ethical_heart,
+                zero_trust=self._zero_trust,
+            )
+            logger.info("[Phase 2] EvolutionGate ready")
+        except ImportError as exc:
+            logger.warning("EvolutionGate unavailable: %s", exc)
 
         # V18: MetaCognitivePlanner (Pillar 38)
         try:
@@ -475,6 +492,10 @@ class IronEngine:
                     self._feedback_count,
                     result.get("task"), result.get("result", {}).get("score"))
         self.config.apply_feedback(result.get("config_update", {}))
+        cfg_update = result.get("config_update", {})
+        if cfg_update.get("invalidate_ir_cache") and self._jaya_ir_exec:
+            self._jaya_ir_exec.clear_cache()
+            logger.info("[Phase 1] JayaIR cache invalidated from feedback")
         # Teach IntentEngine from task labels (Pillar 40)
         if self._intent and result.get("task"):
             self._intent.learn(str(result["task"]))
@@ -509,6 +530,137 @@ class IronEngine:
     def is_silent(self) -> bool:
         return self._silent
 
+    def _ensure_jaya_ir_executor(self, log_on_ready: bool = False) -> bool:
+        """Create JayaIR executor lazily through a single runtime factory."""
+        if self._jaya_ir_exec is not None:
+            return True
+        try:
+            from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor
+            self._jaya_ir_exec = JayaIRExecutor(
+                cache_size=JAYA_IR_CACHE_SIZE,
+                ttl_s=JAYA_IR_TTL_S,
+            )
+            if log_on_ready:
+                logger.info(
+                    "[Phase 1] JayaIRExecutor ready (cache=%d ttl=%.1fs)",
+                    JAYA_IR_CACHE_SIZE,
+                    JAYA_IR_TTL_S,
+                )
+            return True
+        except ImportError as exc:
+            logger.warning("JayaIRExecutor unavailable: %s", exc)
+            return False
+
+    # ------------------------------------------------------------------
+    # Phase 1 — JayaIR execution path
+    # ------------------------------------------------------------------
+
+    def execute_intent(self, text: str) -> Dict[str, Any]:
+        """Run one natural-language intent through Lingua -> JayaIR."""
+        if not self._lingua:
+            from src.brain_v2.soul.lingua_logica import LinguaLogica
+            self._lingua = LinguaLogica()
+        if not self._ensure_jaya_ir_executor(log_on_ready=True):
+            return {
+                "ok": False,
+                "error": "jaya_ir_executor_unavailable",
+                "intent": text,
+            }
+
+        expr = self._lingua.encode(text)
+        out = self._jaya_ir_exec.execute_logic_expr(expr)
+        out["intent"] = text
+        out["logic_expr"] = expr
+        return out
+
+    # ------------------------------------------------------------------
+    # Phase 2 — Safe evolution gate
+    # ------------------------------------------------------------------
+
+    def register_stable_state(self, label: str, snapshot: Dict[str, Any]) -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+        self._evolution_gate.register_stable_snapshot(label, snapshot)
+        return {"ok": True, "label": label}
+
+    def evaluate_evolution_candidate(
+        self,
+        candidate: Dict[str, Any],
+        evidence: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+
+        from src.brain_v2.engine.evolution_gate import CandidateEvidence, EvolutionCandidate
+
+        cand = EvolutionCandidate.from_dict(candidate)
+        ev = CandidateEvidence.from_dict(evidence)
+        decision = self._evolution_gate.evaluate(cand, ev)
+        return {"ok": True, "decision": decision.to_dict()}
+
+    def sign_evolution_candidate(self, candidate: Dict[str, Any], key_id: str = "local") -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+
+        from src.brain_v2.engine.evolution_gate import EvolutionCandidate
+
+        cand = EvolutionCandidate.from_dict(candidate)
+        signature = self._evolution_gate.sign_candidate(cand, key_id=key_id)
+        payload = cand.to_dict()
+        payload["signature"] = signature
+        return {"ok": True, "candidate": payload}
+
+    def rollback_stable_state(self, target_label: Optional[str] = None) -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+        ok, payload = self._evolution_gate.rollback(target_label)
+        payload["ok"] = ok
+        return payload
+
+    def evolution_audit_log(self, limit: int = 200) -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable", "events": []}
+        return {"ok": True, "events": self._evolution_gate.export_audit_log(limit=limit)}
+
+    def create_evolution_manifest(
+        self,
+        candidate: Dict[str, Any],
+        baseline_ref: str,
+        out_path: Optional[str] = None,
+        notes: str = "",
+    ) -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+
+        from src.brain_v2.engine.evolution_gate import EvolutionCandidate
+        from src.brain_v2.engine.evolution_manifest import build_signed_manifest, save_manifest
+
+        cand = EvolutionCandidate.from_dict(candidate)
+        manifest = build_signed_manifest(
+            candidate=cand,
+            gate=self._evolution_gate,
+            baseline_ref=baseline_ref,
+            notes=notes,
+        )
+        result: Dict[str, Any] = {"ok": True, "manifest": manifest}
+        if out_path:
+            result["manifest_path"] = save_manifest(manifest, out_path)
+        return result
+
+    def verify_evolution_manifest(self, manifest_path: str) -> Dict[str, Any]:
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+
+        from src.brain_v2.engine.evolution_manifest import load_manifest, verify_manifest
+
+        manifest = load_manifest(manifest_path)
+        valid, reason = verify_manifest(manifest, self._evolution_gate)
+        return {
+            "ok": valid,
+            "reason": reason,
+            "manifest": manifest,
+        }
+
     # ------------------------------------------------------------------
     # Status
     # ------------------------------------------------------------------
@@ -531,6 +683,8 @@ class IronEngine:
             "speculative":   self._speculative.status()   if self._speculative   else None,
             "intent":        self._intent.status()        if self._intent        else None,
             "lingua":        self._lingua.status()        if self._lingua        else None,
+            "jaya_ir":       self._jaya_ir_exec.status()  if self._jaya_ir_exec  else None,
+            "evolution_gate": self._evolution_gate.status() if self._evolution_gate else None,
             "morphic":       self._morphic.status()       if self._morphic       else None,
             "resource_mon":   self._resource_mon.status()    if self._resource_mon    else None,
             # V18 additions
