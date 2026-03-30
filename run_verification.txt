@@ -1,0 +1,225 @@
+﻿python : 2026-03-30 
+17:30:29,501 - 
+AutoTeacher - INFO - 
+[AutoTeacher] INIT. Mode 
+Dry-Run: True
+At line:1 char:1
++ python JAYA_CORE/scripts
+/run_autonomous_curriculum
+.py --dry-run 2>&1  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (2  
+  026-03-30 17:3...e Dr   
+ y-Run: True:String) [    
+], RemoteException
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+2026-03-30 17:30:29,501 - 
+AutoTeacher - INFO - 
+[Pillar 6] JAYA 
+merenungkan topik krusial 
+(Fokus Bahasa 
+Indonesia)...
+2026-03-30 17:30:31,965 - 
+AutoTeacher - INFO - 
+[Pillar 6] JAYA penasaran 
+dengan: Fonologi Bahasa 
+Indonesia dalam Konteks 
+Teori Autosegmental, 
+Kajian Kontrastif 
+Morfologi Verba Bahasa 
+Indonesia dan Bahasa 
+Inggris, Analisis 
+Pragmatik Implikatur pada 
+Wacana Bahasa Indonesia
+2026-03-30 17:30:31,965 - 
+AutoTeacher - INFO - --- 
+[AutoTeacher] Teaching 
+Topic: Fonologi Bahasa 
+Indonesia dalam Konteks 
+Teori Autosegmental ---
+2026-03-30 17:30:31,965 - 
+AutoTeacher - INFO -    > 
+Mengekstrak intisari 
+ensiklopedia...
+2026-03-30 17:30:52,474 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Memorized 
+new fact about: Fonologi 
+Bahasa Indonesia dalam 
+Konteks Teori 
+Autosegmental
+2026-03-30 17:30:52,474 - 
+AutoTeacher - INFO -    
+\u2713 Faktual tersimpan 
+di Agentic RAG (~2729 
+chars). JAYA dapat 
+mengingat ini.
+2026-03-30 17:30:55,838 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Tersambung 
+4 koneksi sinapsis memori 
+baru.
+2026-03-30 17:30:55,838 - 
+AutoTeacher - INFO -    > 
+Ekstraksi Aksioma Murni 
+dengan Model Pemikir 
+(Reasoning)...
+2026-03-30 17:31:01,524 - 
+AutoTeacher - INFO -    > 
+Menguji Axiom: If context 
+is Fonologi Bahasa 
+Indonesia dalam Konteks 
+Teori Autosegmental, 
+system understands 
+Fonologi Bahasa Indonesia 
+dalam Konteks Teori 
+Autosegmental
+2026-03-30 17:31:01,524 - 
+AutoTeacher - ERROR -    
+! EvolutionGate gagal 
+dieksekusi.
+2026-03-30 17:31:01,524 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Initiating 
+Self-Tidy Up phase...
+2026-03-30 17:31:01,541 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Tidy up 
+complete in 0.02s.
+2026-03-30 17:31:02,544 - 
+AutoTeacher - INFO - --- 
+[AutoTeacher] Teaching 
+Topic: Kajian Kontrastif 
+Morfologi Verba Bahasa 
+Indonesia dan Bahasa 
+Inggris ---
+2026-03-30 17:31:02,544 - 
+AutoTeacher - INFO -    > 
+Mengekstrak intisari 
+ensiklopedia...
+2026-03-30 17:31:21,620 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Memorized 
+new fact about: Kajian 
+Kontrastif Morfologi 
+Verba Bahasa Indonesia 
+dan Bahasa Inggris
+2026-03-30 17:31:21,620 - 
+AutoTeacher - INFO -    
+\u2713 Faktual tersimpan 
+di Agentic RAG (~2345 
+chars). JAYA dapat 
+mengingat ini.
+2026-03-30 17:31:26,975 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Tersambung 
+5 koneksi sinapsis memori 
+baru.
+2026-03-30 17:31:26,975 - 
+AutoTeacher - INFO -    > 
+Ekstraksi Aksioma Murni 
+dengan Model Pemikir 
+(Reasoning)...
+2026-03-30 17:31:36,977 - 
+AutoTeacher - INFO -    > 
+Menguji Axiom: If context 
+is Kajian Kontrastif 
+Morfologi Verba Bahasa 
+Indonesia dan Bahasa 
+Inggris, system 
+understands Kajian 
+Kontrastif Morfologi 
+Verba Bahasa Indonesia 
+dan Bahasa Inggris
+2026-03-30 17:31:36,977 - 
+AutoTeacher - ERROR -    
+! EvolutionGate gagal 
+dieksekusi.
+2026-03-30 17:31:36,977 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Initiating 
+Self-Tidy Up phase...
+2026-03-30 17:31:36,984 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Tidy up 
+complete in 0.01s.
+2026-03-30 17:31:37,992 - 
+AutoTeacher - INFO - --- 
+[AutoTeacher] Teaching 
+Topic: Analisis Pragmatik 
+Implikatur pada Wacana 
+Bahasa Indonesia ---
+2026-03-30 17:31:37,992 - 
+AutoTeacher - INFO -    > 
+Mengekstrak intisari 
+ensiklopedia...
+2026-03-30 17:31:56,553 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Memorized 
+new fact about: Analisis 
+Pragmatik Implikatur pada 
+Wacana Bahasa Indonesia
+2026-03-30 17:31:56,553 - 
+AutoTeacher - INFO -    
+\u2713 Faktual tersimpan 
+di Agentic RAG (~2718 
+chars). JAYA dapat 
+mengingat ini.
+2026-03-30 17:32:00,624 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Tersambung 
+5 koneksi sinapsis memori 
+baru.
+2026-03-30 17:32:00,625 - 
+AutoTeacher - INFO -    > 
+Ekstraksi Aksioma Murni 
+dengan Model Pemikir 
+(Reasoning)...
+2026-03-30 17:32:30,823 - 
+NvidiaLLM - ERROR - 
+[NVIDIA LLM] Gagal 
+menghubungi NIM API: The 
+read operation timed out
+2026-03-30 17:32:30,823 - 
+AutoTeacher - INFO -    > 
+Menguji Axiom: If context 
+is Analisis Pragmatik 
+Implikatur pada Wacana 
+Bahasa Indonesia, system 
+understands Analisis 
+Pragmatik Implikatur pada 
+Wacana Bahasa Indonesia
+2026-03-30 17:32:30,824 - 
+AutoTeacher - ERROR -    
+! EvolutionGate gagal 
+dieksekusi.
+2026-03-30 17:32:30,824 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Initiating 
+Self-Tidy Up phase...
+2026-03-30 17:32:30,877 - 
+AgenticRAG - INFO - 
+[Agentic RAG] Tidy up 
+complete in 0.05s.
+
+==============================================
+ [INIT] JAYA AUTONOMOUS CURRICULUM ACTIVATED 
+==============================================
+
+Menginisialisasi JAYA ke dalam mode pelatihan mandiri Otonom.
+[!] SAFE MODE ENGAGED. Evolusi terisolasi di Sandbox.
+
+
+[?] Membangkitkan Pillar 6: Stochastic Spontaneity...
+
+[TARGET BELAJAR]: Fonologi Bahasa Indonesia dalam Konteks Teori Autosegmental, Kajian Kontrastif Morfologi Verba Bahasa Indonesia dan Bahasa Inggris, Analisis Pragmatik Implikatur pada Wacana Bahasa Indonesia
+
+[SUCCESS] Siklus Kurikulum Selesai.
+Data RAG telah dirapikan oleh JAYA sendiri (Otonomi).
+Aksioma telah di-'sidang' oleh EvolutionGate.
