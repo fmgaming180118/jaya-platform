@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "type": "command",
+        "windows": "python .github/hooks/protect_self_mutation.py",
+        "linux": "python3 .github/hooks/protect_self_mutation.py",
+        "osx": "python3 .github/hooks/protect_self_mutation.py",
+        "timeout": 8
+      }
+    ]
+  }
+}
