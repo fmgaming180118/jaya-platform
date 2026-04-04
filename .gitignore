@@ -46,6 +46,10 @@ JAYA_RESEARCH/ui/.env
 .venv/
 venv/
 ENV/
+.venv*/
+**/.venv*/
+**/venv*/
+JAYA_RESEARCH/.venv312/
 
 # IDEs
 .idea/
@@ -80,3 +84,15 @@ Desktop.ini
 
 blueprint/
 file-uji-coba/
+
+# Root hygiene (prevent accidental root clutter)
+/tests/
+/approved_log*.txt
+/final_*.txt
+/jaya_data_list.txt
+/pip_install_log.txt
+/run_*.txt
+/sample_run.txt
+/test_*.txt
+/verify_*.txt
+/tmp_*.py
