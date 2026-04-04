@@ -1,0 +1,11 @@
+﻿--- Memulai Tes Logika Offline JAYA ---
+Query: Apa itu fonologi Jakarta?
+JAYA Response:
+Boss, saya menggunakan kedaulatan biner lokal (OFFLINE). Berdasarkan ingatan saya:
+
+- Dialek Jakarta memiliki sistem vokal yang khas, termasuk penggunaan e-pepet.
+- Perubahan bunyi sering terjadi pada akhiran -a menjadi -e.
+
+Apakah ada hal lain yang bisa saya bantu dengan data lokal ini?
+
+[SUCCESS] Logika Offline JAYA terverifikasi!

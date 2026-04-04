@@ -1,0 +1,39 @@
+{
+  "id": {
+    "greeting": "Halo, saya bantuan lokal. Bagaimana saya bisa membantu hari ini?",
+    "no_memory": "Tidak ada riwayat percakapan. Mohon ulangi pertanyaan.",
+    "portable": "Saya bisa diakses di mana saja. Pertanyaan saya?",
+    "header": "Pertanyaan Anda",
+    "closing": "Terima kasih, silakan tanyakan lagi.",
+    "intent_action": "Saya akan {intent} untuk Anda.",
+    "intent_query": "Bagaimana saya bisa {intent} untuk Anda?",
+    "mixed_notice": "Beberapa pertanyaan mungkin tidak bisa dijawab.",
+    "clarify": "Mohon klarifikasi untuk pertanyaan yang jelas.",
+    "segment_no_memory": "Bagian {index} tidak tersedia.",
+    "segment_clarify": "Mohon klarifikasi untuk bagian {index}",
+    "segment_with_memory": "Bagian {index} ({summary})",
+    "procedure_step": "Langkah {index}: {step}",
+    "procedure_meta": "Sumber: {source}, Kepercayaan: {confidence}"
+  },
+  "en": {
+    "greeting": "Hello, I'm a local assistant. How can I help you today?",
+    "no_memory": "No conversation history. Please repeat your question.",
+    "portable": "I can be accessed anywhere. What's your question?",
+    "header": "Your Question",
+    "closing": "Thank you, feel free to ask again.",
+    "intent_action": "I will {intent} for you.",
+    "intent_query": "How can I {intent} for you?",
+    "mixed_notice": "Some questions may not be answerable.",
+    "clarify": "Please clarify your question.",
+    "segment_no_memory": "Segment {index} is unavailable.",
+    "segment_with_memory": "Segment {index} ({summary})",
+    "procedure_step": "Step {index}: {step}",
+    "procedure_meta": "Source: {source}, Confidence: {confidence}"
+  },
+  "_meta": {
+    "source": "language_override_pack",
+    "model": "unspecified",
+    "generated_at": "2026-04-01T08:57:48Z",
+    "total_fields": 27
+  }
+}
