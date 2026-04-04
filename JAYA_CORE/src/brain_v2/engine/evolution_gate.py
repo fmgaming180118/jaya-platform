@@ -157,6 +157,21 @@ class EvolutionGate:
             }
         )
 
+    def record_runtime_event(
+        self,
+        event_type: str,
+        payload: Dict[str, Any],
+    ) -> bool:
+        safe_event = str(event_type or "").strip()
+        if not safe_event:
+            return False
+
+        try:
+            self._record_event(safe_event, dict(payload or {}))
+            return True
+        except Exception:
+            return False
+
     def _compute_signature(self, candidate: EvolutionCandidate) -> str:
         data = candidate.canonical_for_signature().encode("utf-8")
         return hmac.new(self._signing_secret, data, hashlib.sha256).hexdigest()

@@ -109,6 +109,27 @@ class TestPhase2EvolutionGate(unittest.TestCase):
         events = gate.export_audit_log()
         self.assertGreaterEqual(len(events), 2)
 
+    def test_record_runtime_event_public_api(self):
+        gate = EvolutionGate()
+
+        ok = gate.record_runtime_event(
+            "agentic_objective_update",
+            {"source": "local_rag", "success": True},
+        )
+
+        self.assertTrue(ok)
+        events = gate.export_audit_log(limit=10)
+        self.assertTrue(events)
+        self.assertEqual(events[-1].get("event"), "agentic_objective_update")
+
+    def test_record_runtime_event_rejects_empty_event_name(self):
+        gate = EvolutionGate()
+
+        ok = gate.record_runtime_event("", {"source": "runtime"})
+
+        self.assertFalse(ok)
+        self.assertEqual(gate.export_audit_log(limit=10), [])
+
 
 if __name__ == "__main__":
     unittest.main()
