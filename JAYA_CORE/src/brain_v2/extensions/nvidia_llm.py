@@ -26,6 +26,15 @@ class NvidiaNIMClient:
 
     def ask(self, system_prompt: str, user_prompt: str, max_tokens: int = 512) -> Optional[str]:
         """Tanya ke Llama-3 NVIDIA NIM secara terstruktur, dikembalikan jawaban murninya."""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        # Keep historical default behavior of ask() more deterministic.
+        return self.chat(messages, max_tokens=max_tokens, temperature=0.3)
+
+    def chat(self, messages: list[dict[str, str]], max_tokens: int = 1024, temperature: float = 0.5) -> Optional[str]:
+        """Kirim serangkaian pesan percakapan (Multi-turn) ke NVIDIA NIM."""
         if not self.api_key:
             logger.warning("[NVIDIA LLM] API Key tidak ditemukan. Mode Offline AKTIF.")
             return None
@@ -38,12 +47,9 @@ class NvidiaNIMClient:
         
         payload = {
             "model": self.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
+            "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": 0.3 # Low temperature for more rigid logic extraction
+            "temperature": temperature
         }
         
         req = urllib.request.Request(
@@ -62,3 +68,4 @@ class NvidiaNIMClient:
         except Exception as e:
             logger.error(f"[NVIDIA LLM] Gagal menghubungi NIM API: {e}")
         return None
+
