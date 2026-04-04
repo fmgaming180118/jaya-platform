@@ -34,10 +34,11 @@ def ignite_genesis():
     """
     print("--- IGNITING GENESIS PROTOCOL ---")
     
-    # 1. Hardware Binding (Pillar 19)
+    # 1. Hardware Binding (Pillar 14)
     print("[1/6] Extracting Hardware Identity...")
     hw_id = get_system_uuid()
-    print(f"      Hardware Hash: {hw_id.hex()[:16]}...")
+    hw_preview = hw_id.hex() if isinstance(hw_id, (bytes, bytearray)) else str(hw_id)
+    print(f"      Hardware Hash: {hw_preview[:16]}...")
     
     # 2. DNA Anchor (Pillar 11) — SHA3-256 bound to hardware UUID
     print("[2/6] Synthesizing DNA Anchor (SHA3-256 + hardware-bound)...")
