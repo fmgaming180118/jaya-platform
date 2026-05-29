@@ -12,8 +12,8 @@ Model AI modern (LLM) boros karena:
 
 Untuk mencapai kecerdasan tinggi di 1GB VRAM, kita harus membuang "lemak" bahasa manusia dan Python.
 
-### Visi Baru: AGI Tanpa Bahasa Manusia
-Alih-alih *training* model untuk paham bahasa Inggris/Indonesia, kita melatih model kecil untuk **langsung memanipulasi logika mesin**.
+### Visi Baru: Asisten Riset Rekursif & Penemu Teknologi Baru
+Alih-alih *training* model hanya untuk menjadi *chatbot* konvensional, JAYA difokuskan sebagai asisten riset rekursif yang dapat mengiterasi sintesis ilmiah secara mandiri. Tujuannya bukan hanya memanipulasi logika mesin, tetapi **secara aktif menemukan teknologi, teori, atau konsep sains baru yang belum pernah diciptakan oleh umat manusia**.
 *   **Input:** Data mentah (sensor/file).
 *   **Proses:** Neural Network super kecil (Tinygrad / Micro-Llama) yang teroptimasi.
 *   **Output:** **Kode Mesin (LLVM IR / Wasm / Assembly)** yang langsung dieksekusi CPU/GPU.

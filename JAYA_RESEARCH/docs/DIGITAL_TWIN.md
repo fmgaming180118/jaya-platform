@@ -42,4 +42,4 @@ All outputs are stored in `data/language_evolution/`:
 *   **`compiler_vX_TIMESTAMP.py`**: The Reference Compiler for Generation X.
 
 ## 🧠 The Goal
-The end goal is a **Self-Improving Compiler** that creates a language so efficient it approaches the theoretical limit of the hardware, which can then be "learned" by future AI models.
+The end goal is a **Self-Improving Compiler** that creates a language so efficient it approaches the theoretical limit of the hardware, which can then be "learned" by future AI models. Melalui proses iteratif dan rekursif ini, *Digital Twin* menjadi mesin penemuan otonom yang tidak hanya mengoptimalkan kompilator, tetapi juga berpotensi **menemukan teknologi, metode komputasi, atau konsep sains baru yang belum pernah diciptakan oleh manusia**.

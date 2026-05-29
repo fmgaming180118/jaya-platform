@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 Graph RAG Engine
 Implements Knowledge Graph construction and retrieval using LLM extraction.
@@ -19,7 +22,7 @@ except ImportError:
 class GraphRAGEngine:
     def __init__(self, storage_path=None):
         # Default to data/knowledge_graph.json if no path provided (Backward compatibility)
-        self.storage_path = Path(storage_path) if storage_path else Path("data/knowledge_graph.json")
+        self.storage_path = Path(storage_path) if storage_path else Path(config.KNOWLEDGE_GRAPH_PATH)
         self.graph = nx.DiGraph()
         # Use Reasoning model for extraction
         self.teacher = Teacher(model_type="reasoning")

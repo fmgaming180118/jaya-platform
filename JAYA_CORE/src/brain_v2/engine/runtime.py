@@ -88,6 +88,8 @@ class AgiConfig:
     max_tokens: int = 512
     # Twin reflection interval forwarded on creation
     twin_reflection_interval: float = 30.0
+    # Runtime learning speed multiplier (1.0 = normal, >1.0 = faster self-study)
+    learning_speed: float = 1.0
     # Version tag for this config snapshot
     version: int = 0
 
@@ -124,6 +126,15 @@ class AgiConfig:
                 self.version += 1
                 logger.info("AgiConfig.objective_weights updated  (v%d)",
                             self.version)
+                continue
+            if key == "learning_speed":
+                try:
+                    self.learning_speed = max(0.1, min(5.0, float(val)))
+                    self.version += 1
+                    logger.info("AgiConfig.learning_speed → %.2f  (v%d)",
+                                self.learning_speed, self.version)
+                except (TypeError, ValueError):
+                    pass
                 continue
             if hasattr(self, key):
                 try:
@@ -215,6 +226,7 @@ class IronEngine:
         self._meta_cognitive:  Optional[Any] = None   # Pillar 38 MetaCognitivePlanner
         self._self_bootstrap:  Optional[Any] = None   # Pillar 28 SelfBootstrap
         self._live_evolver:    Optional[Any] = None   # LiveEvolver for micro-evolution
+        self._indonesian_responder: Optional[Any] = None  # Pillar 21 — Indonesian NLG
         self._agentic_source_policy: Dict[str, Dict[str, Any]] = {
             "local_rag": {
                 "require_trusted_source": False,
@@ -542,7 +554,9 @@ class IronEngine:
         # V18: SelfBootstrap (Pillar 28)
         try:
             from src.brain_v2.engine.self_bootstrap import SelfBootstrap
-            self._self_bootstrap = SelfBootstrap()
+            self._self_bootstrap = SelfBootstrap(
+                learning_speed=self.config.learning_speed,
+            )
             logger.info("[Pillar 28] SelfBootstrap ready")
         except ImportError as exc:
             logger.warning("SelfBootstrap unavailable: %s", exc)
@@ -555,6 +569,30 @@ class IronEngine:
                 logger.info("[V18] LiveEvolver ready (NANO_MODE=%s)", self.nano_mode)
         except ImportError as exc:
             logger.warning("LiveEvolver unavailable: %s", exc)
+
+        # Indonesian NLG — Pillar 21 output layer
+        try:
+            from src.brain_v2.soul.indonesian_responder import IndonesianResponder
+            self._indonesian_responder = IndonesianResponder()
+            logger.info("[Pillar 21] IndonesianResponder ready — JAYA speaks Indonesian")
+        except ImportError as exc:
+            logger.warning("IndonesianResponder unavailable: %s", exc)
+
+    def set_learning_speed(self, factor: float) -> Dict[str, Any]:
+        """Adjust the self-study acceleration factor for JAYA."""
+        factor = max(0.1, min(5.0, float(factor)))
+        self.config.learning_speed = factor
+        if self._self_bootstrap is not None:
+            self._self_bootstrap.set_learning_speed(factor)
+        if self._live_evolver is not None:
+            self._live_evolver.max_steps = max(50, int(200 * factor))
+        logger.info("[Learning] speed factor set to %.2f", factor)
+        return {
+            "ok": True,
+            "learning_speed": factor,
+            "self_bootstrap": self._self_bootstrap.status() if self._self_bootstrap else None,
+            "live_evolver": self._live_evolver.status() if self._live_evolver else None,
+        }
 
     def _init_resource_monitor(self) -> None:
         """Start background resource watcher (Pillar 2)."""
@@ -1592,6 +1630,63 @@ class IronEngine:
             "reason": reason,
             "manifest": manifest,
         }
+
+    # ------------------------------------------------------------------
+    # Pillar 21 — Natural Language Output (Bahasa Indonesia)
+    # ------------------------------------------------------------------
+
+    def chat(self, text: str) -> str:
+        """
+        Antarmuka percakapan utama JAYA dalam Bahasa Indonesia.
+
+        Pipeline:
+            text → LinguaLogica.encode() → execute_intent() → IndonesianResponder.respond()
+
+        Mengembalikan kalimat natural Bahasa Indonesia yang siap ditampilkan ke Bos.
+        """
+        if not text or not text.strip():
+            if self._indonesian_responder:
+                return self._indonesian_responder.clarify()
+            return "Maaf, perintah tidak boleh kosong, Bos."
+
+        # 1. Encode & execute intent
+        try:
+            ir_result = self.execute_intent(text)
+        except Exception as exc:
+            logger.warning("chat: execute_intent failed: %s", exc)
+            ir_result = {}
+
+        expr = ir_result.get("logic_expr", ("LITERAL", text))
+        rag_facts: list = []
+        agentic_hint = ir_result.get("agentic_hint")
+
+        # 2. Pull facts dari AgenticRAG jika QUERY
+        if isinstance(expr, tuple) and expr[0] == "QUERY" and self._agentic_rag:
+            try:
+                facts_raw = self._agentic_rag.recall(text, limit=2)
+                if isinstance(facts_raw, list):
+                    rag_facts = facts_raw
+            except Exception:
+                pass
+
+        # 3. Generate Indonesian response
+        if self._indonesian_responder:
+            return self._indonesian_responder.respond(
+                expr=expr,
+                raw_text=text,
+                rag_facts=rag_facts,
+                agentic_hint=agentic_hint,
+            )
+
+        # Fallback minimal jika responder belum siap
+        from src.brain_v2.soul.indonesian_responder import generate_response
+        return generate_response(expr, fallback_text=text)
+
+    def greet(self) -> str:
+        """Salam pembuka JAYA dalam Bahasa Indonesia."""
+        if self._indonesian_responder:
+            return self._indonesian_responder.greet()
+        return "Halo Bos, saya JAYA. Siap membantu Anda."
 
     # ------------------------------------------------------------------
     # Status

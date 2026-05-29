@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 Research Agent - LangGraph Workflow for Deep Research
 """
@@ -34,19 +37,31 @@ class ResearchAgent:
     5. Iterate or Finalize
     """
     
-    def __init__(self, topic: str, focus_areas: str = ""):
+    def __init__(self, topic: str, focus_areas: str = "", workspace: str = "default"):
         """
         Initialize research agent.
         
         Args:
             topic: Research topic
             focus_areas: Optional focus areas (e.g., "Meta-Learning, Neural Compilation")
+            workspace: Workspace name for isolated RAG memory (default: 'default')
         """
         self.topic = topic
         self.focus_areas = focus_areas or "General AGI research"
+        self.workspace = workspace
         self.config = get_config()
         self.teacher = Teacher()
-        self.rag = RAGClient()
+        
+        # Load RAG scoped to the workspace's vector store
+        try:
+            from research.workspace_manager import WorkspaceManager
+            wm = WorkspaceManager()
+            ws_paths = wm.get_or_create_paths(workspace)
+            self.rag = RAGClient(vector_store_path=ws_paths["vector_store"])
+            print(f"[RESEARCH] 🗂️  Workspace: '{workspace}' → {ws_paths['vector_store']}")
+        except Exception as e:
+            print(f"[RESEARCH] ⚠️  Workspace init failed ({e}), using global RAG.")
+            self.rag = RAGClient()
         
         # Research state
         self.plan = None
@@ -273,10 +288,42 @@ If the context is insufficient, note what additional information would be helpfu
         return report
     
     def review_report(self) -> List[str]:
-        """Review report for gaps (simplified)"""
-        # For MVP, no gap detection
-        # Full implementation would ask LLM to identify missing information
-        return []
+        """Review report for gaps using LLM-as-a-judge (Peer Reviewer)"""
+        if not self.report:
+            return []
+            
+        print("[RESEARCH] 🕵️  Peer Reviewer is analyzing the report for scientific gaps...")
+        
+        prompt = self.config.get_prompt(
+            'gap_detection',
+            topic=self.topic,
+            report=self.report
+        )
+        
+        response = self.teacher.ask(
+            prompt,
+            system_instruction="You are a strict, critical Scientific Peer Reviewer. Output ONLY a numbered list of new questions."
+        )
+        
+        # Parse questions (similar to generate_plan)
+        lines = response.strip().split('\n')
+        gaps = []
+        
+        for line in lines:
+            line = line.strip()
+            # Look for numbered questions or bullet points
+            if line and (line[0].isdigit() or line.startswith('-') or line.startswith('*')):
+                # Clean up formatting
+                question = line.lstrip('0123456789.-* ')
+                if question:
+                    gaps.append(question)
+                    
+        if gaps:
+            print(f"[RESEARCH] Peer Reviewer found {len(gaps)} gaps requiring further investigation.")
+        else:
+            print("[RESEARCH] Peer Reviewer found no significant gaps. Synthesis is solid.")
+            
+        return gaps
     
     def save_report(self):
         """Save report to file and memory"""
@@ -293,7 +340,7 @@ If the context is insufficient, note what additional information would be helpfu
         try:
             from memory import DiscoveryMemory
             # Use the main evolution memory file
-            memory = DiscoveryMemory("data/evolution_memory.json")
+            memory = DiscoveryMemory(config.EVOLUTION_MEMORY_PATH)
             
             # Store report as research experience
             memory.add_experience(

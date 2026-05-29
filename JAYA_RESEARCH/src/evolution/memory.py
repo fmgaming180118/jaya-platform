@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 import json
 import time
 from pathlib import Path
@@ -8,7 +11,7 @@ class EvolutionMemory:
     The 'Hippocampus' of the Digital Twin.
     Stores stream of consciousness (thoughts), plans, and experiment results.
     """
-    def __init__(self, storage_path="data/evolution/memory.json"):
+    def __init__(self, storage_path=config.EVOLUTION_MEMORY_PATH):
         self.storage_path = Path(storage_path)
         self.storage_path.parent.mkdir(parents=True, exist_ok=True)
         self.thoughts: List[Dict] = []

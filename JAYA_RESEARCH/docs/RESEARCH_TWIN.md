@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Research-Guided Digital Twin (`research_twin.py`) combines autonomous research with compiler evolution, enabling the system to learn optimization techniques and apply them during development.
+The Research-Guided Digital Twin (`research_twin.py`) combines autonomous recursive research with compiler evolution. It acts as an autonomous assistant that not only learns optimization techniques and applies them during development but also iterates continuously to discover **novel technologies, architectures, or scientific concepts that do not yet exist**.
 
 ## Key Features
 

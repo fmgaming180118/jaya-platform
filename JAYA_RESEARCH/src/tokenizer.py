@@ -1,3 +1,4 @@
+from config import config
 
 import json
 import os
@@ -29,11 +30,11 @@ class CharTokenizer:
             chars.append(self.idx_to_char.get(i, ''))
         return "".join(chars)
 
-    def save(self, path="data/tokenizer.json"):
+    def save(self, path=config.TOKENIZER_PATH):
         with open(path, "w") as f:
             json.dump({"chars": self.chars}, f)
 
-    def load(self, path="data/tokenizer.json"):
+    def load(self, path=config.TOKENIZER_PATH):
         with open(path, "r") as f:
             data = json.load(f)
             self.chars = data["chars"]

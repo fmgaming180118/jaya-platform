@@ -7,6 +7,8 @@ from pathlib import Path
 # Add project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
+from src.core_config import core_config
 
 from src.brain_v2.engine.runtime import IronEngine
 
@@ -20,7 +22,7 @@ def verify():
         
     try:
         # 1. Initialize Engine
-        engine = IronEngine(model_path, "Genesis123!")
+        engine = IronEngine(model_path, core_config.SOUL_PASSWORD)
         
         # 2. Manual Awakening (Skip Infinite Loop)
         print("[*] Awakening Brain...")

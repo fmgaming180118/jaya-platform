@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 import os
 import json
 import shutil
@@ -9,7 +12,7 @@ class WorkspaceManager:
     Manages Research Workspaces (Rooms).
     Each workspace has its own vector store and knowledge graph.
     """
-    def __init__(self, base_dir="data/workspaces"):
+    def __init__(self, base_dir=config.WORKSPACES_DIR):
         self.base_dir = Path(base_dir)
         self.base_dir.mkdir(parents=True, exist_ok=True)
         self.current_workspace = "default"
@@ -69,9 +72,29 @@ class WorkspaceManager:
         """Returns paths for vector store and graph for a given workspace."""
         ws_path = self.base_dir / workspace_id
         if not ws_path.exists():
-            raise ValueError(f"Workspace {workspace_id} not found")
+            raise ValueError(f"Workspace '{workspace_id}' not found")
             
         return {
             "vector_store": str(ws_path / "vector_store.json"),
             "knowledge_graph": str(ws_path / "knowledge_graph.json")
         }
+
+    def get_or_create_paths(self, workspace_id: str) -> Dict[str, str]:
+        """Returns paths for a workspace, creating it automatically if it doesn't exist."""
+        safe_id = "".join([c if c.isalnum() else "_" for c in workspace_id]).lower()
+        ws_path = self.base_dir / safe_id
+        if not ws_path.exists():
+            print(f"[WORKSPACE] 🆕 Auto-creating workspace: '{safe_id}'")
+            self._ensure_workspace(safe_id)
+        return {
+            "vector_store": str(ws_path / "vector_store.json"),
+            "knowledge_graph": str(ws_path / "knowledge_graph.json")
+        }
+
+    def delete_workspace(self, workspace_id: str) -> Dict:
+        """Deletes a workspace and all its data."""
+        ws_path = self.base_dir / workspace_id
+        if not ws_path.exists():
+            return {"status": "error", "message": f"Workspace '{workspace_id}' not found"}
+        shutil.rmtree(ws_path)
+        return {"status": "success", "message": f"Workspace '{workspace_id}' deleted"}

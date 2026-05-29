@@ -1,3 +1,4 @@
+from config import config
 import os
 import sys
 import glob
@@ -20,7 +21,7 @@ def generate_knowledge_synthesis(all_reports_content):
     
     api_key = os.getenv("NVIDIA_API_KEY")
     model = os.getenv("NVIDIA_LLAMA3.1_MODEL", "meta/llama-3.1-8b-instruct")
-    invoke_url = os.getenv("NVIDIA_LLAMA3.1_BASE_URL", "https://integrate.api.nvidia.com/v1") + "/chat/completions"
+    invoke_url = os.getenv("NVIDIA_LLAMA3.1_BASE_URL", config.NVIDIA_BASE_URL) + "/chat/completions"
     
     prompt = f"""
     You are JAYA_RESEARCH, an advanced AI Researcher.

@@ -1,9 +1,12 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 import networkx as nx
 import json
 from pathlib import Path
 
 class KnowledgeGraphEngine:
-    def __init__(self, memory_file="data/evolution_memory.json"):
+    def __init__(self, memory_file=config.EVOLUTION_MEMORY_PATH):
         self.graph = nx.DiGraph()
         self.memory_file = Path(memory_file)
         

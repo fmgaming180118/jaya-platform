@@ -1,3 +1,4 @@
+from config import config
 
 import os
 import yaml
@@ -38,7 +39,7 @@ class Teacher:
              # Critical Error if env var is missing
              raise ValueError(f"Model configuration for '{model_type}' is missing in .env! Check your .env file.")
 
-        self.api_base = os.getenv("NVIDIA_LLAMA31_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        self.api_base = os.getenv("NVIDIA_LLAMA31_BASE_URL", config.NVIDIA_BASE_URL)
 
         self.client = OpenAI(
             base_url=self.api_base,

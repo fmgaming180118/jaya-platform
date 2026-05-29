@@ -1,3 +1,4 @@
+from config import config
 
 import random
 import time
@@ -18,7 +19,7 @@ EPOCHS = 20
 LEARNING_RATE = 0.05
 CONTEXT_LEN = 3 
 
-def load_data(path="data/seed_dataset.json"):
+def load_data(path=config.SEED_DATASET_PATH):
     path = os.path.join(os.path.dirname(__file__), '..', 'data', 'seed_dataset.json')
     if not os.path.exists(path):
         print(f"[!] Data not found at {path}")

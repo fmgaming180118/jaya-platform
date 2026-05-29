@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 JAYA Research API Server (FastAPI)
 The backbone of the Research UI.
@@ -298,7 +301,7 @@ async def ingest_video(request: VideoIngestRequest, background_tasks: Background
         
         # Store in Memory
         from memory import DiscoveryMemory
-        memory = DiscoveryMemory("data/evolution_memory.json")
+        memory = DiscoveryMemory(config.EVOLUTION_MEMORY_PATH)
         memory.add_experience(
             code=result['report'],
             result="VIDEO_ANALYSIS",

@@ -1,39 +1,49 @@
 {
   "id": {
-    "greeting": "Halo, saya bantuan lokal. Bagaimana saya bisa membantu hari ini?",
-    "no_memory": "Tidak ada riwayat percakapan. Mohon ulangi pertanyaan.",
-    "portable": "Saya bisa diakses di mana saja. Pertanyaan saya?",
-    "header": "Pertanyaan Anda",
-    "closing": "Terima kasih, silakan tanyakan lagi.",
+    "greeting": "Halo, saya siap bantu secara lokal.",
+    "no_memory": "Saya belum punya riwayat, tolong ulangi konteks inti.",
+    "portable": "Saya asisten lokal, tidak memerlukan koneksi internet.",
+    "header": "Asisten Lokal",
+    "closing": "Terima kasih, saya siap membantu lagi.",
     "intent_action": "Saya akan {intent} untuk Anda.",
-    "intent_query": "Bagaimana saya bisa {intent} untuk Anda?",
-    "mixed_notice": "Beberapa pertanyaan mungkin tidak bisa dijawab.",
-    "clarify": "Mohon klarifikasi untuk pertanyaan yang jelas.",
-    "segment_no_memory": "Bagian {index} tidak tersedia.",
-    "segment_clarify": "Mohon klarifikasi untuk bagian {index}",
-    "segment_with_memory": "Bagian {index} ({summary})",
+    "intent_query": "Anda ingin {intent}?",
+    "mixed_notice": "Saya belum paham, tolong jelaskan lagi.",
+    "clarify": "Tolong jelaskan tujuan Anda secara ringkas.",
+    "segment_no_memory": "Saya belum punya riwayat untuk bagian {index}.",
+    "segment_clarify": "Tolong jelaskan bagian {index} lagi.",
+    "segment_with_memory": "Saya ingat bagian {index}: {summary}.",
+    "procedure_intro": "Berikut adalah langkah-langkah untuk mencapai tujuan:",
     "procedure_step": "Langkah {index}: {step}",
-    "procedure_meta": "Sumber: {source}, Kepercayaan: {confidence}"
+    "procedure_meta": "Informasi dari {source} dengan kepercayaan {confidence}."
   },
   "en": {
-    "greeting": "Hello, I'm a local assistant. How can I help you today?",
-    "no_memory": "No conversation history. Please repeat your question.",
-    "portable": "I can be accessed anywhere. What's your question?",
-    "header": "Your Question",
-    "closing": "Thank you, feel free to ask again.",
+    "greeting": "Hello, I am ready to help locally.",
+    "no_memory": "I do not have memory for that yet, please restate the key context.",
+    "portable": "I am a local assistant, no internet connection required.",
+    "header": "Local Assistant",
+    "closing": "Thank you, I am ready to help again.",
     "intent_action": "I will {intent} for you.",
-    "intent_query": "How can I {intent} for you?",
-    "mixed_notice": "Some questions may not be answerable.",
-    "clarify": "Please clarify your question.",
-    "segment_no_memory": "Segment {index} is unavailable.",
-    "segment_with_memory": "Segment {index} ({summary})",
+    "intent_query": "Do you want to {intent}?",
+    "mixed_notice": "I did not understand, please explain again.",
+    "clarify": "Please share your goal briefly.",
+    "segment_no_memory": "I do not have memory for part {index}.",
+    "segment_clarify": "Please explain part {index} again.",
+    "segment_with_memory": "I remember part {index}: {summary}.",
+    "procedure_intro": "Here are the steps to achieve your goal:",
     "procedure_step": "Step {index}: {step}",
-    "procedure_meta": "Source: {source}, Confidence: {confidence}"
+    "procedure_meta": "Information from {source} with {confidence} confidence."
   },
   "_meta": {
-    "source": "language_override_pack",
-    "model": "unspecified",
-    "generated_at": "2026-04-01T08:57:48Z",
-    "total_fields": 27
+    "source": "nim_distillation",
+    "model": "meta/llama3-70b-instruct",
+    "generated_at": "2026-04-08T21:25:28Z",
+    "total_fields": 30,
+    "rounds_requested": 2,
+    "rounds_succeeded": 2,
+    "candidate_field_counts": [
+      30,
+      30
+    ],
+    "seed_file": "language_distillation_seed.example.json"
   }
 }

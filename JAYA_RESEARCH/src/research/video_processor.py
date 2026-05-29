@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 Video Processor Adapter
 Integrates logic from AI-Q Video Search & Summarization Blueprint.
@@ -213,14 +216,14 @@ def retry_api(max_retries=5, initial_delay=1):
 class VideoProcessor:
 
     def __init__(self):
-        self.download_dir = Path(os.getenv("VIDEO_CACHE_DIR", "data/video_cache"))
+        self.download_dir = Path(os.getenv("VIDEO_CACHE_DIR", config.VIDEO_CACHE_DIR))
         self.download_dir.mkdir(parents=True, exist_ok=True)
         self.api_key = os.getenv("NVIDIA_API_KEY")
         if not self.api_key:
              raise ValueError("NVIDIA_API_KEY not found in .env")
 
         # NVIDIA VILA or similar VLM hosted on NIM
-        self.vlm_endpoint = os.getenv("NVIDIA_VLM_ENDPOINT", "https://integrate.api.nvidia.com/v1/chat/completions")
+        self.vlm_endpoint = os.getenv("NVIDIA_VLM_ENDPOINT", config.NVIDIA_VLM_ENDPOINT)
         
         # STRICT NO-HARDCODING
         self.model_name = os.getenv("VIDEO_VLM_MODEL")

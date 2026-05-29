@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from config import config
 
 import os
 from pathlib import Path
@@ -12,7 +15,7 @@ class JournalProcessor:
     Orchestrates the search, download, and processing of academic journals for Research Chat.
     """
     
-    def __init__(self, download_dir: str = "data/papers_temp"):
+    def __init__(self, download_dir: str = config.PAPERS_TEMP_DIR):
         self.download_dir = Path(download_dir)
         self.download_dir.mkdir(parents=True, exist_ok=True)
         

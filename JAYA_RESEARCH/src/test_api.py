@@ -1,3 +1,4 @@
+from config import config
 import requests
 import base64
 import os
@@ -15,7 +16,7 @@ if not api_key:
     print("NVIDIA_API_KEY not found")
     sys.exit(1)
 
-invoke_url = "https://integrate.api.nvidia.com/v1/chat/completions"
+invoke_url = config.NVIDIA_VLM_ENDPOINT
 stream = False
 
 headers = {

@@ -7,6 +7,8 @@ from pathlib import Path
 # Add project root
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
+from src.core_config import core_config
 
 from src.brain_v2.protection.crypto import CryptoSkin
 from src.brain_v2.network.twin_socket import TwinSocket
@@ -19,7 +21,7 @@ async def run_simulation():
     print("--- Verifying Phase 4: The Twin Protocol ---")
     
     crypto = CryptoSkin()
-    password = "Genesis123!"
+    password = core_config.SOUL_PASSWORD
     
     # 1. Create Server Twin (Instance A)
     twin_a = TwinSocket(hardware_id=b"SERVER_HWID", crypto=crypto, password=password)

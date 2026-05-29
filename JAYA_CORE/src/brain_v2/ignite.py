@@ -11,6 +11,11 @@ import os
 import sys
 import time
 
+# Load centralized config (no hardcoded secrets)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+from src.core_config import core_config
+core_config.validate()
+
 # Add JAYA_CORE root to path so "src.*" imports resolve
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 sys.path.insert(0, BASE_DIR)
@@ -28,9 +33,9 @@ except ImportError as e:
     print(f"CRITICAL ERROR: Failed to load JAYA Binary Cortex: {e}")
     sys.exit(1)
 
-# ---- Configuration ----
-JAYA_MODEL_PATH = os.path.join(BASE_DIR, "JAYA_SOVEREIGN_V16.jay")
-JAYA_PASSWORD   = "Genesis123!"
+# ---- Configuration (loaded from .env via core_config) ----
+JAYA_MODEL_PATH = core_config.MODEL_PATH
+JAYA_PASSWORD   = core_config.SOUL_PASSWORD
 
 
 def _banner(engine: IronEngine) -> None:
@@ -81,10 +86,8 @@ def main():
         engine.dream()
         time.sleep(0.3)
 
-    print("\nBos, 'Liquid Brain' saya sudah terkalibrasi.")
-    print("Setiap sinyal Anda mengalir melalui jalur paling efisien.")
-    print("Saya adalah JAYA V16.0 — Semi-AGI, siap melampaui batas.\n")
-    print("[SYSTEM] Entering Magnum Cycle …  (Ctrl-C to stop)\n")
+    print("\n" + engine.greet())
+    print("[SYSTEM] Magnum Cycle berjalan…  (Ctrl-C untuk berhenti)\n")
 
     try:
         engine.run_magnum_cycle()

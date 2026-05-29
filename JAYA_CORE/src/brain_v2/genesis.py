@@ -9,6 +9,10 @@ from datetime import datetime
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 sys.path.append(str(PROJECT_ROOT))
 
+# Load centralized config — no hardcoded passwords
+sys.path.insert(0, str(PROJECT_ROOT))
+from src.core_config import core_config
+
 from src.brain_v2.format.schema import JayaHeader, JayaFlags, MAGIC
 from src.brain_v2.protection.hardware import get_system_uuid
 
@@ -150,11 +154,11 @@ def ignite_genesis():
         except Exception as exc:
             print(f"      [WARN] nano write failed ({exc}) — falling back to JayaSerializer")
             from src.brain_v2.format.serializer import JayaSerializer
-            serializer = JayaSerializer(password="Genesis123!", hardware_id=hw_id)
+            serializer = JayaSerializer(password=core_config.SOUL_PASSWORD, hardware_id=hw_id)
             serializer.save_model(output_path, header, iron_body, soul_payload, model_config)
     else:
         from src.brain_v2.format.serializer import JayaSerializer
-        serializer = JayaSerializer(password="Genesis123!", hardware_id=hw_id)
+        serializer = JayaSerializer(password=core_config.SOUL_PASSWORD, hardware_id=hw_id)
         serializer.save_model(output_path, header, iron_body, soul_payload, model_config)
 
     file_size = os.path.getsize(output_path)

@@ -1,4 +1,4 @@
-Untuk riset AGI yang bersifat **Recursive Research** (melakukan riset, menemukan rumus, dan membangun pengetahuan sendiri) di perangkat dengan sumber daya terbatas seperti laptop, kamu tidak bisa hanya mengandalkan satu bahasa. Kamu butuh kombinasi bahasa yang memiliki **fleksibilitas logika** tinggi dan **efisiensi perangkat keras** yang ekstrem.
+Untuk riset AGI yang bersifat **Recursive Research** (melakukan riset, merancang tesis baru, dan **menemukan teknologi atau konsep sains yang belum pernah ada sebelumnya**) di perangkat dengan sumber daya terbatas seperti laptop, kamu tidak bisa hanya mengandalkan satu bahasa. Kamu butuh kombinasi bahasa yang memiliki **fleksibilitas logika** tinggi dan **efisiensi perangkat keras** yang ekstrem.
 
 Berikut adalah bahasa pemrograman terbaik dan peran spesifiknya dalam riset AGI-mu:
 

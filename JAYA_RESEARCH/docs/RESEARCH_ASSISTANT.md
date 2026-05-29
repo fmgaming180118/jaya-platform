@@ -2,7 +2,7 @@
 
 ## Overview
 
-JAYA Research Assistant is a deep research system built on NVIDIA's AI-Q blueprint, enabling autonomous research on any topic with multimodal document understanding and parallel information retrieval.
+JAYA Research Assistant is a deep recursive research system built on NVIDIA's AI-Q blueprint. It enables autonomous, iterative research with the ultimate goal of synthesizing novel ideas and **discovering new technologies or scientific concepts that do not yet exist**. It achieves this through multimodal document understanding, parallel information retrieval, and recursive reasoning loops.
 
 ## Architecture
 

@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 RAG Client for JAYA Research Assistant
 Lightweight wrapper for document search using DiscoveryMemory + Web fallback
@@ -13,7 +16,7 @@ class RAGClient:
     For full multimodal RAG, this would integrate with NVIDIA RAG blueprint.
     """
     
-    def __init__(self, memory_path: str = "data/evolution_memory.json"):
+    def __init__(self, memory_path: str = config.EVOLUTION_MEMORY_PATH):
         """Initialize RAG client with memory backend"""
         self.memory_path = memory_path
         self.documents = []

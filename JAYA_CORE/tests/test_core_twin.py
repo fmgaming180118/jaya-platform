@@ -140,6 +140,18 @@ def test_engine_agi_config_feedback():
     assert engine.config.topk_ratio == 0.05
     assert engine.config.version == 1
 
+def test_engine_learning_speed_acceleration():
+    from src.brain_v2.engine.runtime import IronEngine
+    engine = IronEngine("fake.jay", "pw", enable_twin=True)
+    engine.ignite()
+    result = engine.set_learning_speed(3.0)
+    assert result["ok"] is True
+    assert engine.config.learning_speed == 3.0
+    assert result["learning_speed"] == 3.0
+    if engine._self_bootstrap is not None:
+        assert engine._self_bootstrap.learning_speed == 3.0
+        assert engine._self_bootstrap.effective_idle_trigger_s <= 120.0
+
 def test_engine_status():
     from src.brain_v2.engine.runtime import IronEngine
     engine = IronEngine("fake.jay", "pw", enable_twin=True)

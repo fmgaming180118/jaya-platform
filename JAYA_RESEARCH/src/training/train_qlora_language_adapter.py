@@ -79,9 +79,40 @@ def _is_nonempty_text_row(row: Dict[str, Any]) -> bool:
     return isinstance(text, str) and bool(text.strip())
 
 
+def _load_local_dataset(dataset_path: Path):
+    if dataset_path.is_dir():
+        # Try to find a train file inside the directory
+        candidates = [
+            "train_preprocess.jsonl",
+            "train_preprocess.json",
+            "train_preprocess.csv",
+            "train_preprocess.tsv",
+            "train.csv",
+            "train.tsv",
+        ]
+        for name in candidates:
+            candidate = dataset_path / name
+            if candidate.exists():
+                dataset_path = candidate
+                break
+
+    suffix = dataset_path.suffix.lower()
+    if suffix in {".json", ".jsonl"}:
+        return "json", {"data_files": str(dataset_path)}
+    if suffix == ".csv":
+        return "csv", {"data_files": str(dataset_path)}
+    if suffix == ".tsv":
+        return "csv", {"data_files": str(dataset_path), "delimiter": "\t"}
+
+    raise ValueError(
+        f"Unsupported local dataset format: {dataset_path}. "
+        "Use .json, .jsonl, .csv, .tsv, or point to a Hugging Face dataset identifier."
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Train QLoRA adapter for JAYA language policy")
-    parser.add_argument("--dataset", default=str(_default_dataset_path()), help="JSONL dataset path")
+    parser.add_argument("--dataset", default=str(_default_dataset_path()), help="JSONL dataset path or Hugging Face dataset identifier (e.g. indonlu)")
     parser.add_argument(
         "--base-model",
         default=os.getenv("QLORA_BASE_MODEL", "Qwen/Qwen3-4B-Instruct-2507"),
@@ -134,19 +165,39 @@ def main() -> int:
         print("- Hint: run JAYA_RESEARCH/scripts/setup_qlora_cuda_env.cmd")
         return 1
 
-    dataset_path = Path(args.dataset).resolve()
-    if not dataset_path.exists():
-        print(f"[ERROR] Dataset not found: {dataset_path}")
-        return 1
-
-    dataset = load_dataset("json", data_files=str(dataset_path), split="train")
+    dataset_path = Path(args.dataset)
+    if dataset_path.exists():
+        loader, loader_kwargs = _load_local_dataset(dataset_path)
+        dataset = load_dataset(loader, split="train", **loader_kwargs)
+    else:
+        print(f"[INFO] Loading Hugging Face dataset: {args.dataset}")
+        loaded = load_dataset(args.dataset)
+        if hasattr(loaded, "keys"):
+            if "train" in loaded:
+                dataset = loaded["train"]
+            else:
+                first_split = next(iter(loaded.keys()))
+                dataset = loaded[first_split]
+        else:
+            dataset = loaded
 
     def _to_text(example: Dict[str, Any]) -> Dict[str, str]:
+        if isinstance(example.get("text"), str):
+            return {"text": example["text"].strip()}
+
         messages_raw = example.get("messages")
-        if not isinstance(messages_raw, list):
-            return {"text": ""}
-        messages = cast(List[Dict[str, Any]], messages_raw)
-        return {"text": _render_chat(messages)}
+        if isinstance(messages_raw, list):
+            messages = cast(List[Dict[str, Any]], messages_raw)
+            return {"text": _render_chat(messages)}
+
+        text_fields: List[str] = []
+        for key, value in example.items():
+            if isinstance(value, str) and value.strip():
+                text_fields.append(value.strip())
+            elif isinstance(value, list) and all(isinstance(item, str) for item in value):
+                text_fields.append(" ".join(item.strip() for item in value if item.strip()))
+
+        return {"text": "\n".join(text_fields)}
 
     dataset = dataset.map(_to_text)
     dataset = dataset.filter(_is_nonempty_text_row)
@@ -220,13 +271,11 @@ def main() -> int:
 
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
-        train_dataset=dataset,
-        dataset_text_field="text",
-        max_seq_length=max(256, int(args.max_seq_length)),
         args=training_args,
+        train_dataset=dataset,
+        processing_class=tokenizer,
+        formatting_func=lambda example: example["text"],
         peft_config=lora_config,
-        packing=True,
     )
 
     trainer.train()

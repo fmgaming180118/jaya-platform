@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+from config import config
 import json
 import os
 import time
@@ -9,7 +12,7 @@ class ExperimentTracker:
     Tracks research experiments for reproducible science.
     Saves logs to data/experiments/
     """
-    def __init__(self, base_dir="data/experiments"):
+    def __init__(self, base_dir=config.EXPERIMENTS_DIR):
         self.base_dir = base_dir
         os.makedirs(self.base_dir, exist_ok=True)
         self.current_experiment_id = None

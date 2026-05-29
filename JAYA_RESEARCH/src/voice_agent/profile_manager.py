@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 
 import os
 import numpy as np
@@ -10,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ProfileManager")
 
 class ProfileManager:
-    def __init__(self, data_dir="data/voice_profiles", sample_dir="data/voice_samples"):
+    def __init__(self, data_dir=config.VOICE_PROFILES_DIR, sample_dir=config.VOICE_SAMPLES_DIR):
         self.data_dir = Path(data_dir)
         self.sample_dir = Path(sample_dir)
         self.encoder = VoiceEncoder()

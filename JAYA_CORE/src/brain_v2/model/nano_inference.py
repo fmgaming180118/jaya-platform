@@ -59,6 +59,24 @@ STANDARD_CONFIG: dict[str, Any] = {
     "version": "V18.0",
 }
 
+# ── Profile khusus Bahasa Indonesia (target: smartwatch 200MB RAM) ──────────
+# Estimasi ukuran:
+#   Embedding  : 8000 × 128 × 1 byte (int8) = ~1 MB
+#   Transformer: 4 layer × (4×128²) = ~0.5 MB
+#   Total packed (2-bit): ~1.5 MB — sangat aman untuk 200MB RAM
+INDONESIAN_CONFIG: dict[str, Any] = {
+    "d_model":       128,
+    "n_layers":      4,
+    "n_heads":       4,
+    "vocab_size":    8_000,   # BPE vocab Indonesia
+    "topk_ratio":    0.12,    # 12% active neurons — sedikit lebih tinggi untuk bahasa
+    "model_profile": "INDONESIAN",
+    "version":       "V18.1-ID",
+    "language":      "id",
+    "description":   "Profil bahasa Indonesia — dilatih via Knowledge Distillation",
+}
+
+
 
 # ---------------------------------------------------------------------------
 # Layer primitives (ternary, no Numba)

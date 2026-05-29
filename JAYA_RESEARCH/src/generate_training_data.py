@@ -1,10 +1,11 @@
+from config import config
 import os
 import json
 import glob
 import random
 
 class FineTuneGenerator:
-    def __init__(self, data_dir="data/language_evolution"):
+    def __init__(self, data_dir=config.LANGUAGE_EVOLUTION_DIR):
         self.data_dir = data_dir
         self.output_file = os.path.join("data", "finetune_dataset.jsonl")
 

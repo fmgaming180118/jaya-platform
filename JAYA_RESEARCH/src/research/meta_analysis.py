@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 Meta-Analysis Tool for JAYA Research
 Synthesizes multiple research reports into a comprehensive knowledge base
@@ -27,7 +30,7 @@ class MetaAnalyst:
         self.config = get_config()
         self.teacher = Teacher()
         # Use main evolution memory
-        self.memory = DiscoveryMemory("data/evolution_memory.json")
+        self.memory = DiscoveryMemory(config.EVOLUTION_MEMORY_PATH)
         
     def get_research_history(self, topic_filter: str = None) -> List[Dict[str, Any]]:
         """

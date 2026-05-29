@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 """
 Enhanced RAG Client with NVIDIA NIM Embeddings
 Supports vector search using NVIDIA NIM API
@@ -33,7 +36,7 @@ class NVIDIAEmbeddings:
         self.model = model or os.getenv("NVIDIA_EMBEDDING_MODEL")
         if not self.model:
              raise ValueError("NVIDIA_EMBEDDING_MODEL not found in .env")
-        self.base_url = os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        self.base_url = os.getenv("NVIDIA_BASE_URL", config.NVIDIA_BASE_URL)
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
@@ -112,7 +115,7 @@ class VectorStore:
         Args:
             storage_path: Path to save/load vector data. If None, defaults to data/vector_store.json
         """
-        self.storage_path = storage_path or "data/vector_store.json"
+        self.storage_path = storage_path or config.VECTOR_STORE_PATH
         self.index_path = self.storage_path.replace(".json", ".index")
         
         self.documents = []
@@ -246,31 +249,62 @@ class EnhancedRAGClient:
         except ImportError:
             nemotron = None
 
+        try:
+            from research.youtube_loader import YouTubeLoader
+            yt_loader = YouTubeLoader()
+        except ImportError:
+            yt_loader = None
+
         documents = []
         texts = []
         
         for path in file_paths:
-            if not os.path.exists(path):
+            is_url = path.startswith("http://") or path.startswith("https://")
+            if not is_url and not os.path.exists(path):
+                print(f"[RAG] File not found: {path}")
                 continue
             
             try:
                 content = ""
-                # Try Nemotron First if available
-                if nemotron and nemotron.available and path.lower().endswith(".pdf"):
+                file_name = path
+                
+                # 1. Try YouTube / Video URL
+                if is_url:
+                    if yt_loader and yt_loader.available:
+                        print(f"[RAG] 🎥 Processing video URL: {path}...")
+                        result = yt_loader.load_and_process(path)
+                        if result.get("status") == "success":
+                            content = result.get("full_text", "")
+                            file_name = result.get("title", path)
+                            print(f"[RAG] ✅ Video extraction successful: {file_name}")
+                        else:
+                            print(f"[RAG] ⚠️ Video processing failed: {result.get('error')}")
+                            continue
+                    else:
+                        print("[RAG] ⚠️ YouTubeLoader not available to process URL.")
+                        continue
+
+                # 2. Try Nemotron for PDFs
+                elif nemotron and nemotron.available and path.lower().endswith(".pdf"):
                     print(f"[RAG] 🚀 Attempting Nemotron Ingest for {os.path.basename(path)}...")
                     result = nemotron.ingest_file(path)
                     
                     if result.get("status") == "success":
                         content = result.get("full_text", "")
+                        file_name = os.path.basename(path)
                         print(f"[RAG] ✅ Nemotron extraction successful ({len(result.get('tables', []))} tables found)")
                     else:
                         print(f"[RAG] ⚠️ Nemotron failed ({result.get('error')}), falling back to standard read")
                 
-                # Standard Read Fallback
-                if not content:
+                # 3. Standard Read Fallback for local files
+                if not content and not is_url:
+                    file_name = os.path.basename(path)
                     with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                         content = f.read()
                 
+                if not content:
+                    continue
+                    
                 # Chunk document (simple splitting for MVP)
                 chunk_size = int(os.getenv("RAG_CHUNK_SIZE", "512"))
                 chunk_overlap = int(os.getenv("RAG_CHUNK_OVERLAP", "128"))
@@ -278,9 +312,9 @@ class EnhancedRAGClient:
                 
                 for i, chunk in enumerate(chunks):
                     doc = {
-                        "type": "research_document",
+                        "type": "research_document" if not is_url else "video_transcript",
                         "file_path": path,
-                        "file_name": os.path.basename(path),
+                        "file_name": file_name,
                         "chunk_id": i,
                         "content": chunk,
                         "timestamp": __import__('time').time()

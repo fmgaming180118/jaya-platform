@@ -1,3 +1,6 @@
+import sys, os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from config import config
 import os
 import shutil
 import ast
@@ -15,7 +18,7 @@ class CodeMutator:
     def __init__(self):
         self.brain = Teacher(model_type="coding") # Use Coding Model (Qwen/Llama-Coder)
         self.sandbox = EvolutionSandbox()
-        self.backup_dir = Path("data/evolution/backups")
+        self.backup_dir = Path(config.EVOLUTION_BACKUPS_DIR)
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
     def evolve_file(self, target_file: str, instruction: str) -> bool:

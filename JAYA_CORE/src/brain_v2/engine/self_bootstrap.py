@@ -29,6 +29,9 @@ logger = logging.getLogger("SelfBootstrap")
 IDLE_TRIGGER_S: float = 300.0  # 5 minutes
 # Cooldown between curriculum generations
 CURRICULUM_COOLDOWN_S: float = 600.0  # 10 minutes
+# Minimum effective thresholds for accelerated learning
+MIN_IDLE_TRIGGER_S: float = 30.0
+MIN_CURRICULUM_COOLDOWN_S: float = 30.0
 # Minimum history entries needed to generate curriculum
 MIN_HISTORY: int = 10
 
@@ -95,12 +98,29 @@ class SelfBootstrap:
         self,
         idle_trigger_s: float = IDLE_TRIGGER_S,
         curriculum_cooldown_s: float = CURRICULUM_COOLDOWN_S,
+        learning_speed: float = 1.0,
     ) -> None:
         self.idle_trigger_s = idle_trigger_s
         self.curriculum_cooldown_s = curriculum_cooldown_s
+        self.learning_speed = max(0.1, float(learning_speed))
         self._last_activity: float = time.monotonic()
         self._last_curriculum: float = 0.0
         self._curricula_generated: int = 0
+        self._scale_durations()
+
+    def _scale_durations(self) -> None:
+        self.effective_idle_trigger_s = max(
+            MIN_IDLE_TRIGGER_S,
+            self.idle_trigger_s / self.learning_speed,
+        )
+        self.effective_curriculum_cooldown_s = max(
+            MIN_CURRICULUM_COOLDOWN_S,
+            self.curriculum_cooldown_s / self.learning_speed,
+        )
+
+    def set_learning_speed(self, learning_speed: float) -> None:
+        self.learning_speed = max(0.1, float(learning_speed))
+        self._scale_durations()
 
     # ------------------------------------------------------------------
 
@@ -112,9 +132,9 @@ class SelfBootstrap:
         """Call once per engine cycle.  Generates curriculum when idle."""
         now = time.monotonic()
         idle_s = now - self._last_activity
-        cooldown_ok = (now - self._last_curriculum) >= self.curriculum_cooldown_s
+        cooldown_ok = (now - self._last_curriculum) >= self.effective_curriculum_cooldown_s
 
-        if idle_s < self.idle_trigger_s:
+        if idle_s < self.effective_idle_trigger_s:
             return
         if not cooldown_ok:
             return
@@ -206,9 +226,10 @@ class SelfBootstrap:
     def status(self) -> dict:
         return {
             "curricula_generated": self._curricula_generated,
+            "learning_speed": self.learning_speed,
             "idle_s": time.monotonic() - self._last_activity,
             "next_curriculum_in_s": max(
                 0.0,
-                self.curriculum_cooldown_s - (time.monotonic() - self._last_curriculum)
+                self.effective_curriculum_cooldown_s - (time.monotonic() - self._last_curriculum)
             ),
         }

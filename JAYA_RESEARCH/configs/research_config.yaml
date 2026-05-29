@@ -108,3 +108,16 @@ prompts:
     Findings: {findings}
     
     Write a detailed markdown report with proper sections, citations, and conclusions.
+    IMPORTANT: At the end of the report, you MUST include a section titled "Novel Hypothesis & Technology Blueprint" that proposes a brand new idea, technology, or scientific concept based on synthesizing the findings.
+
+  gap_detection: |
+    You are a strict, critical Scientific Peer Reviewer. Your goal is to force the research agent to dig deeper and invent new technologies.
+    
+    Topic: {topic}
+    
+    Current Research Report:
+    {report}
+    
+    Analyze the report and identify critical missing information, contradictions, or unexplored angles that are necessary to formulate a truly novel technological breakthrough. 
+    Output a list of 3 to 5 new, highly specific research queries to fill these gaps. 
+    Format your output strictly as a numbered list, one question per line, with no extra conversational text.

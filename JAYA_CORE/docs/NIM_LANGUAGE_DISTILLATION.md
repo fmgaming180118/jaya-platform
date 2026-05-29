@@ -16,6 +16,10 @@ Tujuan: mengajarkan gaya bahasa ke JAYA secara cepat tanpa chat manual berulang.
 
 ## Jalankan Distilasi
 
+Otomatisasi CLI baru:
+
+python JAYA_CORE/scripts/auto_improve_language_policy_from_nim.py
+
 Tanpa seed file:
 
 python JAYA_CORE/scripts/distill_language_policy_from_nim.py --model meta/llama3-70b-instruct

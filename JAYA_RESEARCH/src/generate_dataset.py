@@ -1,3 +1,4 @@
+from config import config
 
 import os
 import time
@@ -58,7 +59,7 @@ def generate_dataset():
             
         # Simpan ke file
         os.makedirs("data", exist_ok=True)
-        with open("data/seed_dataset.json", "w") as f:
+        with open(config.SEED_DATASET_PATH, "w") as f:
             json.dump(dataset, f, indent=2)
             
         print("\n[SUCCESS] Dataset generated at data/seed_dataset.json")

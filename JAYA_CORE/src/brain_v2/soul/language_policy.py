@@ -16,36 +16,31 @@ from typing import Any, Dict, List, cast
 LANGUAGE_CORE: Dict[str, Dict[str, str]] = {
     "id": {
         "greeting": (
-            "JAYA hadir, Boss. Saya tetap aktif dalam mode kedaulatan lokal. "
-            "Silakan beri perintah atau pertanyaan, saya akan jawab sejelas mungkin."
+            "Halo, saya JAYA, asisten lokal Anda. "
+            "Silakan sampaikan apa yang ingin Anda lakukan hari ini."
         ),
         "no_memory": (
-            "Boss, memori fakta lokal untuk topik ini belum tersedia. "
-            "Namun modul bahasa inti JAYA tetap aktif dan siap berdialog dengan jelas."
+            "Untuk topik ini, fakta lokal belum tersedia. "
+            "Namun saya tetap bisa membantu dengan arah umum dan klarifikasi."
         ),
         "portable": (
-            "Kemampuan berbahasa ini melekat pada core lokal, jadi saat perangkat dipindah "
-            "JAYA tetap dapat berbicara, meski RAG masih minim."
+            "Bahasa ini tertanam di core lokal, jadi JAYA tetap bisa berkomunikasi "
+            "meski memori tambahan belum lengkap."
         ),
-        "header": "Boss, saya menelusuri memori lokal. Ringkasannya:",
-        "closing": "Jika perlu, saya bisa lanjutkan dengan penjelasan lebih detail.",
-        "intent_action": "Saya membaca niat Anda sebagai aksi: {intent}.",
-        "intent_query": "Saya membaca niat Anda sebagai pertanyaan: {intent}.",
-        "mixed_notice": "Saya mendeteksi campuran bahasa. Saya akan menjawab per kalimat.",
+        "header": "Pertanyaan Anda:",
+        "closing": "Silakan lanjutkan jika Anda ingin penjelasan tambahan.",
+        "intent_action": "Saya akan {intent} untuk Anda.",
+        "intent_query": "Bagaimana saya bisa membantu Anda {intent}?",
+        "mixed_notice": "Saya mendeteksi campuran bahasa. Jawaban akan dibuat per bagian.",
         "clarify": (
-            "Permintaan Anda masih ambigu. Tolong perjelas tujuan, objek, dan hasil yang Anda inginkan "
-            "agar saya bisa mengeksekusi dengan tepat."
+            "Maaf, maksudnya belum jelas. Tolong jelaskan tujuan, objek, dan hasil yang Anda inginkan."
         ),
-        "segment_no_memory": (
-            "Kalimat {index}: memori fakta belum tersedia, tetapi modul bahasa inti tetap aktif."
-        ),
-        "segment_clarify": (
-            "Kalimat {index}: maksudnya masih ambigu. Mohon perjelas konteks atau objek yang dimaksud."
-        ),
-        "segment_with_memory": "Kalimat {index}: konteks lokal tersedia, ringkasnya {summary}",
+        "segment_no_memory": "Bagian {index}: belum ada memori yang sesuai.",
+        "segment_clarify": "Bagian {index}: maksudnya masih kurang jelas. Mohon perjelas.",
+        "segment_with_memory": "Bagian {index}: konteks tersedia, ringkasannya {summary}",
         "procedure_intro": "Saya menemukan prosedur lokal yang relevan. Ikuti langkah berikut:",
-        "procedure_step": "{index}. {step}",
-        "procedure_meta": "Sumber: {source} | keyakinan: {confidence}",
+        "procedure_step": "Langkah {index}: {step}",
+        "procedure_meta": "Sumber: {source}, kepercayaan: {confidence}",
     },
     "en": {
         "greeting": (
@@ -110,6 +105,7 @@ _EN_HINTS = {
 _ID_HINTS = {
     "apa", "bagaimana", "kenapa", "mengapa", "siapa", "kapan", "dimana", "di", "tolong",
     "buka", "tutup", "cari", "buat", "hapus", "ubah", "jelaskan", "terjemahkan",
+    "saya", "kamu", "anda", "kami", "kita", "mau", "bisa", "ya",
 }
 
 
