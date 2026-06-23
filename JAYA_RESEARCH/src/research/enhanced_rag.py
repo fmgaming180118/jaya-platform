@@ -12,7 +12,31 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 import requests
+import re
+import base64
+import time
+import pickle
 from research.web_search import WebSearchClient
+
+try:
+    import pdfplumber  # type: ignore
+except Exception:
+    pdfplumber = None
+
+try:
+    import fitz  # type: ignore
+except Exception:
+    fitz = None
+
+try:
+    from pypdf import PdfReader  # type: ignore
+except Exception:
+    PdfReader = None
+
+try:
+    import pytesseract  # type: ignore
+except Exception:
+    pytesseract = None
 
 class NVIDIAEmbeddings:
     """NVIDIA NIM Embeddings API Client"""
@@ -52,28 +76,43 @@ class NVIDIAEmbeddings:
         Returns:
             List of embedding vectors
         """
-        # NVIDIA NIM embeddings endpoint
         url = f"{self.base_url}/embeddings"
-        
+        # Truncate each text block to 750 characters to prevent 400 Client Error (Token size limit)
+        truncated_texts = [t[:750] for t in texts]
         payload = {
-            "input": texts,
+            "input": truncated_texts,
             "model": self.model,
-            "input_type": "passage"  # or "query" for search queries
+            "input_type": "passage"
         }
         
-        try:
-            response = requests.post(url, json=payload, headers=self.headers)
-            response.raise_for_status()
-            
-            data = response.json()
-            embeddings = [item['embedding'] for item in data['data']]
-            
-            return embeddings
+        max_retries = 3
+        backoff_factor = 2
         
-        except requests.exceptions.RequestException as e:
-            print(f"Error calling NVIDIA embeddings API: {e}")
-            # Fallback to random embeddings for development
-            return [[0.0] * 1024 for _ in texts]
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=payload, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                embeddings = [item['embedding'] for item in data['data']]
+                return embeddings
+            
+            except Exception as e:
+                print(f"[EMBEDDINGS] Attempt {attempt+1}/{max_retries} failed: {e}")
+                try:
+                    # Print response details if available
+                    if 'response' in locals() and response is not None:
+                        print(f"[EMBEDDINGS] Server Response: {response.status_code} - {response.text}")
+                except Exception:
+                    pass
+                if attempt == max_retries - 1:
+                    print(f"[EMBEDDINGS] Error calling NVIDIA embeddings API after {max_retries} attempts. Falling back to zero embeddings.")
+                    return [[0.0] * 1024 for _ in texts]
+                
+                sleep_time = backoff_factor ** attempt
+                print(f"[EMBEDDINGS] Retrying in {sleep_time}s...")
+                import time
+                time.sleep(sleep_time)
     
     def embed_query(self, query: str) -> List[float]:
         """
@@ -86,23 +125,35 @@ class NVIDIAEmbeddings:
             Embedding vector
         """
         url = f"{self.base_url}/embeddings"
-        
+        # Truncate query to 750 characters to prevent 400 Client Error (Token size limit)
+        truncated_query = query[:750]
         payload = {
-            "input": [query],
+            "input": [truncated_query],
             "model": self.model,
             "input_type": "query"
         }
         
-        try:
-            response = requests.post(url, json=payload, headers=self.headers)
-            response.raise_for_status()
-            
-            data = response.json()
-            return data['data'][0]['embedding']
+        max_retries = 3
+        backoff_factor = 2
         
-        except requests.exceptions.RequestException as e:
-            print(f"Error embedding query: {e}")
-            return [0.0] * 1024
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(url, json=payload, headers=self.headers, timeout=30)
+                response.raise_for_status()
+                
+                data = response.json()
+                return data['data'][0]['embedding']
+            
+            except Exception as e:
+                print(f"[EMBEDDINGS QUERY] Attempt {attempt+1}/{max_retries} failed: {e}")
+                if attempt == max_retries - 1:
+                    print(f"[EMBEDDINGS QUERY] Error embedding query after {max_retries} attempts. Falling back to zero vector.")
+                    return [0.0] * 1024
+                
+                sleep_time = backoff_factor ** attempt
+                print(f"[EMBEDDINGS QUERY] Retrying in {sleep_time}s...")
+                import time
+                time.sleep(sleep_time)
 
 
 import faiss
@@ -158,11 +209,17 @@ class VectorStore:
         for i, idx in enumerate(indices[0]):
             if idx == -1 or idx >= len(self.documents):
                 continue
+
+            document = self.documents[idx]
+            citation = document.get('citation', {})
+            block_label = document.get('subtype') or document.get('type', 'document')
                 
             results.append({
-                "document": self.documents[idx],
+                "document": document,
                 "score": float(distances[0][i]),
-                "snippet": self._extract_snippet(self.documents[idx].get('content', ''))
+                "snippet": self._extract_snippet(document.get('content', '')),
+                "block_type": block_label,
+                "citation": citation,
             })
         
         return results
@@ -295,6 +352,44 @@ class EnhancedRAGClient:
                         print(f"[RAG] ✅ Nemotron extraction successful ({len(result.get('tables', []))} tables found)")
                     else:
                         print(f"[RAG] ⚠️ Nemotron failed ({result.get('error')}), falling back to standard read")
+
+                # 2b. Layout-aware PDF fallback: preserve text, tables, and images as separate blocks.
+                is_multimodal_pdf = False
+                if not content and path.lower().endswith(".pdf"):
+                    pdf_result = self._ingest_pdf_multimodal(path)
+                    if pdf_result.get("status") == "success":
+                        content = pdf_result.get("full_text", "")
+                        file_name = os.path.basename(path)
+                        is_multimodal_pdf = True
+                        
+                        # Fix the original bug: append structured blocks to outer documents & texts scopes
+                        for block in pdf_result.get("documents", []):
+                            doc = {
+                                "type": "pdf_block",
+                                "subtype": block.get("subtype"),
+                                "file_path": block.get("file_path"),
+                                "file_name": block.get("file_name"),
+                                "chunk_id": len(documents),
+                                "content": block.get("content", ""),
+                                "page_number": block.get("page_number"),
+                                "order": block.get("order"),
+                                "caption": block.get("caption"),
+                                "image_b64": block.get("image_b64"),
+                                "metadata": block.get("metadata", {}),
+                                "citation": block.get("citation", {}),
+                                "timestamp": block.get("timestamp")
+                            }
+                            documents.append(doc)
+                            texts.append(block.get("content", "") or block.get("caption", ""))
+                        
+                        if pdf_result.get("citations"):
+                            print(f"[RAG] 📎 PDF citations preserved for {len(pdf_result.get('citations', []))} blocks")
+                        print(
+                            f"[RAG] ✅ PDF multimodal extraction successful: "
+                            f"{pdf_result.get('table_count', 0)} tables, {pdf_result.get('image_count', 0)} images"
+                        )
+                    else:
+                        print(f"[RAG] ⚠️ PDF multimodal extraction failed ({pdf_result.get('error')})")
                 
                 # 3. Standard Read Fallback for local files
                 if not content and not is_url:
@@ -304,23 +399,32 @@ class EnhancedRAGClient:
                 
                 if not content:
                     continue
-                    
-                # Chunk document (simple splitting for MVP)
-                chunk_size = int(os.getenv("RAG_CHUNK_SIZE", "512"))
-                chunk_overlap = int(os.getenv("RAG_CHUNK_OVERLAP", "128"))
-                chunks = self._chunk_text(content, chunk_size=chunk_size, overlap=chunk_overlap)
                 
-                for i, chunk in enumerate(chunks):
-                    doc = {
-                        "type": "research_document" if not is_url else "video_transcript",
-                        "file_path": path,
-                        "file_name": file_name,
-                        "chunk_id": i,
-                        "content": chunk,
-                        "timestamp": __import__('time').time()
-                    }
-                    documents.append(doc)
-                    texts.append(chunk)
+                # Extract and save document metadata schema for PDFs
+                if path.lower().endswith(".pdf") and content:
+                    try:
+                        meta_data = self._extract_document_metadata(path, content)
+                        self._save_document_metadata(path, meta_data)
+                    except Exception as me:
+                        print(f"[RAG] ⚠️ Metadata extraction skipped/failed: {me}")
+                    
+                # Only chunk the text if it was not already processed as multimodal blocks
+                if not is_multimodal_pdf:
+                    chunk_size = int(os.getenv("RAG_CHUNK_SIZE", "512"))
+                    chunk_overlap = int(os.getenv("RAG_CHUNK_OVERLAP", "128"))
+                    chunks = self._chunk_text(content, chunk_size=chunk_size, overlap=chunk_overlap)
+                    
+                    for i, chunk in enumerate(chunks):
+                        doc = {
+                            "type": "research_document" if not is_url else "video_transcript",
+                            "file_path": path,
+                            "file_name": file_name,
+                            "chunk_id": len(documents),
+                            "content": chunk,
+                            "timestamp": time.time()
+                        }
+                        documents.append(doc)
+                        texts.append(chunk)
             
             except Exception as e:
                 print(f"[RAG] Error ingesting {path}: {e}")
@@ -343,6 +447,406 @@ class EnhancedRAGClient:
             "ingested": len(file_paths),
             "chunks": len(documents)
         }
+
+    def _clean_text(self, text: str) -> str:
+        """Pembersihan visual filler seperti titik berturut-turut untuk menghemat token."""
+        text = re.sub(r'\.{2,}', ' ', text)
+        text = re.sub(r'[-_]{2,}', ' ', text)
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
+
+    def _ingest_pdf_multimodal(self, pdf_path: str) -> Dict[str, Any]:
+        """Extract PDF text, tables, and images into structured blocks with layout-awareness.
+
+        This keeps page order and separates layout elements so the retriever can
+        preserve context even if the PDF layout is messy.
+        """
+        if not os.path.exists(pdf_path):
+            return {"status": "error", "error": f"File not found: {pdf_path}"}
+
+        blocks: List[Dict[str, Any]] = []
+        full_text_parts: List[str] = []
+        citations: List[Dict[str, Any]] = []
+        table_count = 0
+        image_count = 0
+        ocr_count = 0
+        source_name = os.path.basename(pdf_path)
+
+        # Open documents if packages are available
+        fitz_doc = None
+        pdf_doc = None
+        num_pages = 0
+        
+        try:
+            if fitz is not None:
+                fitz_doc = fitz.open(pdf_path)
+                num_pages = len(fitz_doc)
+            if pdfplumber is not None:
+                pdf_doc = pdfplumber.open(pdf_path)
+                num_pages = max(num_pages, len(pdf_doc.pages))
+        except Exception as e:
+            print(f"[RAG] Error opening PDF {pdf_path}: {e}")
+            
+        if num_pages > 0:
+            for page_index in range(1, num_pages + 1):
+                # A. Extract Text first
+                text = ""
+                if fitz_doc is not None and page_index <= len(fitz_doc):
+                    try:
+                        page = fitz_doc[page_index - 1]
+                        blocks_list = page.get_text("blocks")
+                        if blocks_list:
+                            width = page.rect.width
+                            mid = width / 2
+                            has_left = any(b[0] < mid and b[2] <= mid + 20 for b in blocks_list if len(b[4].strip()) > 5)
+                            has_right = any(b[0] >= mid - 20 and b[2] > mid for b in blocks_list if len(b[4].strip()) > 5)
+                            
+                            if has_left and has_right:
+                                # 2-column layout column sorting
+                                def get_block_key(b):
+                                    x0, y0, x1, y1, txt, block_no, block_type = b
+                                    if x0 < mid - 20 and x1 > mid + 20:
+                                        col = 0
+                                    elif x0 < mid:
+                                        col = 1
+                                    else:
+                                        col = 2
+                                    return (col, y0)
+                                sorted_blocks = sorted(blocks_list, key=get_block_key)
+                            else:
+                                sorted_blocks = sorted(blocks_list, key=lambda x: x[1])
+                            
+                            text = "\n".join(b[4].strip() for b in sorted_blocks if b[4].strip())
+                        text = self._clean_text(text)
+                    except Exception as e:
+                        print(f"[RAG] fitz text extraction failed on page {page_index}: {e}")
+
+                source_label = "fitz_layout_aware"
+                
+                # Fallback to pdfplumber for text if fitz failed or returned empty
+                if not text and pdf_doc is not None and page_index <= len(pdf_doc.pages):
+                    try:
+                        page = pdf_doc.pages[page_index - 1]
+                        text = (page.extract_text(x_tolerance=2, y_tolerance=2) or "").strip()
+                        text = self._clean_text(text)
+                        source_label = "pdfplumber_text"
+                    except Exception as e:
+                        print(f"[RAG] pdfplumber text extraction failed on page {page_index}: {e}")
+
+                if text:
+                    blocks.append({
+                        "subtype": "text",
+                        "page_number": page_index,
+                        "order": 0,
+                        "content": text,
+                        "metadata": {"source": source_label},
+                    })
+                    citations.append({"page": page_index, "block_type": "text", "order": 0})
+                    full_text_parts.append(f"[TEXT p{page_index}]\n{text}\n")
+
+                # B. OCR Fallback if text is still empty
+                if pytesseract is not None and not text and pdf_doc is not None and page_index <= len(pdf_doc.pages):
+                    try:
+                        page = pdf_doc.pages[page_index - 1]
+                        page_image = page.to_image(resolution=200).original
+                        ocr_text = self._normalize_ocr_text(pytesseract.image_to_string(page_image) or "")
+                        ocr_text = self._clean_text(ocr_text)
+                        if ocr_text:
+                            ocr_count += 1
+                            blocks.append({
+                                "subtype": "ocr_text",
+                                "page_number": page_index,
+                                "order": 1,
+                                "content": ocr_text,
+                                "metadata": {"source": "pytesseract_ocr"},
+                            })
+                            citations.append({"page": page_index, "block_type": "ocr_text", "order": 1})
+                            full_text_parts.append(f"[OCR p{page_index}]\n{ocr_text}\n")
+                    except Exception as exc:
+                        print(f"[RAG] OCR failed on page {page_index}: {exc}")
+
+                # C. Extract Images of this page (using fitz)
+                if fitz_doc is not None and page_index <= len(fitz_doc):
+                    try:
+                        page = fitz_doc[page_index - 1]
+                        images = page.get_images(full=True)
+                        for image_index, image in enumerate(images, start=1):
+                            xref = image[0]
+                            base_image = fitz_doc.extract_image(xref)
+                            image_bytes = base_image.get("image", b"")
+                            if not image_bytes:
+                                continue
+                            image_count += 1
+                            image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+                            caption = base_image.get("ext", "image")
+                            blocks.append({
+                                "subtype": "image",
+                                "page_number": page_index,
+                                "order": image_index,
+                                "content": caption,
+                                "caption": caption,
+                                "image_b64": image_b64,
+                                "metadata": {
+                                    "source": "pymupdf_image",
+                                    "width": base_image.get("width"),
+                                    "height": base_image.get("height"),
+                                },
+                            })
+                            citations.append({"page": page_index, "block_type": "image", "order": image_index})
+                            full_text_parts.append(f"[IMAGE p{page_index} #{image_index}] {caption}\n")
+                    except Exception:
+                        pass
+
+                # D. Extract Tables of this page (using pdfplumber)
+                if pdf_doc is not None and page_index <= len(pdf_doc.pages):
+                    try:
+                        page = pdf_doc.pages[page_index - 1]
+                        tables = page.extract_tables() or []
+                        for table_index, table in enumerate(tables, start=1):
+                            markdown_table = self._table_to_markdown(table)
+                            if markdown_table.strip():
+                                table_count += 1
+                                blocks.append({
+                                    "subtype": "table",
+                                    "page_number": page_index,
+                                    "order": table_index,
+                                    "content": markdown_table,
+                                    "metadata": {"source": "pdfplumber_table"},
+                                })
+                                citations.append({"page": page_index, "block_type": "table", "order": table_index})
+                                full_text_parts.append(f"[TABLE p{page_index} #{table_index}]\n{markdown_table}\n")
+                    except Exception as exc:
+                        print(f"[RAG] pdfplumber table extraction failed on page {page_index}: {exc}")
+            
+            # Close docs
+            try:
+                if fitz_doc is not None:
+                    fitz_doc.close()
+                if pdf_doc is not None:
+                    pdf_doc.close()
+            except Exception:
+                pass
+
+        # 3. pypdf fallback if fitz and pdfplumber both failed to find blocks
+        if not blocks and PdfReader is not None:
+            try:
+                reader = PdfReader(pdf_path)
+                for page_index, page in enumerate(reader.pages, start=1):
+                    text = (page.extract_text() or "").strip()
+                    text = self._clean_text(text)
+                    if text:
+                        blocks.append({
+                            "subtype": "text",
+                            "page_number": page_index,
+                            "order": 0,
+                            "content": text,
+                            "metadata": {"source": "pypdf_text"},
+                        })
+                        citations.append({"page": page_index, "block_type": "text", "order": 0})
+                        full_text_parts.append(f"[TEXT p{page_index}]\n{text}\n")
+            except Exception as exc:
+                print(f"[RAG] pypdf fallback failed: {exc}")
+
+        if not blocks:
+            return {"status": "error", "error": "No content extracted from PDF"}
+
+        # Format block coordinates and citation metadata
+        for block in blocks:
+            block["file_path"] = pdf_path
+            block["file_name"] = source_name
+            block["timestamp"] = time.time()
+            block["citation"] = {
+                "page": block.get("page_number"),
+                "block_type": block.get("subtype"),
+                "order": block.get("order"),
+                "source": source_name,
+            }
+
+        return {
+            "status": "success",
+            "file_path": pdf_path,
+            "file_name": source_name,
+            "summary": self._summarize_pdf_blocks(blocks),
+            "full_text": "\n".join(full_text_parts),
+            "documents": blocks,
+            "citations": citations,
+            "table_count": table_count,
+            "image_count": image_count,
+            "ocr_count": ocr_count,
+        }
+
+    def _extract_document_metadata(self, file_path: str, full_content: str) -> Dict[str, Any]:
+        """Klasifikasi tipe dokumen dan ekstraksi metadata terstruktur berbasis tipe."""
+        file_name = os.path.basename(file_path)
+        print(f"[RAG] 🔍 Extracting metadata schema for: {file_name}...")
+        
+        # Ambil halaman pertama / teks awal (misal 3000 karakter pertama) untuk cover page analysis
+        cover_text = full_content[:3000]
+        
+        # Buat prompt terperinci untuk LLM
+        prompt = f"""Tugas: Analisis teks halaman sampul (cover page) dokumen akademik berikut untuk menentukan tipenya, lalu ekstrak metadata terstruktur yang sesuai.
+
+TEKS SAMPUL DOKUMEN:
+{cover_text}
+
+ATURAN KLASIFIKASI & SCHEMA METADATA:
+Tentukan tipe dokumen sebagai salah satu dari: "Tugas Akhir", "Skripsi", "Jurnal", "Pedoman/Peraturan", atau "Lainnya".
+
+Sesuai tipe dokumen yang dipilih, isi bidang-bidang metadata berikut:
+
+1. Tipe "Tugas Akhir":
+   - judul: Judul Lengkap Tugas Akhir
+   - penulis: Nama Lengkap Mahasiswa
+   - nim: NIM Mahasiswa (Nomor Induk Mahasiswa)
+   - pembimbing: Daftar Nama Dosen Pembimbing
+   - program_studi: Program Studi / Jurusan
+   - tahun: Tahun Lulus / Sidang
+   - lembaga: Nama Universitas / Lembaga (contoh: Politeknik STMI Jakarta)
+   - tempat_penelitian: Nama perusahaan tempat penelitian / magang jika ada (contoh: PT SKF Indonesia)
+
+2. Tipe "Skripsi":
+   - judul: Judul Lengkap Skripsi
+   - penulis: Nama Lengkap Mahasiswa
+   - nim: NIM Mahasiswa
+   - pembimbing: Daftar Nama Dosen Pembimbing
+   - program_studi: Program Studi / Jurusan
+   - tahun: Tahun Sidang
+   - lembaga: Nama Universitas / Institut
+   - tempat_penelitian: Perusahaan tempat penelitian jika ada
+
+3. Tipe "Jurnal":
+   - judul: Judul Jurnal / Artikel Ilmiah
+   - penulis: Daftar nama penulis (authors)
+   - nama_jurnal: Nama jurnal penerbit jika tercantum
+   - volume: Volume jurnal
+   - nomor: Nomor edisi jurnal
+   - halaman: Rentang halaman
+   - tahun: Tahun publikasi
+   - doi: DOI string/link jika ada
+   - abstrak: Ringkasan singkat abstrak
+   - kata_kunci: Kata kunci (keywords)
+   - afiliasi: Universitas atau lembaga asal penulis
+
+4. Tipe "Pedoman/Peraturan":
+   - judul: Nama Pedoman / Peraturan (contoh: Pedoman Tugas Akhir)
+   - nomor_keputusan: Nomor keputusan Direktur / SK jika ada (contoh: 444/BPSDMI/STMI/KEP/V/2021)
+   - penerbit: Lembaga penerbit (contoh: Direktur Politeknik STMI Jakarta)
+   - tahun: Tahun penetapan peraturan
+   - tim_penyusun: Daftar nama tim penyusun/pengarah
+
+5. Tipe "Lainnya":
+   - judul: Judul dokumen
+   - penulis: Penulis
+   - tahun: Tahun dokumen
+   - ringkasan: Ringkasan singkat isi
+
+Format Output yang DIWAJIBKAN:
+Kembalikan HANYA objek JSON dengan format persis seperti di bawah ini tanpa penjelasan tambahan atau block markdown:
+{{
+  "doc_type": "<salah satu tipe di atas>",
+  "metadata": {{
+     // masukkan bidang-bidang schema yang sesuai di sini
+  }}
+}}
+"""
+        try:
+            from teacher import Teacher
+            teacher = Teacher(model_type="reasoning")
+            response = teacher.ask(
+                prompt,
+                system_instruction="You are an expert document metadata classifier. You output ONLY raw JSON."
+            )
+            
+            response = response.strip()
+            if response.startswith("```json"):
+                response = response.replace("```json", "").replace("```", "")
+            elif response.startswith("```"):
+                response = response.replace("```", "")
+            response = response.strip()
+            
+            meta_json = json.loads(response)
+            print(f"[RAG] ✅ Metadata extracted: Tipe = {meta_json.get('doc_type')}")
+            return meta_json
+            
+        except Exception as e:
+            print(f"[RAG] ⚠️ Metadata extraction failed: {e}")
+            return {
+                "doc_type": "Lainnya",
+                "metadata": {
+                    "judul": file_name,
+                    "penulis": "Tidak diketahui",
+                    "tahun": "Tidak diketahui"
+                }
+            }
+
+    def _save_document_metadata(self, file_path: str, meta_data: Dict[str, Any]):
+        """Menyimpan metadata dokumen ke file metadata_store.json dalam folder workspace."""
+        file_name = os.path.basename(file_path)
+        store_path = Path(self.vector_store.storage_path).parent / "metadata_store.json"
+        
+        existing_data = {}
+        if store_path.exists():
+            try:
+                with open(store_path, "r", encoding="utf-8") as f:
+                    existing_data = json.load(f)
+            except Exception as e:
+                print(f"[RAG] ⚠️ Error loading existing metadata store: {e}")
+                
+        existing_data[file_name] = {
+            "file_path": file_path,
+            "doc_type": meta_data.get("doc_type", "Lainnya"),
+            "metadata": meta_data.get("metadata", {}),
+            "updated_at": time.time()
+        }
+        
+        try:
+            store_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(store_path, "w", encoding="utf-8") as f:
+                json.dump(existing_data, f, ensure_ascii=False, indent=2)
+            print(f"[RAG] 💾 Metadata stored in workspace database: {store_path.name}")
+        except Exception as e:
+            print(f"[RAG] ⚠️ Error saving metadata store: {e}")
+
+    def _normalize_ocr_text(self, text: str) -> str:
+        """Normalize OCR output so broken scans are still usable."""
+        lines = [line.strip() for line in text.splitlines()]
+        cleaned = [line for line in lines if line]
+        return "\n".join(cleaned).strip()
+
+    def _summarize_pdf_blocks(self, blocks: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Return a compact summary of extracted PDF block types."""
+        summary = {"text": 0, "ocr_text": 0, "table": 0, "image": 0}
+        for block in blocks:
+            subtype = block.get("subtype", "")
+            if subtype in summary:
+                summary[subtype] += 1
+        return summary
+
+    def _table_to_markdown(self, table: Any) -> str:
+        if not table:
+            return ""
+
+        rows = []
+        for row in table:
+            if not row:
+                continue
+            rows.append([str(cell).strip() if cell is not None else "" for cell in row])
+
+        if not rows:
+            return ""
+
+        header = rows[0]
+        body = rows[1:] if len(rows) > 1 else []
+
+        def render(row: List[str]) -> str:
+            return "| " + " | ".join(cell.replace("\n", " ") for cell in row) + " |"
+
+        lines = [render(header), render(["---"] * len(header))]
+        for row in body:
+            if len(row) < len(header):
+                row = row + [""] * (len(header) - len(row))
+            lines.append(render(row[: len(header)]))
+        return "\n".join(lines)
     
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """
@@ -355,14 +859,55 @@ class EnhancedRAGClient:
         Returns:
             List of relevant documents
         """
+        # Load workspace metadata database and build a pseudo-document result
+        meta_results = []
+        try:
+            store_path = Path(self.vector_store.storage_path).parent / "metadata_store.json"
+            if store_path.exists():
+                with open(store_path, "r", encoding="utf-8") as f:
+                    meta_store = json.load(f)
+                if meta_store:
+                    parts = ["### Dokumen Terdaftar & Informasi Penting (Metadata):"]
+                    for fn, item in meta_store.items():
+                        dtype = item.get("doc_type", "Lainnya")
+                        meta = item.get("metadata", {})
+                        desc_parts = [f"- Dokumen: {fn}", f"  Tipe: {dtype}"]
+                        for k, v in meta.items():
+                            if v:
+                                if isinstance(v, list):
+                                    v = ", ".join(str(x) for x in v)
+                                desc_parts.append(f"  {k.capitalize()}: {v}")
+                        parts.append("\n".join(desc_parts))
+                    metadata_content = "\n".join(parts)
+                    
+                    meta_doc = {
+                        "document": {
+                            "file_name": "Workspace_Metadata_Index",
+                            "title": "Workspace Metadata Index",
+                            "type": "metadata_index",
+                            "content": metadata_content
+                        },
+                        "score": 1.0, # High similarity score to rank first
+                        "snippet": metadata_content,
+                        "block_type": "metadata_index",
+                        "citation": {"page": "Index", "block_type": "metadata_index", "source": "Workspace Metadata Index"}
+                    }
+                    meta_results.append(meta_doc)
+        except Exception as e:
+            print(f"[RAG] ⚠️ Error building metadata index for search: {e}")
+
+        # Fetch primary search results
+        results = []
         if self.use_embeddings:
-            # Vector search
             query_embedding = self.embedder.embed_query(query)
             results = self.vector_store.search(query_embedding, top_k=top_k)
-            return results
+            # Filter distance score <= 0.0 to prevent zero-vector/unrelated pollutions
+            results = [r for r in results if r.get("score", 0) > 0.0]
         else:
-            # Keyword search fallback
-            return self.simple_rag.search(query, top_k=top_k)
+            results = self.simple_rag.search(query, top_k=top_k)
+
+        # Merge and return
+        return meta_results + results
 
     def query(self, text: str) -> Dict[str, Any]:
         """
@@ -405,7 +950,11 @@ class EnhancedRAGClient:
             for rank, item in enumerate(local_results, 1):
                 snippet = item.get('snippet', '')
                 fname = item.get('document', {}).get('file_name', 'Unknown')
-                combined_context.append(f"[{rank}] {snippet} (Source: {fname})")
+                citation = item.get('citation', {})
+                page = citation.get('page')
+                block_type = item.get('block_type', 'document')
+                citation_label = f" p{page}" if page is not None else ""
+                combined_context.append(f"[{rank}] {block_type}{citation_label}: {snippet} (Source: {fname})")
                 sources.append(fname)
 
         # Add Web

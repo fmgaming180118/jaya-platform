@@ -93,6 +93,8 @@ _UNKNOWN_TEMPLATE = (
     "Bisa Anda jelaskan lebih lanjut apa yang ingin Anda lakukan?"
 )
 
+_FACTFUL_QUERY_TYPES = {"QUERY_DEF", "QUERY_WHY", "QUERY_DIFF", "QUERY_EXAMPLE", "QUERY_SUGGEST"}
+
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -223,6 +225,11 @@ class IndonesianResponder:
 
         parts = [base]
 
+        if rag_facts and isinstance(expr, tuple) and expr[0] == "QUERY":
+            factual_answer = self._compose_factual_answer(expr, rag_facts)
+            if factual_answer:
+                parts = [factual_answer]
+
         # 2. Tambahkan langkah prosedur jika ada
         if agentic_hint and isinstance(agentic_hint, dict):
             steps = agentic_hint.get("steps", [])
@@ -236,10 +243,14 @@ class IndonesianResponder:
 
         # 3. Tambahkan fakta relevan jika query dan ada data
         if rag_facts and isinstance(expr, tuple) and expr[0] == "QUERY":
+            primary_fact = str(rag_facts[0].get("content", "")).strip() if rag_facts else ""
             for fact in rag_facts[:2]:
                 content = str(fact.get("content", "")).strip()
-                if content:
-                    parts.append(f"📌 {content[:200]}")
+                if not content or content == primary_fact:
+                    continue
+                fact_line = f"Fakta terkait: {content[:200]}"
+                if fact_line not in parts:
+                    parts.append(fact_line)
 
         # 4. Penutup
         closing = self._policy.get("closing", "Silakan lanjutkan jika ada pertanyaan lain, Bos.")
@@ -247,6 +258,53 @@ class IndonesianResponder:
             parts.append(closing)
 
         return "\n".join(p for p in parts if p.strip())
+
+    def _compose_factual_answer(
+        self,
+        expr: LogicExpr,
+        rag_facts: List[Dict[str, Any]],
+    ) -> str:
+        if not isinstance(expr, tuple) or len(expr) < 3:
+            return ""
+
+        qtype = str(expr[1] or "")
+        if qtype not in _FACTFUL_QUERY_TYPES:
+            return ""
+
+        subject_raw = expr[2]
+        subject = _clean_object(str(subject_raw) if not isinstance(subject_raw, str) else subject_raw)
+        subject = re.sub(r"^(apa itu|apakah|jelaskan|tolong jelaskan)\s+", "", subject, flags=re.I).strip()
+
+        snippets: List[str] = []
+        seen: set[str] = set()
+        for fact in rag_facts[:2]:
+            content = str(fact.get("content", "")).strip()
+            if not content:
+                continue
+            normalized = content.lower()
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            snippets.append(content)
+
+        if not snippets:
+            return ""
+
+        first = snippets[0]
+        if qtype == "QUERY_DEF" and subject:
+            lowered_subject = subject.lower()
+            lowered_first = first.lower()
+            if lowered_first.startswith(lowered_subject + " adalah"):
+                opening = first
+            else:
+                opening = f"{subject.capitalize()} adalah {first[0].lower() + first[1:] if first else first}"
+        else:
+            opening = first
+
+        if len(snippets) == 1:
+            return opening
+
+        return f"{opening} {' '.join(snippets[1:])}".strip()
 
     def greet(self) -> str:
         return self._policy.get(

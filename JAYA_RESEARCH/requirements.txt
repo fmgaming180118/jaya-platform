@@ -51,3 +51,7 @@ msgpack>=1.0.0
 pycryptodome>=3.19.0
 langchain>=0.1.0
 langchain-community>=0.0.10
+pdfplumber>=0.11.0
+pymupdf>=1.24.0
+pypdf>=4.0.0
+pytesseract>=0.3.10

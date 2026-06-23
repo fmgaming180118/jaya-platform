@@ -112,6 +112,7 @@ class ActivationSparsityController:
 
     def status(self) -> Dict[str, Any]:
         return {
+            "available": True,
             "min_topk": self.min_topk,
             "max_topk": self.max_topk,
             "default_topk": self.default_topk,

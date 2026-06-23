@@ -1,0 +1,10 @@
+datasets
+transformers
+accelerate
+tokenizers
+sentence-transformers
+bitsandbytes
+faiss-cpu
+wikiextractor
+numpy
+torch

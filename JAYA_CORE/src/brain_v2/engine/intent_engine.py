@@ -228,6 +228,7 @@ class IntentEngine:
 
     def status(self) -> Dict[str, Any]:
         return {
+            "available":        True,
             "n":              self.n,
             "prefixes":       len(self._model),
             "tfidf_docs":     self.tfidf.doc_count,

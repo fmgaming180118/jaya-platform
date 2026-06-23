@@ -1,0 +1,18 @@
+[
+  {
+    "topic": "machine learning",
+    "content": "Machine learning adalah cabang AI yang membuat sistem belajar dari data untuk mengenali pola, membuat prediksi, atau mengambil keputusan tanpa harus diprogram ulang untuk setiap kasus."
+  },
+  {
+    "topic": "kecerdasan buatan",
+    "content": "Kecerdasan buatan adalah bidang ilmu komputer yang merancang sistem agar mampu melakukan tugas yang biasanya membutuhkan kecerdasan manusia, seperti memahami bahasa, mengenali pola, dan mengambil keputusan."
+  },
+  {
+    "topic": "jaya core",
+    "content": "JAYA_CORE adalah runtime inti JAYA yang menjalankan alur intent ke Lingua Logica, menerjemahkannya ke JayaIR, lalu mengeksekusinya dengan observabilitas, guardrail, dan mode degradable."
+  },
+  {
+    "topic": "rag",
+    "content": "RAG atau retrieval-augmented generation adalah pendekatan yang menggabungkan pencarian pengetahuan relevan dari memori atau basis data dengan proses penyusunan jawaban agar respons lebih faktual dan kontekstual."
+  }
+]

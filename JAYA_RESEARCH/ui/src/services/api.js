@@ -1,80 +1,115 @@
-const API_BASE = 'http://localhost:8000';
+import { API_BASE_URL, IS_DEV } from '../config/env';
+
+// API log bus — DevPanel subscribes to ini
+let _logCallback = null;
+export const setApiLogCallback = (fn) => { _logCallback = fn; };
+
+/**
+ * Wrapper fetch yang otomatis mencatat request ke DevPanel log (hanya di DEV)
+ */
+async function apiFetch(url, options = {}) {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    const method = options.method || 'GET';
+    const start = Date.now();
+
+    try {
+        const res = await fetch(fullUrl, {
+            ...options,
+            headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        });
+        const duration = Date.now() - start;
+
+        if (IS_DEV && _logCallback) {
+            _logCallback({
+                url: fullUrl,
+                method,
+                status: res.status,
+                ok: res.ok,
+                duration,
+                timestamp: Date.now(),
+            });
+        }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        return res.json();
+    } catch (err) {
+        const duration = Date.now() - start;
+        if (IS_DEV && _logCallback) {
+            _logCallback({ url: fullUrl, method, status: 0, ok: false, duration, timestamp: Date.now() });
+        }
+        throw err;
+    }
+}
 
 export const api = {
     // --- Workspace Management ---
-    listWorkspaces: async () => {
-        const res = await fetch(`${API_BASE}/workspaces`);
-        return res.json();
-    },
+    listWorkspaces: () => apiFetch('/workspaces'),
 
-    createWorkspace: async (name) => {
-        const res = await fetch(`${API_BASE}/workspaces/create?name=${encodeURIComponent(name)}`, {
-            method: 'POST'
-        });
-        return res.json();
-    },
+    createWorkspace: (name) => apiFetch(
+        `/workspaces/create?name=${encodeURIComponent(name)}`,
+        { method: 'POST' }
+    ),
 
-    // --- Core Features ---
+    deleteWorkspace: (id) => apiFetch(
+        `/workspaces/${encodeURIComponent(id)}`,
+        { method: 'DELETE' }
+    ),
 
-    // Health Check
+    // --- Health Check ---
     getHealth: async () => {
-        try {
-            const res = await fetch(`${API_BASE}/`);
-            return res.json();
-        } catch (e) {
-            return { status: "offline" };
-        }
+        try { return await apiFetch('/'); }
+        catch { return { status: 'offline' }; }
     },
 
-    // Chat request
-    chat: async (message, contextFiles = [], workspaceId = "default") => {
-        const res = await fetch(`${API_BASE}/chat`, {
+    // --- Chat ---
+    chat: (message, contextFiles = [], workspaceId = 'default') =>
+        apiFetch('/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                message,
-                context_files: contextFiles,
-                workspace_id: workspaceId
-            }),
-        });
-        return res.json();
-    },
+            body: JSON.stringify({ message, context_files: contextFiles, workspace_id: workspaceId }),
+        }),
 
-    // Start autonomous research
-    startResearch: async (topic, focusAreas = "", workspaceId = "default") => {
-        const res = await fetch(`${API_BASE}/research/autonomous`, {
+    // --- Research ---
+    startResearch: (topic, focusAreas = '', workspaceId = 'default') =>
+        apiFetch('/research/autonomous', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                topic,
-                focus_areas: focusAreas,
-                workspace_id: workspaceId
-            })
-        });
-        return res.json();
-    },
+            body: JSON.stringify({ topic, focus_areas: focusAreas, workspace_id: workspaceId }),
+        }),
 
-    // Get research history (Mock)
-    getHistory: async () => {
-        // const res = await fetch(`${API_BASE}/history`);
-        return [];
-    },
-
-    // Get Knowledge Graph
-    getGraph: async (workspaceId = "default") => {
-        const res = await fetch(`${API_BASE}/graph?workspace_id=${workspaceId}`);
-        return res.json();
-    },
-
-    // Ingest Video
-    ingestVideo: async (url) => {
-        const res = await fetch(`${API_BASE}/ingest/video`, {
+    startRecursiveResearch: (topic, workspaceId = 'default', maxIterations = 3) =>
+        apiFetch('/research/recursive', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-        return res.json();
-    }
+            body: JSON.stringify({ topic, workspace_id: workspaceId, max_iterations: maxIterations }),
+        }),
+
+    // --- Journal Search ---
+    searchJournals: (query, maxPapers = 3) =>
+        apiFetch('/research/journals', {
+            method: 'POST',
+            body: JSON.stringify({ query, max_papers: maxPapers }),
+        }),
+
+    // --- Documents ---
+    ingestDocument: (filePath, workspaceId = 'default') =>
+        apiFetch('/ingest', {
+            method: 'POST',
+            body: JSON.stringify({ file_path: filePath, workspace_id: workspaceId }),
+        }),
+
+    ingestVideo: (url) =>
+        apiFetch('/ingest/video', {
+            method: 'POST',
+            body: JSON.stringify({ url }),
+        }),
+
+    listDocuments: (workspaceId = 'default') =>
+        apiFetch(`/documents?workspace_id=${workspaceId}`),
+
+    // --- Knowledge Graph ---
+    getGraph: (workspaceId = 'default') =>
+        apiFetch(`/graph?workspace_id=${workspaceId}`),
+
+    // --- History ---
+    getHistory: async () => [],
 };
 
 export default api;

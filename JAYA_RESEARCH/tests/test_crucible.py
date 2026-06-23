@@ -1,6 +1,11 @@
-import pytest
 import os
 import json
+import sys
+
+# Add project root to path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+
 from src.evolution.crucible import Crucible
 
 def test_crucible_success():
@@ -51,3 +56,24 @@ while True:
     
     assert success is False
     assert "Timeout expired" in log
+
+if __name__ == "__main__":
+    print("Running Crucible Sandbox tests...")
+    try:
+        print("\n1. Testing crucible success...")
+        test_crucible_success()
+        print("=> Success!")
+        
+        print("\n2. Testing crucible syntax error...")
+        test_crucible_syntax_error()
+        print("=> Success!")
+        
+        print("\n3. Testing crucible timeout...")
+        test_crucible_timeout()
+        print("=> Success!")
+        
+        print("\nAll Crucible tests passed successfully!")
+    except Exception as e:
+        print(f"\nTest failed: {e}")
+        import sys
+        sys.exit(1)

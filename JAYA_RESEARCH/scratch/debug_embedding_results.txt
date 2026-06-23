@@ -1,0 +1,9 @@
+Testing first 45 pages with 1000 limit...
+Page 8 failed with code 400: {"error":"Input length 896 exceeds maximum allowed token size 512"}
+Page 9 failed with code 400: {"error":"Input length 768 exceeds maximum allowed token size 512"}
+Page 10 failed with code 400: {"error":"Input length 832 exceeds maximum allowed token size 512"}
+Page 11 failed with code 400: {"error":"Input length 768 exceeds maximum allowed token size 512"}
+Page 12 failed with code 400: {"error":"Input length 704 exceeds maximum allowed token size 512"}
+Page 13 failed with code 400: {"error":"Input length 576 exceeds maximum allowed token size 512"}
+Page 14 failed with code 400: {"error":"Input length 704 exceeds maximum allowed token size 512"}
+Finished testing 1000 limit. Failed pages: [8, 9, 10, 11, 12, 13, 14]

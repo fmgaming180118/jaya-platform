@@ -11,11 +11,11 @@ References:
 - JAYA_CORE/docs/PHASE1_SIGNOFF_TEMPLATE.md
 
 ## Release Metadata
-- Date: 2026-03-27
+- Date: 2026-06-16
 - Repository: fmgaming180118/jaya-research
 - Branch: master
-- Commit SHA: 5d3d8a3
-- Candidate Version Tag: phase1-rebaseline-rc1
+- Commit SHA: PENDING_CURRENT_SHA
+- Candidate Version Tag: phase1-production-candidate-rc2
 
 ## Reviewer Panel
 - Technical Lead: PENDING
@@ -24,20 +24,23 @@ References:
 - Security Reviewer: PENDING
 
 ## Evidence Summary
-- Core test suite status: PASS (13 passed)
+- Core test suite status: PASS
 - Architecture boundary test status: PASS (brain_v2 has no direct os_kernel imports)
 - Benchmark gate status: PASS
+- Runtime observability gate status: PASS
+- Healthcheck/readiness contract gate status: PASS
+- Phase 2 safety gates status: PASS
 - Benchmark gate profile:
   - warm p50 threshold: <= 0.05 ms
   - warm p95 threshold: <= 0.10 ms
   - minimum hit-rate: >= 0.95
 - Latest observed benchmark highlights:
-  - best policy: cache=512, ttl=300
-  - warm p50: 0.0095 ms
-  - warm p95: 0.0112 ms
+  - best policy: cache=128, ttl=120
+  - warm p50: 0.0096 ms
+  - warm p95: 0.0131 ms
   - hit-rate: 0.976
 - Notable deviations or exceptions:
-  - None observed in current local verification run.
+  - Human sign-off and target deployment validation remain pending.
 
 ## Risk Register
 1. Risk: runtime variance across hardware profiles may shift latency metrics.
@@ -75,6 +78,9 @@ References:
 - [ ] PHASE 1 REJECTED (requires remediation)
 
 Final remarks:
+
+- Automated evidence package is complete for production-candidate review.
+- Human approvals and target-environment validation are still required before final production release.
 
 Signatures:
 - Technical Lead:

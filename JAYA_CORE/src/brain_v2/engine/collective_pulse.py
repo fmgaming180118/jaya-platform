@@ -159,11 +159,13 @@ class CollectivePulse:
 
         current = self.pulse()
         return {
+            "available": True,
             "max_events": self.max_events,
             "history_window": self.history_window,
             "events": len(self._events),
             "by_kind": by_kind,
             "current": current,
+            "last_activation_topk": self._last_activation_topk,
         }
 
     def _derive_novelty(self, text: str, primary_expert: str) -> float:

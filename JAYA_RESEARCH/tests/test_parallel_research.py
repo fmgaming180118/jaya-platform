@@ -2,9 +2,15 @@
 Test script for parallel research execution and web search
 """
 import sys
+import os
 from pathlib import Path
 
+# Reconfigure stdout for UTF-8 in Windows terminal
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+# Add project root and src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from research.agent import ResearchAgent
 

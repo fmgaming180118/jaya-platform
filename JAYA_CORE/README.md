@@ -29,6 +29,12 @@ Generate latest benchmark snapshot:
 python JAYA_CORE/scripts/benchmark_phase1_ir.py --rounds 80 --gate --json-out JAYA_CORE/docs/phase1_benchmark_latest.json
 ```
 
+Run interactive JAYA chat:
+
+```bash
+python JAYA_CORE/scripts/jaya_chat_cli.py
+```
+
 ## Docs
 - [Roadmap AI Native OS](docs/roadmap_ai_native_os.md)
 - [Phase 1 Benchmark Report](docs/phase1_benchmark_report.md)

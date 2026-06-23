@@ -1,171 +1,337 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Folder, Clock, MoreVertical, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Plus, Folder, Clock, ArrowRight, Brain, Search, BookOpen, Network, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
+import { useApp } from '../context/AppContext';
+import EnvironmentBadge from '../components/EnvironmentBadge';
+
+// Feature Card for the hero section
+const FeatureCard = ({ icon: Icon, title, desc, color }) => (
+    <div className={`flex items-start gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-colors`}>
+        <div className={`w-8 h-8 rounded-lg ${color} flex items-center justify-center shrink-0 mt-0.5`}>
+            <Icon size={16} />
+        </div>
+        <div>
+            <p className="text-sm font-semibold text-gray-200">{title}</p>
+            <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{desc}</p>
+        </div>
+    </div>
+);
 
 export default function ProjectListPage() {
     const navigate = useNavigate();
+    const { isDevMode, appName, version } = useApp();
+
     const [projects, setProjects] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newProjectName, setNewProjectName] = useState('');
+    const [newProjectDesc, setNewProjectDesc] = useState('');
+    const [searchQuery, setSearchQuery] = useState('');
+    const [isCreating, setIsCreating] = useState(false);
 
-    useEffect(() => {
-        loadProjects();
-    }, []);
+    useEffect(() => { loadProjects(); }, []);
 
     const loadProjects = async () => {
         try {
             setIsLoading(true);
             const data = await api.listWorkspaces();
-            // Ensure data is array
-            const projectList = Array.isArray(data) ? data : (data.workspaces || []);
-            setProjects(projectList);
-        } catch (error) {
-            console.error("Failed to load projects:", error);
+            const list = Array.isArray(data) ? data : (data.workspaces || []);
+            setProjects(list);
+        } catch (err) {
+            console.error('Failed to load projects:', err);
+            setProjects([]);
         } finally {
             setIsLoading(false);
         }
     };
 
-    const handleCreateProject = async (e) => {
+    const handleCreate = async (e) => {
         e.preventDefault();
         if (!newProjectName.trim()) return;
-
+        setIsCreating(true);
         try {
-            const res = await api.createWorkspace(newProjectName);
-            // Assuming res returns the created workspace or status
-            // Reload list
+            await api.createWorkspace(newProjectName.trim());
             await loadProjects();
             setShowCreateModal(false);
             setNewProjectName('');
-
-            // Optionally navigate directly to new project
-            // if (res.workspace_id) navigate(`/project/${res.workspace_id}/chat`);
-        } catch (error) {
-            console.error("Failed to create project:", error);
+            setNewProjectDesc('');
+        } catch (err) {
+            console.error('Failed to create project:', err);
+        } finally {
+            setIsCreating(false);
         }
     };
 
-    const openProject = (projectId) => {
-        navigate(`/project/${projectId}/chat`);
-    };
+    const filtered = projects.filter(p =>
+        (p.name || p).toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    const features = [
+        { icon: Brain,    title: 'Knowledge Chat',    desc: 'Tanya JAYA tentang dokumen, jurnal, atau topik apapun', color: 'bg-blue-500/20 text-blue-400' },
+        { icon: Search,   title: 'Deep Research',     desc: 'Pencarian akademik otomatis dari ArXiv, Semantic Scholar, OpenAlex', color: 'bg-purple-500/20 text-purple-400' },
+        { icon: BookOpen, title: 'Thesis Defense',    desc: 'Bantu merancang, menulis, dan mempertahankan skripsi', color: 'bg-emerald-500/20 text-emerald-400' },
+        { icon: Network,  title: 'Knowledge Graph',   desc: 'Visualisasi hubungan antar konsep dari dokumen yang diindeks', color: 'bg-amber-500/20 text-amber-400' },
+    ];
 
     return (
-        <div className="min-h-screen bg-notebook-bg text-notebook-text-primary p-8 font-sans">
-            <div className="max-w-7xl mx-auto">
-                {/* Header */}
-                <div className="flex justify-between items-end mb-12">
-                    <div>
-                        <h1 className="text-4xl font-bold tracking-tight mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">JAYA Research</h1>
-                        <p className="text-notebook-text-secondary text-lg">Select a project to begin your research.</p>
+        <div className="min-h-screen bg-[#080a0f] text-gray-200 font-sans">
+            {/* Background gradient effect */}
+            <div className="fixed inset-0 pointer-events-none">
+                <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/5 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/5 rounded-full blur-3xl" />
+            </div>
+
+            <div className="relative max-w-6xl mx-auto px-8 py-10">
+
+                {/* Top Bar */}
+                <div className="flex items-center justify-between mb-12">
+                    <div className="flex items-center gap-3">
+                        {/* JAYA Logo */}
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                            <Brain size={20} className="text-white" />
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-bold text-white tracking-tight leading-none">{appName}</h1>
+                            <p className="text-xs text-gray-600 mt-0.5">AI Research Intelligence</p>
+                        </div>
                     </div>
-                    <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="flex items-center gap-2 px-5 py-3 bg-notebook-text-primary text-notebook-bg font-semibold rounded-full hover:bg-white transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                    >
-                        <Plus size={20} />
-                        <span>New Project</span>
-                    </button>
+                    <EnvironmentBadge />
                 </div>
 
-                {/* Grid */}
+                {/* Hero */}
+                <div className="mb-10">
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <h2 className="text-4xl font-bold tracking-tight mb-3">
+                            <span className="bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">
+                                Selamat Datang di JAYA
+                            </span>
+                        </h2>
+                        <p className="text-gray-400 text-lg max-w-xl leading-relaxed">
+                            AI Research Intelligence yang membantu Anda membaca jurnal, menganalisis dokumen,
+                            dan menemukan penelitian baru secara otonom.
+                        </p>
+                    </motion.div>
+                </div>
+
+                {/* Feature Grid — hanya tampil jika belum ada project */}
+                {projects.length === 0 && !isLoading && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                        className="grid grid-cols-2 gap-3 mb-10"
+                    >
+                        {features.map((f, i) => <FeatureCard key={i} {...f} />)}
+                    </motion.div>
+                )}
+
+                {/* Projects Section Header */}
+                <div className="flex items-center justify-between mb-5">
+                    <h3 className="text-sm font-semibold text-gray-400 uppercase tracking-widest">
+                        Proyek Penelitian {projects.length > 0 && <span className="text-gray-600 ml-1">({projects.length})</span>}
+                    </h3>
+                    <div className="flex items-center gap-3">
+                        {/* Search */}
+                        {projects.length > 3 && (
+                            <div className="relative">
+                                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                                <input
+                                    type="text"
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    placeholder="Cari proyek..."
+                                    className="pl-8 pr-3 py-2 text-sm bg-white/5 border border-white/10 rounded-lg text-gray-300 placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50 w-48"
+                                />
+                            </div>
+                        )}
+                        {/* New Project Button */}
+                        <button
+                            id="btn-new-project"
+                            onClick={() => setShowCreateModal(true)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 hover:-translate-y-0.5 transform"
+                        >
+                            <Plus size={16} />
+                            <span>Proyek Baru</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Project Grid */}
                 {isLoading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="h-48 rounded-2xl bg-notebook-card/50 animate-pulse" />
+                            <div key={i} className="h-44 rounded-2xl bg-white/[0.03] animate-pulse border border-white/5" />
                         ))}
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* Create New Card (Alternative access) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {/* Create New Card */}
                         <motion.div
-                            whileHover={{ y: -4 }}
+                            whileHover={{ y: -3, scale: 1.01 }}
+                            whileTap={{ scale: 0.99 }}
                             onClick={() => setShowCreateModal(true)}
-                            className="h-56 rounded-2xl border-2 border-dashed border-notebook-border hover:border-notebook-text-accent/50 flex flex-col items-center justify-center cursor-pointer group transition-colors bg-white/5 hover:bg-white/10"
+                            className="h-44 rounded-2xl border-2 border-dashed border-white/10 hover:border-blue-500/30 flex flex-col items-center justify-center cursor-pointer group transition-all bg-white/[0.02] hover:bg-white/[0.04]"
                         >
-                            <div className="w-12 h-12 rounded-full bg-notebook-bg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                <Plus size={24} className="text-notebook-text-secondary group-hover:text-notebook-text-accent" />
+                            <div className="w-10 h-10 rounded-xl bg-white/5 group-hover:bg-blue-500/20 flex items-center justify-center mb-3 transition-colors">
+                                <Plus size={20} className="text-gray-500 group-hover:text-blue-400 transition-colors" />
                             </div>
-                            <span className="font-medium text-notebook-text-secondary group-hover:text-notebook-text-primary">Create new project</span>
+                            <span className="text-sm font-medium text-gray-500 group-hover:text-gray-300 transition-colors">Buat proyek baru</span>
                         </motion.div>
 
                         {/* Project Cards */}
-                        {projects.map((project) => (
-                            <motion.div
-                                key={project.id || project.name}
-                                whileHover={{ y: -4 }}
-                                onClick={() => openProject(project.id || project.name)}
-                                className="h-56 p-6 rounded-2xl bg-notebook-card border border-notebook-border hover:border-notebook-text-accent/30 cursor-pointer flex flex-col justify-between group shadow-sm hover:shadow-md transition-all relative overflow-hidden"
-                            >
-                                <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button className="p-2 hover:bg-notebook-hover rounded-full text-notebook-text-secondary hover:text-notebook-text-primary">
-                                        <ArrowRight size={18} />
-                                    </button>
-                                </div>
+                        <AnimatePresence>
+                            {filtered.map((project, idx) => {
+                                const id   = project.id || project.name || project;
+                                const name = project.name || project;
+                                const desc = project.description || 'Workspace penelitian';
+                                const date = project.created_at ? new Date(project.created_at).toLocaleDateString('id-ID') : 'Baru dibuat';
 
-                                <div>
-                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500/20 to-purple-500/20 flex items-center justify-center text-blue-400 mb-4">
-                                        <Folder size={20} />
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-notebook-text-primary mb-1 truncate">{project.name || project}</h3>
-                                    <p className="text-sm text-notebook-text-secondary line-clamp-2">
-                                        {project.description || "Project workspace"}
-                                    </p>
-                                </div>
+                                // Generate a color based on name for variety
+                                const colors = [
+                                    'from-blue-500/20 to-cyan-500/20 text-blue-400',
+                                    'from-purple-500/20 to-pink-500/20 text-purple-400',
+                                    'from-emerald-500/20 to-teal-500/20 text-emerald-400',
+                                    'from-amber-500/20 to-orange-500/20 text-amber-400',
+                                ];
+                                const color = colors[idx % colors.length];
 
-                                <div className="flex items-center gap-2 text-xs text-notebook-text-secondary font-medium">
-                                    <Clock size={12} />
-                                    <span>{project.created_at ? new Date(project.created_at).toLocaleDateString() : "Recently"}</span>
-                                </div>
-                            </motion.div>
-                        ))}
+                                return (
+                                    <motion.div
+                                        key={id}
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        whileHover={{ y: -3, scale: 1.01 }}
+                                        whileTap={{ scale: 0.99 }}
+                                        onClick={() => navigate(`/project/${id}/chat`)}
+                                        className="h-44 p-5 rounded-2xl bg-[#0d1018] border border-white/8 hover:border-white/15 cursor-pointer flex flex-col justify-between group shadow-sm hover:shadow-lg hover:shadow-black/30 transition-all relative overflow-hidden"
+                                    >
+                                        {/* Subtle corner gradient on hover */}
+                                        <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-white/[0.03] to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                                        <div>
+                                            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${color} flex items-center justify-center mb-3`}>
+                                                <Folder size={17} />
+                                            </div>
+                                            <h3 className="text-base font-semibold text-gray-100 mb-1 truncate group-hover:text-white transition-colors">{name}</h3>
+                                            <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{desc}</p>
+                                        </div>
+
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                                                <Clock size={11} />
+                                                <span>{date}</span>
+                                            </div>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <div className="w-7 h-7 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
+                                                    <ArrowRight size={14} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                );
+                            })}
+                        </AnimatePresence>
                     </div>
                 )}
+
+                {/* Footer */}
+                <div className="mt-16 text-center text-xs text-gray-700">
+                    JAYA Research v{version} · Powered by NVIDIA NIM
+                    {isDevMode && <span className="text-amber-600 ml-2">· DEV BUILD</span>}
+                </div>
             </div>
 
             {/* Create Modal */}
-            {showCreateModal && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <motion.div
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        className="bg-notebook-card w-full max-w-md rounded-2xl border border-notebook-border p-6 shadow-2xl"
-                    >
-                        <h2 className="text-xl font-semibold mb-4">Create New Project</h2>
-                        <form onSubmit={handleCreateProject}>
-                            <div className="mb-6">
-                                <label className="block text-sm font-medium text-notebook-text-secondary mb-2">Project Name</label>
-                                <input
-                                    type="text"
-                                    value={newProjectName}
-                                    onChange={(e) => setNewProjectName(e.target.value)}
-                                    placeholder="e.g., Quantum Computing Research"
-                                    className="w-full bg-notebook-bg border border-notebook-border rounded-xl px-4 py-3 text-notebook-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                                    autoFocus
-                                />
-                            </div>
-                            <div className="flex justify-end gap-3">
+            <AnimatePresence>
+                {showCreateModal && (
+                    <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+                        <motion.div
+                            initial={{ scale: 0.92, opacity: 0, y: 10 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.92, opacity: 0, y: 10 }}
+                            transition={{ type: 'spring', damping: 25 }}
+                            className="bg-[#0d1018] w-full max-w-md rounded-2xl border border-white/10 p-6 shadow-2xl"
+                        >
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-lg font-semibold text-white">Buat Proyek Baru</h2>
+                                    <p className="text-xs text-gray-500 mt-0.5">Proyek = workspace terisolasi untuk penelitian Anda</p>
+                                </div>
                                 <button
-                                    type="button"
-                                    onClick={() => setShowCreateModal(false)}
-                                    className="px-4 py-2 rounded-lg hover:bg-notebook-hover text-notebook-text-secondary transition-colors"
+                                    onClick={() => { setShowCreateModal(false); setNewProjectName(''); }}
+                                    className="p-1.5 hover:bg-white/5 rounded-lg text-gray-500 hover:text-gray-300 transition-colors"
                                 >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={!newProjectName.trim()}
-                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Create Project
+                                    <X size={16} />
                                 </button>
                             </div>
-                        </form>
-                    </motion.div>
-                </div>
-            )}
+
+                            <form onSubmit={handleCreate} className="space-y-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                                        Nama Proyek <span className="text-red-400">*</span>
+                                    </label>
+                                    <input
+                                        id="input-project-name"
+                                        type="text"
+                                        value={newProjectName}
+                                        onChange={(e) => setNewProjectName(e.target.value)}
+                                        placeholder="cth: Skripsi Sistem Informasi 2025"
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all"
+                                        autoFocus
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-400 mb-1.5">
+                                        Deskripsi <span className="text-gray-600">(opsional)</span>
+                                    </label>
+                                    <textarea
+                                        id="input-project-desc"
+                                        value={newProjectDesc}
+                                        onChange={(e) => setNewProjectDesc(e.target.value)}
+                                        placeholder="Topik atau tujuan penelitian..."
+                                        rows={2}
+                                        className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder:text-gray-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/20 transition-all resize-none"
+                                    />
+                                </div>
+
+                                <div className="flex justify-end gap-3 pt-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCreateModal(false)}
+                                        className="px-4 py-2.5 rounded-xl text-sm text-gray-400 hover:text-gray-200 hover:bg-white/5 transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        id="btn-create-project"
+                                        type="submit"
+                                        disabled={!newProjectName.trim() || isCreating}
+                                        className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/30 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/20 flex items-center gap-2"
+                                    >
+                                        {isCreating ? (
+                                            <>
+                                                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                Membuat...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Plus size={15} /> Buat Proyek
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 }

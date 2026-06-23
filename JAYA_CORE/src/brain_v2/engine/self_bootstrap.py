@@ -225,6 +225,7 @@ class SelfBootstrap:
 
     def status(self) -> dict:
         return {
+            "available": True,
             "curricula_generated": self._curricula_generated,
             "learning_speed": self.learning_speed,
             "idle_s": time.monotonic() - self._last_activity,
@@ -232,4 +233,6 @@ class SelfBootstrap:
                 0.0,
                 self.effective_curriculum_cooldown_s - (time.monotonic() - self._last_curriculum)
             ),
+            "effective_idle_trigger_s": self.effective_idle_trigger_s,
+            "effective_curriculum_cooldown_s": self.effective_curriculum_cooldown_s,
         }

@@ -1,0 +1,10 @@
+What is machine learning?
+Explain artificial intelligence in simple terms.
+How does Jaya Core work?
+What is retrieval-augmented generation?
+Define agentic AI.
+What are the principles of sovereign AI?
+Explain the concept of digital twin in AI.
+How does Jaya achieve low-resource operation?
+What is the JayaIR?
+Describe the adaptive policy tuning in Jaya.

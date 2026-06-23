@@ -20,20 +20,22 @@ class Teacher:
         # STRICT NO-HARDCODING POLICY
         # Dynamic Model Selection based on Role
         # STRICT NO-HARDCODING POLICY
+        # Find a suitable reasoning model as global fallback
+        reasoning_fallback = os.getenv("RESEARCH_REASONING_MODEL") or \
+                             os.getenv("NVIDIA_LLAMA3.1_MODEL") or \
+                             os.getenv("NVIDIA_LLAMA31_MODEL")
+
         if model_type == "reasoning":
-            # Check Research specific model first, then general Llama 3.1
-            self.model = os.getenv("RESEARCH_REASONING_MODEL") or \
-                         os.getenv("NVIDIA_LLAMA3.1_MODEL") or \
-                         os.getenv("NVIDIA_LLAMA31_MODEL")
+            self.model = reasoning_fallback
         elif model_type == "chat":
-            self.model = os.getenv("NVIDIA_CHAT_MODEL")
+            self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
         elif model_type == "coding":
-            self.model = os.getenv("NVIDIA_CODING_MODEL")
+            self.model = os.getenv("NVIDIA_CODING_MODEL") or reasoning_fallback
         elif model_type == "vision":
-             self.model = os.getenv("VIDEO_VLM_MODEL") # Fallback if used in Teacher
+             self.model = os.getenv("VIDEO_VLM_MODEL") or reasoning_fallback
         else:
-            # Default fallback to Chat if unknown
-            self.model = os.getenv("NVIDIA_CHAT_MODEL")
+            # Default fallback
+            self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
 
         if not self.model:
              # Critical Error if env var is missing
@@ -50,42 +52,59 @@ class Teacher:
         with open(path, "r") as f:
             return yaml.safe_load(f)
 
-    def ask(self, prompt, system_instruction="You are a helpful AI assistant."):
+    def ask(self, prompt, max_tokens=None, system_instruction="You are a helpful AI assistant."):
         """
-        Sends a prompt to the Teacher (NVIDIA NIM) and returns the response.
+        Sends a prompt to the Teacher (NVIDIA NIM) and returns the response with retries.
         """
-        try:
-            extra_body = {}
-            if os.getenv("NVIDIA_LLAMA3.1_THINKING_MODE", "false").lower() == "true":
-                extra_body["thinking_mode"] = True
+        max_retries = 3
+        backoff_factor = 2
+        
+        # Read from environment override if not specified
+        tokens_to_use = max_tokens or int(os.getenv("NVIDIA_LLAMA31_MAX_TOKENS", 4096))
+        
+        for attempt in range(max_retries):
+            try:
+                extra_body = {}
+                if os.getenv("NVIDIA_LLAMA3.1_THINKING_MODE", "false").lower() == "true":
+                    extra_body["thinking_mode"] = True
 
-            # User suggested streaming for 253b, likely to avoid timeouts
-            completion = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.6, # User indicated 0.6
-                top_p=0.95,
-                max_tokens=4096, # Increased from 1024
-                extra_body=extra_body,
-                stream=True
-            )
-            
-            full_response = ""
-            print("[TEACHER] Receiving stream...", end="", flush=True)
-            for chunk in completion:
-                if chunk.choices[0].delta.content is not None:
-                    content = chunk.choices[0].delta.content
-                    full_response += content
-                    # Optional: print dots or content to show aliveness
-                    # print(".", end="", flush=True) 
-            print(" Done.")
-            return full_response
+                completion = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.6,
+                    top_p=0.95,
+                    max_tokens=tokens_to_use,
+                    extra_body=extra_body,
+                    stream=True
+                )
+                
+                full_response = ""
+                print(f"[TEACHER] Receiving stream (attempt {attempt+1}/{max_retries})...", end="", flush=True)
+                for chunk in completion:
+                    if chunk.choices[0].delta.content is not None:
+                        content = chunk.choices[0].delta.content
+                        full_response += content
+                print(" Done.")
+                return full_response
 
-        except Exception as e:
-            return f"Error communicating with Teacher: {e}"
+            except Exception as e:
+                print(f"\n[TEACHER] Attempt {attempt+1} failed: {e}")
+                if attempt == max_retries - 1:
+                    return f"Error communicating with Teacher after {max_retries} attempts: {e}"
+                
+                sleep_time = backoff_factor ** attempt
+                print(f"[TEACHER] Retrying in {sleep_time}s...")
+                import time
+                time.sleep(sleep_time)
+
+    def generate_completion(self, prompt, max_tokens=None, system_instruction="You are a helpful AI assistant."):
+        """
+        Wrapper method alias that maps to the ask() method.
+        """
+        return self.ask(prompt, max_tokens=max_tokens, system_instruction=system_instruction)
 
     def suggest_optimization(self, code_snippet, focus="performance"):
         """

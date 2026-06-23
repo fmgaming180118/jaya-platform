@@ -107,23 +107,30 @@ class NoveltyChecker:
         is_novel = True
         confidence = 0.5
         reasoning = response
+        parsed_decision = False
         
         for line in response.split('\n'):
             line = line.strip()
-            if line.startswith("IS_NOVEL:"):
-                is_novel = "YES" in line.upper() and "NO" not in line.upper()
-            elif line.startswith("CONFIDENCE:"):
+            if line.upper().startswith("IS_NOVEL:"):
+                val = line.split(":", 1)[1].upper().strip()
+                is_novel = "YES" in val and "NO" not in val
+                parsed_decision = True
+            elif line.upper().startswith("CONFIDENCE:"):
                 try:
-                    confidence = float(line.replace("CONFIDENCE:", "").strip())
+                    val = line.split(":", 1)[1].strip()
+                    confidence = float(val)
                 except: pass
-            elif line.startswith("REASONING:"):
-                reasoning = line.replace("REASONING:", "").strip()
+            elif line.upper().startswith("REASONING:"):
+                reasoning = line.split(":", 1)[1].strip()
                 
-        # Robust Fallback for known facts if strict parsing failed or was ambiguous
-        if is_novel and any(term in response.lower() for term in ["not novel", "already exists", "well-known", "e=mc^2", "einstein", "famous"]):
-            print("[NOVELTY_CHECKER] LLM parsing ambiguity detected. Overriding to NOT NOVEL based on text contents.")
-            is_novel = False
-            confidence = 0.9
+        # Fallback if strict parsing failed to find IS_NOVEL
+        if not parsed_decision:
+            lower_res = response.lower()
+            if "is_novel: no" in lower_res or "is not novel" in lower_res or "not novel" in lower_res:
+                is_novel = False
+                confidence = 0.9
+            else:
+                is_novel = True
                 
         print(f"[NOVELTY_CHECKER] Result: IS_NOVEL={is_novel} (Confidence: {confidence})")
         return {

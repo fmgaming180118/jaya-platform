@@ -412,6 +412,15 @@ class AgenticRAG:
                 flips += 1
         return flips
 
+    @staticmethod
+    def _count_distinct_signals(values: List[Any]) -> int:
+        seen: set[str] = set()
+        for value in values:
+            signal = str(value or "").strip().lower()
+            if signal:
+                seen.add(signal)
+        return len(seen)
+
     def policy_guardrail_status(self, window: int = 10) -> Dict[str, Any]:
         """Return oscillation and drift risk indicators from policy history."""
         entries = self.get_policy_history(limit=self._resolve_policy_guard_window(window))
@@ -875,6 +884,14 @@ class AgenticRAG:
                     if score <= 0:
                         continue
 
+                    reliability = self._clamp(
+                        0.55 + (0.15 * min(int(success_count or 0), 5)) - (0.12 * min(int(failure_count or 0), 5))
+                    )
+                    recency_bonus = self._clamp(
+                        self._decay_factor(now_ts - float(last_used or timestamp or 0), self._decay_half_life_hours())
+                    )
+                    score = self._clamp((0.82 * score) + (0.10 * reliability) + (0.08 * recency_bonus))
+
                     ranked.append(
                         {
                             "id": int(row_id),
@@ -1147,6 +1164,13 @@ class AgenticRAG:
             tuned_decay *= 1.15
             reasons.append("reliable_procedures")
 
+        distinct_capsules = self._count_distinct_signals(
+            [item.get("trigger") for item in snapshot.get("top_capsules", [])]
+        )
+        if total >= 4 and distinct_capsules <= 2 and avg_usage < 0.80:
+            tuned_clarify -= 0.04
+            reasons.append("low_diversity_signal")
+
         tuned_clarify = max(0.35, min(tuned_clarify, 0.90))
         tuned_decay = max(24.0, min(tuned_decay, 24.0 * 20.0))
 
@@ -1177,6 +1201,7 @@ class AgenticRAG:
                 "success_rate": success_rate,
                 "stale_candidates": stale_candidates,
                 "stale_ratio": stale_ratio,
+                "distinct_top_triggers": distinct_capsules,
             },
         }
 
@@ -1336,6 +1361,7 @@ class AgenticRAG:
             "max_items": max_keep,
             "stale_days": stale_cut_days,
             "min_health": min_keep_health,
+            "remaining_total": after_count,
         }
 
     def tidy_up(self) -> Dict[str, Any]:

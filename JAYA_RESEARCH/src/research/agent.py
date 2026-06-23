@@ -24,6 +24,15 @@ except ImportError:
     from research.rag_client import RAGClient
     print("[RESEARCH] Using simple keyword-based RAG")
 
+# Try to import Graph RAG for knowledge graph capabilities
+try:
+    from research.graph_rag import GraphRAGEngine
+    GRAPH_RAG_AVAILABLE = True
+    print("[RESEARCH] Graph RAG available for knowledge graph construction")
+except ImportError:
+    GRAPH_RAG_AVAILABLE = False
+    print("[RESEARCH] Graph RAG not available")
+
 
 class ResearchAgent:
     """
@@ -69,6 +78,19 @@ class ResearchAgent:
         self.findings = []
         self.report = None
         self.iteration = 0
+        
+        # Initialize Graph RAG if available
+        self.graph_rag = None
+        if GRAPH_RAG_AVAILABLE:
+            try:
+                from research.workspace_manager import WorkspaceManager
+                wm = WorkspaceManager()
+                ws_paths = wm.get_or_create_paths(workspace)
+                graph_path = ws_paths["knowledge_graph"]
+                self.graph_rag = GraphRAGEngine(storage_path=graph_path)
+                print(f"[RESEARCH] 🕸️  Graph RAG initialized: {graph_path}")
+            except Exception as e:
+                print(f"[RESEARCH] ⚠️  Graph RAG init failed: {e}")
     
     def run(self, human_in_loop: bool = True) -> str:
         """
@@ -217,11 +239,22 @@ class ResearchAgent:
             
             if not context:
                 context = "No relevant documents found in memory or web."
+
+            # Add graph context from prior ingested findings when available
+            graph_context = ""
+            if self.graph_rag:
+                try:
+                    graph_context = self.graph_rag.get_context(query)
+                except Exception as e:
+                    print(f"[RESEARCH] ⚠️  Graph context retrieval failed: {e}")
             
             answer_prompt = f"""Question: {query}
             
 Context from Documents:
 {context}
+
+Context from Knowledge Graph:
+{graph_context or 'No graph context yet.'}
 
 Please provide a comprehensive answer to the question based on the context.
 If the context is insufficient, note what additional information would be helpful."""
@@ -236,6 +269,16 @@ If the context is insufficient, note what additional information would be helpfu
                 r['document'].get('file_name') or r['document'].get('title', 'Web')
                 for r in rag_results
             ]
+
+            # Ingest the answer into graph knowledge for next queries
+            if self.graph_rag and answer:
+                try:
+                    source_id = f"{self.topic}:{i}:{int(time.time())}"
+                    triple_count = self.graph_rag.ingest_document(answer, source_id=source_id)
+                    if triple_count:
+                        print(f"      └─ Graph updated with {triple_count} triples")
+                except Exception as e:
+                    print(f"[RESEARCH] ⚠️  Graph ingestion failed: {e}")
             
             return {
                 "query": query,

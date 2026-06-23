@@ -140,6 +140,7 @@ class SpeculativeEngine:
 
     def status(self) -> Dict[str, Any]:
         return {
+            "available": True,
             "n_paths":  self.n_paths,
             "timeout":  self.timeout,
             "runs":     self._runs,

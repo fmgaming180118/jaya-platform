@@ -160,9 +160,11 @@ class ResourceMonitor:
 
     def status(self) -> Dict[str, Any]:
         return {
+            "available": True,
             "running":       self._running,
             "psutil":        _psutil_ok,
             "readings":      self._last_readings,
             "reading_count": self._reading_count,
             "silence_active": self._silence_active,
+            "check_interval": self.check_interval,
         }

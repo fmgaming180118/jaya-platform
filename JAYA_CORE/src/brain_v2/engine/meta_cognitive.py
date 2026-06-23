@@ -294,21 +294,27 @@ class MetaCognitivePlanner:
             memory = twin.memory
             recent = memory.recent(20)
             new_scores = [
-                float(r.score) for r in recent
+                float(getattr(r, "score", 0.0))
+                for r in recent
                 if getattr(r, "label", "") == trial["label"]
                 and hasattr(r, "score")
             ]
             new_avg = sum(new_scores) / max(1, len(new_scores))
+            baseline_score = float(trial.get("baseline_score", 0.0))
+            improvement = new_avg - baseline_score
+            trial["elapsed_s"] = round(elapsed, 3)
+            trial["new_avg"] = round(new_avg, 4)
+            trial["improvement"] = round(improvement, 4)
 
-            if new_avg >= trial["baseline_score"] + 0.05:
+            if new_avg >= baseline_score + 0.05:
                 logger.info("[MetaCog] Patch KEPT: %s avg %.3f→%.3f (+%.3f)",
-                            trial["template"], trial["baseline_score"],
-                            new_avg, new_avg - trial["baseline_score"])
+                            trial["template"], baseline_score,
+                            new_avg, improvement)
                 self._patch_history.append({**trial, "outcome": "kept",
                                             "new_avg": new_avg})
             else:
                 logger.info("[MetaCog] Patch ROLLED BACK: %s avg %.3f→%.3f",
-                            trial["template"], trial["baseline_score"], new_avg)
+                            trial["template"], baseline_score, new_avg)
                 try:
                     trial["morphic"].rollback(trial["target_method"])
                 except Exception:
@@ -370,5 +376,9 @@ class MetaCognitivePlanner:
             "reflect_count": self._reflect_count,
             "patches_applied": self._patches_applied,
             "active_trial": bool(self._active_trial),
+            "active_trial_details": dict(self._active_trial) if self._active_trial else None,
             "patch_history_len": len(self._patch_history),
+            "last_patch_outcome": self._patch_history[-1]["outcome"] if self._patch_history else None,
+            "watch_window": self.watch_window,
+            "weak_threshold": self.weak_threshold,
         }

@@ -125,6 +125,7 @@ class HybridRouter:
 
     def status(self) -> Dict[str, Any]:
         return {
+            "available":        True,
             "is_online":        self.is_online,
             "force_offline":    self.force_offline,
             "check_interval":   self.check_interval,

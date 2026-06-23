@@ -74,6 +74,82 @@ class TestRuntimeAgenticRAGIntegration(unittest.TestCase):
         self.assertTrue(bool(agentic.get("available")))
         self.assertIn("db_path", agentic)
         self.assertIn("source_policies", agentic)
+        self.assertIn("procedural", agentic)
+        self.assertIn("policy_history", agentic)
+        self.assertIn("guardrails", agentic)
+
+    def test_status_exposes_agentic_rag_health_snapshot(self):
+        engine = self._build_engine()
+
+        status = engine.status()
+        agentic = cast(Dict[str, Any], status["agentic_rag"])
+        procedural = cast(Dict[str, Any], agentic.get("procedural", {}))
+        policy_history = cast(Dict[str, Any], agentic.get("policy_history", {}))
+        guardrails = cast(Dict[str, Any], agentic.get("guardrails", {}))
+
+        self.assertIn("total_capsules", procedural)
+        self.assertIn("count", policy_history)
+        self.assertIn("risk_level", guardrails)
+        dynamic_moe = cast(Dict[str, Any], status.get("dynamic_moe", {}))
+        self.assertIn("feedback_count", dynamic_moe)
+        self.assertIn("adaptive_route_enabled", dynamic_moe)
+
+    def test_status_exposes_runtime_observability_blocks(self):
+        engine = self._build_engine()
+
+        status = engine.status()
+
+        narrative = cast(Dict[str, Any], status.get("narrative", {}))
+        collective = cast(Dict[str, Any], status.get("collective_pulse", {}))
+        meta = cast(Dict[str, Any], status.get("meta_cognitive", {}))
+        activation = cast(Dict[str, Any], status.get("activation_sparsity", {}))
+        speculative = cast(Dict[str, Any], status.get("speculative", {}))
+        intent = cast(Dict[str, Any], status.get("intent", {}))
+        resource_mon = cast(Dict[str, Any], status.get("resource_mon", {}))
+
+        self.assertTrue(bool(narrative.get("available")))
+        self.assertIn("summary", narrative)
+        self.assertTrue(bool(collective.get("available")))
+        self.assertIn("current", collective)
+        self.assertIn("watch_window", meta)
+        self.assertIn("weak_threshold", meta)
+        self.assertTrue(bool(activation.get("available")))
+        self.assertIn("default_topk", activation)
+        self.assertTrue(bool(speculative.get("available")))
+        self.assertIn("n_paths", speculative)
+        self.assertTrue(bool(intent.get("available")))
+        self.assertIn("tfidf_docs", intent)
+        self.assertTrue(bool(resource_mon))
+        self.assertIn("readings", resource_mon)
+        self.assertIn("silence_active", resource_mon)
+
+    def test_healthcheck_returns_runtime_contract(self):
+        engine = self._build_engine()
+
+        out = engine.healthcheck()
+        self.assertIn("ok", out)
+        self.assertIn("health", out)
+        self.assertIn("checks", out)
+        self.assertIn("startup", out)
+        self.assertIn("engine_awake", cast(Dict[str, Any], out.get("checks", {})))
+
+    def test_startup_summary_reports_degraded_stub_mode(self):
+        engine = self._build_engine()
+
+        summary = engine.startup_summary()
+        self.assertIn("degraded_mode", summary)
+        self.assertIn("issues", summary)
+        self.assertTrue(bool(summary.get("degraded_mode")))
+
+    def test_readiness_report_returns_production_candidate_shape(self):
+        engine = self._build_engine()
+
+        out = engine.readiness_report()
+        self.assertIn("ok", out)
+        self.assertIn("stage", out)
+        self.assertIn("gates", out)
+        self.assertIn("health", out)
+        self.assertIn("policy_guardrails_ready", cast(Dict[str, Any], out.get("gates", {})))
 
     def test_query_returns_procedure_plan_after_memorize(self):
         engine = self._build_engine()
@@ -126,6 +202,29 @@ class TestRuntimeAgenticRAGIntegration(unittest.TestCase):
         hint = cast(Dict[str, Any], out["agentic_hint"])
         self.assertEqual(str(hint.get("trigger")), "open desktop")
         self.assertGreaterEqual(len(cast(List[str], hint.get("steps", []))), 1)
+
+    def test_chat_returns_factual_definition_for_seeded_knowledge(self):
+        engine = self._build_engine()
+
+        response = engine.chat("apa itu machine learning?")
+
+        self.assertIn("Machine learning adalah cabang AI", response)
+        self.assertNotIn("saya akan mencari penjelasan", response.lower())
+
+    def test_agentic_rag_seeds_default_local_knowledge(self):
+        engine = self._build_engine()
+
+        result = engine.query_agentic_rag(
+            "machine learning",
+            language="id",
+            limit=2,
+        )
+
+        self.assertTrue(result["ok"])
+        facts = cast(List[Dict[str, Any]], result.get("facts", []))
+        self.assertTrue(facts)
+        joined = " ".join(str(item.get("content") or "") for item in facts)
+        self.assertIn("membuat sistem belajar dari data", joined)
 
     def test_feedback_updates_usage_counter(self):
         engine = self._build_engine()

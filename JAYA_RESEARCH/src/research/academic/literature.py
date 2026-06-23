@@ -5,6 +5,7 @@ import json
 import os
 from typing import List, Dict, Optional
 from pathlib import Path
+import requests
 
 class ArxivClient:
     """
@@ -211,6 +212,58 @@ class SemanticScholarClient:
              return citations
         except Exception as e:
             print(f"[SemanticScholar] Citation Error: {e}")
+            return []
+
+
+class OpenAlexClient:
+    """Client for OpenAlex, a free scholarly metadata index."""
+
+    BASE_URL = "https://api.openalex.org/works"
+
+    def search_papers(self, query: str, max_results: int = 10) -> List[Dict]:
+        params = {
+            "search": query,
+            "per-page": max_results,
+            "sort": "cited_by_count:desc",
+        }
+
+        print(f"[OpenAlex] Searching: {query}")
+        try:
+            response = requests.get(self.BASE_URL, params=params, timeout=20)
+            response.raise_for_status()
+            data = response.json()
+
+            papers = []
+            for item in data.get("results", []):
+                authors = []
+                for auth in item.get("authorships", []):
+                    author = auth.get("author", {})
+                    name = author.get("display_name")
+                    if name:
+                        authors.append(name)
+
+                pdf_link = None
+                primary_location = item.get("primary_location") or {}
+                landing_page = primary_location.get("landing_page_url")
+                pdf_url = primary_location.get("pdf_url")
+                pdf_link = pdf_url or landing_page
+
+                papers.append({
+                    "id": item.get("id"),
+                    "title": item.get("display_name"),
+                    "summary": item.get("abstract_inverted_index") or item.get("title") or "No abstract available.",
+                    "published": str(item.get("publication_year") or ""),
+                    "authors": authors,
+                    "pdf_link": pdf_link,
+                    "source": "OpenAlex",
+                    "doi": item.get("doi"),
+                    "landing_page_url": landing_page,
+                })
+
+            return papers
+
+        except Exception as e:
+            print(f"[OpenAlex] Error: {e}")
             return []
 
 if __name__ == "__main__":

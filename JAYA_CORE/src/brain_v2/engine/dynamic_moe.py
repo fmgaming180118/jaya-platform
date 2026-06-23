@@ -45,6 +45,14 @@ class DynamicMoERouter:
         self.max_active_experts = max(1, min(int(max_active_experts), 3))
         self._decisions = 0
         self._last_route: Dict[str, Any] = {}
+        self._feedback_bias: Dict[str, float] = {
+            "logic": 0.0,
+            "action": 0.0,
+            "memory": 0.0,
+            "safety": 0.0,
+            "creative": 0.0,
+        }
+        self._feedback_count = 0
 
     def route(
         self,
@@ -63,6 +71,9 @@ class DynamicMoERouter:
             "safety": 0.15,
             "creative": 0.10,
         }
+
+        for expert, bias in self._feedback_bias.items():
+            scores[expert] = max(0.0, scores[expert] + bias)
 
         if tokens & _QUERY_TOKENS:
             scores["logic"] += 0.35
@@ -114,16 +125,75 @@ class DynamicMoERouter:
             "active_count": len(active),
             "pressure_score": round(pressure, 4),
             "max_active_experts": self.max_active_experts,
+            "feedback_count": self._feedback_count,
             "reason": self._build_reason(tokens=tokens, pressure=pressure),
         }
         self._remember(route)
         return route
+
+    def apply_feedback(self, expert: str, outcome: float) -> Dict[str, Any]:
+        """Nudge routing weights using bounded feedback signals.
+
+        Positive outcome slightly boosts the expert next time; negative
+        outcome reduces it. Bias is kept small so rule-based routing remains
+        the primary signal and gates stay stable.
+        """
+        normalized_expert = str(expert or "").strip().lower()
+        if normalized_expert not in self._feedback_bias:
+            normalized_expert = "logic"
+
+        try:
+            outcome_value = float(outcome)
+        except (TypeError, ValueError):
+            outcome_value = 0.0
+
+        if not math.isfinite(outcome_value):
+            outcome_value = 0.0
+
+        bounded = max(-1.0, min(1.0, outcome_value))
+        delta = 0.04 * bounded
+        self._feedback_bias[normalized_expert] = max(-0.12, min(0.12, self._feedback_bias[normalized_expert] + delta))
+
+        if bounded < 0:
+            self._feedback_bias["safety"] = max(
+                -0.12,
+                min(0.12, self._feedback_bias["safety"] + 0.5 * abs(delta)),
+            )
+
+        self._feedback_count += 1
+        logger.debug(
+            "[Pillar 34] feedback expert=%s outcome=%.2f bias=%.3f",
+            normalized_expert,
+            bounded,
+            self._feedback_bias[normalized_expert],
+        )
+        return {
+            "expert": normalized_expert,
+            "outcome": round(bounded, 4),
+            "bias": round(self._feedback_bias[normalized_expert], 4),
+            "feedback_count": self._feedback_count,
+        }
+
+    def route_feedback(self, route: Dict[str, Any], outcome: float) -> Dict[str, Any]:
+        """Convenience helper that feeds route outcome back into the router.
+
+        This keeps the adaptive loop explicit and keeps tests/runtimes from
+        needing to reconstruct the primary expert externally.
+        """
+        expert = str(route.get("primary_expert") or route.get("expert") or "logic")
+        feedback = self.apply_feedback(expert=expert, outcome=outcome)
+        feedback["route_primary_expert"] = expert
+        feedback["route_pressure_score"] = route.get("pressure_score")
+        return feedback
 
     def status(self) -> Dict[str, Any]:
         return {
             "decisions": self._decisions,
             "max_active_experts": self.max_active_experts,
             "last_route": dict(self._last_route),
+            "feedback_count": self._feedback_count,
+            "feedback_bias": dict(self._feedback_bias),
+            "adaptive_route_enabled": True,
         }
 
     def _pressure_score(self, cpu_pct: Optional[float], mem_pct: Optional[float]) -> float:

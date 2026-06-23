@@ -136,6 +136,7 @@ class NarrativeContinuity:
         turn_count = sum(1 for e in self._events if e.get("kind") == "turn")
         feedback_count = sum(1 for e in self._events if e.get("kind") == "feedback")
         return {
+            "available": True,
             "max_events": self.max_events,
             "summary_window": self.summary_window,
             "events": len(self._events),
@@ -143,6 +144,8 @@ class NarrativeContinuity:
             "feedback_events": feedback_count,
             "has_persistence": bool(self.persist_path),
             "summary": self._summary,
+            "persist_path": self.persist_path,
+            "last_save_ts": self._last_save_ts,
         }
 
     def _append_event(self, event: Dict[str, Any]) -> None:

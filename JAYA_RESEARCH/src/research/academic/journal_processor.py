@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import pypdf
-from src.research.academic.literature import ArxivClient
+from src.research.academic.literature import ArxivClient, SemanticScholarClient, OpenAlexClient
 from src.teacher import Teacher
 from src.research.config import get_config
 
@@ -20,6 +20,8 @@ class JournalProcessor:
         self.download_dir.mkdir(parents=True, exist_ok=True)
         
         self.arxiv = ArxivClient()
+        self.scholar = SemanticScholarClient()
+        self.openalex = OpenAlexClient()
         self.teacher = Teacher(model_type="reasoning")
         self.config = get_config()
         
@@ -36,10 +38,12 @@ class JournalProcessor:
         """
         print(f"[JournalProcessor] Processing: {query}")
         
-        # 1. Search ArXiv
-        papers = self.arxiv.search_papers(query, max_results=max_papers)
+        # 1. Search across free sources
+        papers = self._search_free_sources(query, max_papers=max_papers)
         if not papers:
             return {"status": "empty", "message": "No papers found."}
+
+        papers = self._rank_papers(query, papers)
             
         processed_data = []
         
@@ -70,7 +74,15 @@ class JournalProcessor:
             processed_data.append({
                 "metadata": paper,
                 "insight": insight,
-                "local_path": str(pdf_path)
+                "summary": self._build_paper_summary(paper, insight),
+                "compact_summary": self._build_compact_summary(paper, insight),
+                "local_path": str(pdf_path),
+                "source_meta": {
+                    "title": paper.get("title", "Unknown Title"),
+                    "source": paper.get("source", "Unknown Source"),
+                    "rank_score": paper.get("rank_score", 0.0),
+                    "pdf_link": paper.get("pdf_link") or paper.get("landing_page_url") or "",
+                }
             })
             
         # 3. Synthesize Final Answer
@@ -82,6 +94,79 @@ class JournalProcessor:
             "status": "success",
             "papers": processed_data
         }
+
+    def _rank_papers(self, query: str, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Rank papers by a simple free heuristic using title/summary overlap."""
+        query_terms = [t for t in query.lower().split() if len(t) > 2]
+
+        def score(paper: Dict[str, Any]) -> float:
+            title = (paper.get("title") or "").lower()
+            summary = (paper.get("summary") or "").lower()
+            source_bonus = 0.0
+            if paper.get("source") == "ArXiv":
+                source_bonus += 0.1
+            elif paper.get("source") == "OpenAlex":
+                source_bonus += 0.08
+            elif paper.get("source") == "Semantic Scholar":
+                source_bonus += 0.06
+
+            overlap = sum(1 for term in query_terms if term in title or term in summary)
+            length_bonus = min(len(summary) / 5000.0, 0.15)
+            return float(overlap) + source_bonus + length_bonus
+
+        ranked = sorted(papers, key=score, reverse=True)
+        for item in ranked:
+            item["rank_score"] = score(item)
+        return ranked
+
+    def _build_paper_summary(self, paper: Dict[str, Any], insight: str) -> str:
+        title = paper.get("title", "Unknown Title")
+        source = paper.get("source", "Unknown Source")
+        year = paper.get("published", "")
+        pdf_link = paper.get("pdf_link") or paper.get("landing_page_url") or ""
+        lines = [
+            f"Title: {title}",
+            f"Source: {source}",
+        ]
+        if year:
+            lines.append(f"Year: {year}")
+        if pdf_link:
+            lines.append(f"Link: {pdf_link}")
+        if insight:
+            lines.append("Insight:")
+            lines.append(insight[:1200])
+        return "\n".join(lines)
+
+    def _build_compact_summary(self, paper: Dict[str, Any], insight: str) -> Dict[str, Any]:
+        return {
+            "title": paper.get("title", "Unknown Title"),
+            "source": paper.get("source", "Unknown Source"),
+            "year": paper.get("published", ""),
+            "rank_score": paper.get("rank_score", 0.0),
+            "insight_excerpt": insight[:400],
+            "link": paper.get("pdf_link") or paper.get("landing_page_url") or "",
+        }
+
+    def _search_free_sources(self, query: str, max_papers: int = 1) -> List[Dict[str, Any]]:
+        """Search free academic metadata sources and deduplicate results."""
+        combined: List[Dict[str, Any]] = []
+        seen_titles = set()
+
+        sources = [
+            self.arxiv.search_papers(query, max_results=max_papers),
+            self.scholar.search_papers(query, max_results=max_papers),
+            self.openalex.search_papers(query, max_results=max_papers),
+        ]
+
+        for source_results in sources:
+            for paper in source_results:
+                title = (paper.get("title") or "").strip().lower()
+                if not title or title in seen_titles:
+                    continue
+                seen_titles.add(title)
+                combined.append(paper)
+
+        return combined[: max_papers * 3]
 
     def _extract_text_from_pdf(self, pdf_path: Path) -> str:
         """Extracts text using pypdf"""

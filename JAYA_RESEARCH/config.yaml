@@ -13,3 +13,11 @@ student:
   model_path: "models/micro_agi_v1.safetensors"
   context_window: 2048
   learning_rate: 0.0003
+
+nim_distillation:
+  # NVIDIA NIM API configuration for knowledge distillation
+  api_base: "https://integrate.api.nvidia.com/v1"  # Can be overridden via NIM_API_BASE env var
+  model: "nemotron-3-8b-instruct"  # Default model, can be overridden via NIM_MODEL env var
+  # API key should be set via environment variable NIM_API_KEY (never hardcode)
+  max_tokens: 150
+  temperature: 0.7

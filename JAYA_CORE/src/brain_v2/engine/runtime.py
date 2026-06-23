@@ -38,6 +38,7 @@ V18 additions
 
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import time
@@ -66,6 +67,7 @@ _AGENTIC_DEFAULT_SOURCE_POLICY: Dict[str, Any] = {
     "max_limit": 2,
     "allowed_operations": ["facts"],
 }
+
 
 
 # ---------------------------------------------------------------------------
@@ -198,6 +200,7 @@ class IronEngine:
         self._dream_count    = 0
         self._feedback_count = 0
         self._start_time: float  = 0.0
+        self._startup_issues: list[str] = []
 
         # Pillar 7 — Cognitive Silence
         self._silent: bool = False
@@ -273,6 +276,7 @@ class IronEngine:
     def ignite(self):
         """Bring the engine online: load the model, start the twin."""
         self._start_time = time.time()
+        self._startup_issues = []
         logger.info("Igniting IronEngine | model=%s twin=%s omniverse=%s",
                     os.path.basename(self.model_path),
                     self.enable_twin, self.omniverse_requested)
@@ -284,6 +288,7 @@ class IronEngine:
         else:
             logger.warning("Model file not found (%s) — proceeding in stub mode",
                            self.model_path)
+            self._startup_issues.append("model_file_missing_stub_mode")
 
         self.is_awake = True
 
@@ -299,6 +304,26 @@ class IronEngine:
 
         # -- Resource monitor (starts background thread) --
         self._init_resource_monitor()
+
+        if self._lingua is None:
+            self._startup_issues.append("lingua_unavailable")
+        if self._jaya_ir_exec is None and not self._ensure_jaya_ir_executor(log_on_ready=False):
+            self._startup_issues.append("jaya_ir_executor_unavailable")
+        if self._zero_trust is None:
+            self._startup_issues.append("zero_trust_unavailable")
+        if self._agentic_rag is None:
+            self._startup_issues.append("agentic_rag_unavailable")
+
+    def startup_summary(self) -> Dict[str, Any]:
+        """Return startup and degraded-mode summary for production operations."""
+        degraded = len(self._startup_issues) > 0
+        return {
+            "ok": not degraded,
+            "degraded_mode": degraded,
+            "issues": list(self._startup_issues),
+            "model_path": self.model_path,
+            "nano_mode": self.nano_mode,
+        }
 
     def _try_load_nano_model(self) -> None:
         """V18: attempt to load NanoModel from IRON_BODY_PACKED section.
@@ -511,6 +536,7 @@ class IronEngine:
                 )
 
             self._agentic_rag = AgenticRAG(db_path=rag_db_path)
+            self._seed_default_local_knowledge()
             logger.info("[Pillar 33] AgenticRAG ready db=%s", rag_db_path)
         except ImportError as exc:
             logger.warning("AgenticRAG unavailable: %s", exc)
@@ -893,6 +919,53 @@ class IronEngine:
                 "context": "",
             }
 
+    def healthcheck(self) -> Dict[str, Any]:
+        """Return a compact runtime health snapshot for production supervision."""
+        status = self.status()
+        startup = self.startup_summary()
+        checks: Dict[str, bool] = {
+            "engine_awake": bool(status.get("is_awake")),
+            "lingua_ready": isinstance(status.get("lingua"), dict),
+            "jaya_ir_ready": isinstance(status.get("jaya_ir"), dict),
+            "zero_trust_ready": isinstance(status.get("zero_trust"), dict),
+            "agentic_rag_ready": bool((status.get("agentic_rag") or {}).get("available")),
+        }
+
+        failed = [name for name, ok in checks.items() if not ok]
+        health = "healthy" if (not failed and not startup.get("degraded_mode")) else "degraded"
+        return {
+            "ok": len(failed) == 0 and not bool(startup.get("degraded_mode")),
+            "health": health,
+            "checks": checks,
+            "failed_checks": failed,
+            "uptime": status.get("uptime"),
+            "startup": startup,
+        }
+
+    def readiness_report(self) -> Dict[str, Any]:
+        """Return deployment readiness summary for runtime and operational gates."""
+        health = self.healthcheck()
+        status = self.status()
+        agentic = cast(Dict[str, Any], status.get("agentic_rag", {}))
+        policy_history = cast(Dict[str, Any], agentic.get("policy_history", {}))
+        guardrails = cast(Dict[str, Any], agentic.get("guardrails", {}))
+
+        gates: Dict[str, bool] = {
+            "health_ok": bool(health.get("ok")),
+            "observability_ready": isinstance(status.get("meta_cognitive"), dict),
+            "resource_monitor_ready": isinstance(status.get("resource_mon"), dict),
+            "policy_guardrails_ready": isinstance(guardrails, dict) and ("risk_level" in guardrails),
+            "policy_history_ready": isinstance(policy_history, dict) and ("count" in policy_history),
+        }
+        blockers = [name for name, ok in gates.items() if not ok]
+        return {
+            "ok": len(blockers) == 0,
+            "stage": "production_candidate" if len(blockers) == 0 else "needs_hardening",
+            "gates": gates,
+            "blockers": blockers,
+            "health": health,
+        }
+
         try:
             snap = self._narrative.snapshot(limit=limit, max_chars=max_chars)
             snap["ok"] = True
@@ -998,6 +1071,73 @@ class IronEngine:
         if not allowed_ops:
             allowed_ops.append("facts")
         return allowed_ops
+
+    def _seed_default_local_knowledge(self) -> None:
+        if not self._agentic_rag:
+            return
+
+        for topic, content in self._load_default_local_knowledge():
+            try:
+                existing = self._agentic_rag.recall(topic, limit=1)
+            except Exception:
+                existing = []
+
+            already_present = any(
+                isinstance(item, dict)
+                and str(item.get("topic") or "").strip().lower() == topic
+                for item in existing
+            )
+            if already_present:
+                continue
+
+            self._agentic_rag.memorize(
+                topic=topic,
+                content=content,
+                source="runtime_seed",
+                importance=9,
+            )
+
+    def _load_default_local_knowledge(self) -> list[tuple[str, str]]:
+        knowledge_path = Path(__file__).resolve().parents[3] / "data" / "default_local_knowledge.json"
+        fallback: list[tuple[str, str]] = [
+            (
+                "machine learning",
+                "Machine learning adalah cabang AI yang membuat sistem belajar dari data untuk mengenali pola, membuat prediksi, atau mengambil keputusan tanpa harus diprogram ulang untuk setiap kasus.",
+            ),
+            (
+                "kecerdasan buatan",
+                "Kecerdasan buatan adalah bidang ilmu komputer yang merancang sistem agar mampu melakukan tugas yang biasanya membutuhkan kecerdasan manusia, seperti memahami bahasa, mengenali pola, dan mengambil keputusan.",
+            ),
+            (
+                "jaya core",
+                "JAYA_CORE adalah runtime inti JAYA yang menjalankan alur intent ke Lingua Logica, menerjemahkannya ke JayaIR, lalu mengeksekusinya dengan observabilitas, guardrail, dan mode degradable.",
+            ),
+            (
+                "rag",
+                "RAG atau retrieval-augmented generation adalah pendekatan yang menggabungkan pencarian pengetahuan relevan dari memori atau basis data dengan proses penyusunan jawaban agar respons lebih faktual dan kontekstual.",
+            ),
+        ]
+
+        try:
+            payload = json.loads(knowledge_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            logger.debug("Failed loading default local knowledge from %s: %s", knowledge_path, exc)
+            return fallback
+
+        if not isinstance(payload, list):
+            return fallback
+
+        normalized: list[tuple[str, str]] = []
+        for item in payload:
+            if not isinstance(item, dict):
+                continue
+            topic = str(item.get("topic") or "").strip().lower()
+            content = str(item.get("content") or "").strip()
+            if not topic or not content:
+                continue
+            normalized.append((topic, content))
+
+        return normalized or fallback
 
     def _agentic_policy_allows(self, policy: Dict[str, Any], operation: str) -> bool:
         operation_map = {
@@ -1705,11 +1845,38 @@ class IronEngine:
                     "procedural": self._agentic_rag.procedural_stats_snapshot(top_n=3),
                     "source_policies": dict(self._agentic_source_policy),
                     "policy_history": self._agentic_rag.policy_history_summary(window=8),
+                    "guardrails": self._agentic_rag.policy_guardrail_status(window=8),
                 }
             except Exception as exc:
                 agentic_status = {
                     "available": True,
                     "db_path": str(getattr(self._agentic_rag, "db_path", "")),
+                    "error": str(exc),
+                }
+
+        narrative_status: Optional[Dict[str, Any]] = None
+        if self._narrative is not None:
+            try:
+                narrative_status = {
+                    "available": True,
+                    **self._narrative.status(),
+                }
+            except Exception as exc:
+                narrative_status = {
+                    "available": True,
+                    "error": str(exc),
+                }
+
+        collective_status: Optional[Dict[str, Any]] = None
+        if self._collective_pulse is not None:
+            try:
+                collective_status = {
+                    "available": True,
+                    **self._collective_pulse.status(),
+                }
+            except Exception as exc:
+                collective_status = {
+                    "available": True,
                     "error": str(exc),
                 }
         return {
@@ -1726,11 +1893,8 @@ class IronEngine:
             "speculative":   self._speculative.status()   if self._speculative   else None,
             "intent":        self._intent.status()        if self._intent        else None,
             "twin_protocol": self._twin_protocol.status() if self._twin_protocol else None,
-            "narrative":     self._narrative.status()     if self._narrative     else None,
-            "collective_pulse": (
-                self._collective_pulse.status()
-                if self._collective_pulse is not None else None
-            ),
+            "narrative": narrative_status,
+            "collective_pulse": collective_status,
             "agentic_rag":  agentic_status,
             "dynamic_moe":   self._dynamic_moe.status()   if self._dynamic_moe   else None,
             "activation_sparsity": (
