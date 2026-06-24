@@ -29,8 +29,8 @@ class MetaAnalyst:
     def __init__(self):
         self.config = get_config()
         self.teacher = Teacher()
-        # Use main evolution memory
-        self.memory = DiscoveryMemory(config.EVOLUTION_MEMORY_PATH)
+        # Use main discovery memory
+        self.memory = DiscoveryMemory(config.DISCOVERY_MEMORY_PATH)
         
     def get_research_history(self, topic_filter: str = None) -> List[Dict[str, Any]]:
         """

@@ -109,7 +109,7 @@ export const api = {
         apiFetch(`/graph?workspace_id=${workspaceId}`),
 
     // --- History ---
-    getHistory: async () => [],
+    getHistory: () => apiFetch('/history'),
 };
 
 export default api;

@@ -39,7 +39,7 @@ ENV = load_dotenv(JAYA_ROOT / ".env")
 API_KEY     = ENV.get("NVIDIA_API_KEY", "")
 BASE_URL    = ENV.get("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
 EMBED_MODEL = ENV.get("NVIDIA_EMBEDDING_MODEL", "nvidia/nv-embedqa-e5-v5")
-CHAT_MODEL  = "meta/llama-3.3-70b-instruct"
+CHAT_MODEL  = ENV.get("RESEARCH_REASONING_MODEL") or ENV.get("NVIDIA_LLAMA31_MODEL") or ENV.get("NVIDIA_LLAMA3.1_MODEL") or "nvidia/nemotron-3-super-120b-a12b"
 
 try:
     import pdfplumber
@@ -231,6 +231,10 @@ def embed_pages(pages: list) -> "np.ndarray":
     return arr
 
 def get_or_build_cache(pdf_path: Path, pages: list):
+    if not HAS_FAISS:
+        print("  [WARN] FAISS tidak terpasang, melewati cache embedding.")
+        return None, pages
+
     fhash  = hashlib.md5(pdf_path.read_bytes()).hexdigest()[:10]
     cf     = CACHE_DIR / f"{pdf_path.stem[:40]}_{fhash}_v5.pkl"
 
@@ -330,9 +334,7 @@ def ask(question: str, context: str) -> str:
                 "temperature": 0.0,
                 "max_tokens": 200,
                 "stop": [
-                    "PERTANYAAN:", "KONTEKS:", "ATURAN:",
-                    "Perhatian", "Lihat Konteks", "Penjelasan:",
-                    "Rasmi", "Catatan:"
+                    "PERTANYAAN:", "KONTEKS:", "ATURAN:"
                 ],
             },
             timeout=45

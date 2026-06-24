@@ -43,22 +43,57 @@ class CodeMutator:
             # 3. Generate Mutation
             print(f"[Mutator] Mutating {target_file}...")
             prompt = f"""
-            You are an expert Python Developer (JAYA Evolution Engine).
+            You are JAYA Evolution Engine (Expert Python Developer).
             Target File: {target_file}
             Instruction: {instruction}
             
-            Original Code:
+            Instead of rewriting the whole file, output one or more SEARCH/REPLACE blocks to apply changes.
+            Use this exact format:
+            
+            <<<<<<< SEARCH
+            [exact lines of code from original file to replace]
+            =======
+            [new lines of code to replace them with]
+            >>>>>>> REPLACE
+            
+            Maintain all existing functionality unless asked to change it.
+            Original Code reference:
             ```python
             {original_code}
             ```
-            
-            Rewrite the code to fulfill the instruction.
-            Maintain all existing functionality unless asked to change it.
-            Output ONLY the valid Python code.
             """
             
-            mutated_code = self.brain.generate_completion(prompt, max_tokens=2000)
-            mutated_code = mutated_code.replace("```python", "").replace("```", "").strip()
+            mutated_response = self.brain.generate_completion(prompt)
+            
+            # Check if response contains search/replace blocks
+            import re
+            blocks = re.findall(
+                r"<<<<<<<\s*SEARCH\n(.*?)\n=======\n(.*?)\n>>>>>>>\s*REPLACE",
+                mutated_response,
+                re.DOTALL
+            )
+            
+            if blocks:
+                mutated_code = original_code
+                for search_block, replace_block in blocks:
+                    if search_block in mutated_code:
+                        mutated_code = mutated_code.replace(search_block, replace_block)
+                    else:
+                        # Pencocokan lebih longgar jika ada perbedaan spasi
+                        search_clean = search_block.strip()
+                        replace_clean = replace_block.strip()
+                        if search_clean in mutated_code:
+                            mutated_code = mutated_code.replace(search_clean, replace_clean)
+                        else:
+                            print(f"[Mutator] Warning: SEARCH block not found in original file.")
+            else:
+                # Fallback ke overwrite seluruh file jika LLM tidak menggunakan SEARCH/REPLACE
+                mutated_code = mutated_response
+                code_match = re.search(r"```python\s*(.*?)\s*```", mutated_code, re.DOTALL | re.IGNORECASE)
+                if not code_match:
+                    code_match = re.search(r"```\s*(.*?)\s*```", mutated_code, re.DOTALL | re.IGNORECASE)
+                
+                mutated_code = code_match.group(1).strip() if code_match else mutated_code.strip()
 
             # 4. Verify Syntax (Static Analysis)
             try:

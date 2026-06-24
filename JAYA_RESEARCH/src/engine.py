@@ -1,11 +1,34 @@
 import math
-from functools import reduce
+from numba import njit
+
+# Fallback if Numba is not available
+try:
+    _njit = njit
+except ImportError:  # pragma: no cover
+    def _njit(func):
+        return func
+
+@_njit
+def _tanh(x):
+    return math.tanh(x)
+
+@_njit
+def _exp(x):
+    return math.exp(x)
+
+@_njit
+def _log(x):
+    return math.log(x)
+
+@_njit
+def _relu(x):
+    return x if x > 0.0 else 0.0
 
 class Value:
     __slots__ = ['data', 'grad', '_backward', '_prev', '_op', 'label']
 
     def __init__(self, data, _children=(), _op='', label=''):
-        self.data = data
+        self.data = float(data)
         self.grad = 0.0
         self._backward = lambda: None
         self._prev = _children
@@ -18,40 +41,68 @@ class Value:
     def __add__(self, other):
         other = other if isinstance(other, Value) else Value(other)
         out = Value(self.data + other.data, (self, other), '+')
-        out._backward = lambda: (self.grad.__iadd__(out.grad), other.grad.__iadd__(out.grad))
+        def _backward():
+            self.grad += out.grad
+            other.grad += out.grad
+        out._backward = _backward
         return out
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
     def __mul__(self, other):
         other = other if isinstance(other, Value) else Value(other)
         out = Value(self.data * other.data, (self, other), '*')
-        out._backward = lambda: (self.grad.__iadd__(other.data * out.grad), other.grad.__iadd__(self.data * out.grad))
+        def _backward():
+            self.grad += other.data * out.grad
+            other.grad += self.data * out.grad
+        out._backward = _backward
         return out
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
     def __pow__(self, other):
         assert isinstance(other, (int, float)), "only supporting int/float powers for now"
-        out = Value(self.data**other, (self,), f'**{other}')
-        out._backward = lambda: self.grad.__iadd__(other * self.data**(other-1) * out.grad)
+        out = Value(self.data ** other, (self,), f'**{other}')
+        def _backward():
+            self.grad += other * self.data ** (other - 1) * out.grad
+        out._backward = _backward
         return out
 
+    def __rpow__(self, other):
+        return Value(other) ** self
+
     def tanh(self):
-        t = math.tanh(self.data)
+        t = _tanh(self.data)
         out = Value(t, (self,), 'tanh')
-        out._backward = lambda: self.grad.__iadd__((1 - t**2) * out.grad)
+        def _backward():
+            self.grad += (1.0 - t * t) * out.grad
+        out._backward = _backward
         return out
 
     def exp(self):
-        out = Value(math.exp(self.data), (self,), 'exp')
-        out._backward = lambda: self.grad.__iadd__(out.data * out.grad)
+        e = _exp(self.data)
+        out = Value(e, (self,), 'exp')
+        def _backward():
+            self.grad += out.data * out.grad
+        out._backward = _backward
         return out
 
     def log(self):
-        out = Value(math.log(self.data), (self,), 'log')
-        out._backward = lambda: self.grad.__iadd__(out.grad / self.data)
+        l = _log(self.data)
+        out = Value(l, (self,), 'log')
+        def _backward():
+            self.grad += out.grad / self.data
+        out._backward = _backward
         return out
 
     def relu(self):
-        out = Value(max(0, self.data), (self,), 'ReLU')
-        out._backward = lambda: self.grad.__iadd__((out.data > 0) * out.grad)
+        r = _relu(self.data)
+        out = Value(r, (self,), 'ReLU')
+        def _backward():
+            self.grad += (out.data > 0.0) * out.grad
+        out._backward = _backward
         return out
 
     def backward(self):
@@ -75,7 +126,7 @@ if __name__ == "__main__":
     a = Value(2.0, label='a')
     b = Value(-3.0, label='b')
     c = Value(10.0, label='c')
-    e = a*b; e.label = 'e'
+    e = a * b; e.label = 'e'
     d = e + c; d.label = 'd'
     f = Value(-2.0, label='f')
     L = d * f; L.label = 'L'

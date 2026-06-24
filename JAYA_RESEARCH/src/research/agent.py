@@ -382,8 +382,8 @@ If the context is insufficient, note what additional information would be helpfu
         # Store in DiscoveryMemory for future retrieval
         try:
             from memory import DiscoveryMemory
-            # Use the main evolution memory file
-            memory = DiscoveryMemory(config.EVOLUTION_MEMORY_PATH)
+            # Use the main discovery memory file
+            memory = DiscoveryMemory(config.DISCOVERY_MEMORY_PATH)
             
             # Store report as research experience
             memory.add_experience(

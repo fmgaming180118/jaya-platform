@@ -47,7 +47,7 @@ class ThesisDrafter:
         """
         
         print(f"[Drafter] Writing Literature Review for {topic} with {len(papers)} papers...")
-        review_content = self.writer.generate_completion(prompt, max_tokens=2000)
+        review_content = self.writer.generate_completion(prompt)
         
         # Append Bibliography
         bibliography = "\n\n## References\n"
@@ -72,7 +72,7 @@ class ThesisDrafter:
         
         Provide a brief description for what should specifically go into each section for THIS topic.
         """
-        return self.writer.generate_completion(prompt, max_tokens=1000)
+        return self.writer.generate_completion(prompt)
 
     def export_to_latex(self, markdown_content: str, title: str = "Thesis Draft") -> str:
         """

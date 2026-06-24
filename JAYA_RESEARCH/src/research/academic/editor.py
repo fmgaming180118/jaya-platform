@@ -37,7 +37,7 @@ class AcademicEditor:
         The full revised chapter content in Markdown.
         """
         
-        revised_content = self.editor.generate_completion(prompt, max_tokens=2500)
+        revised_content = self.editor.generate_completion(prompt)
         return revised_content
 
 if __name__ == "__main__":

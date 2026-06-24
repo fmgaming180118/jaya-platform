@@ -46,6 +46,15 @@ python JAYA_CORE/scripts/jaya_chat_cli.py
 - [Phase 1 to Phase 2 Handoff](docs/PHASE1_TO_PHASE2_HANDOFF.md)
 - [Phase 2 Kickoff Plan](docs/PHASE2_KICKOFF_PLAN.md)
 - [Latest Benchmark JSON](docs/phase1_benchmark_latest.json)
+- [Hierarchy of Connectivity and Privacy](docs/connection_hierarchy.md)
+
+## Hierarchy of Connectivity and Privacy
+Jaya AI employs a layered connection strategy to balance capability, privacy, and resource usage:
+1. **Local (Offline-First)**: Uses a tiny on-device LLM and compressed knowledge base for zero-latency, private responses.
+2. **LAN (Personal Network)**: When a trusted personal device (e.g., laptop) is on the same network, Jaya can synchronize knowledge deltas and query the larger personal knowledge base without using public internet.
+3. **Public Internet (Fallback)**: Only used when local and LAN are insufficient and the user's value model permits; access is restricted to vetted services (e.g., Wikipedia, DuckDuckGo) with strict input/output filtering and encryption.
+
+This hierarchy ensures Jaya remains functional and private even offline, while still being able to leverage broader knowledge when appropriate and safe.
 
 ## CI Workflow
 - Workflow: `.github/workflows/phase1-benchmark-gate.yml`

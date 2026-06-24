@@ -20,8 +20,8 @@ def generate_knowledge_synthesis(all_reports_content):
     print("\n[SYNTHESIS] Generating Consolidated Knowledge Artifact...")
     
     api_key = os.getenv("NVIDIA_API_KEY")
-    model = os.getenv("NVIDIA_LLAMA3.1_MODEL", "meta/llama-3.1-8b-instruct")
-    invoke_url = os.getenv("NVIDIA_LLAMA3.1_BASE_URL", config.NVIDIA_BASE_URL) + "/chat/completions"
+    model = os.getenv("NVIDIA_LLAMA31_MODEL") or os.getenv("NVIDIA_LLAMA3.1_MODEL") or "nvidia/nemotron-3-super-120b-a12b"
+    invoke_url = (os.getenv("NVIDIA_LLAMA31_BASE_URL") or os.getenv("NVIDIA_LLAMA3.1_BASE_URL") or config.NVIDIA_BASE_URL) + "/chat/completions"
     
     prompt = f"""
     You are JAYA_RESEARCH, an advanced AI Researcher.
@@ -50,7 +50,7 @@ def generate_knowledge_synthesis(all_reports_content):
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4096,
+        "max_tokens": int(os.getenv("NVIDIA_LLAMA31_MAX_TOKENS", 1000000)),
         "temperature": 0.5,
         "top_p": 0.95
     }

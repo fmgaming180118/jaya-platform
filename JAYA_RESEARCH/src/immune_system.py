@@ -9,6 +9,7 @@ class ImmuneSystem:
     def __init__(self, watch_dir="src", backup_dir="backups"):
         self.safeguard = Safeguard(watch_dir, backup_dir)
         self.current_backup = None
+        self.passed = False
 
     def __enter__(self):
         """
@@ -30,18 +31,18 @@ class ImmuneSystem:
             print(f"\n[IMMUNE SYSTEM] 🚨 CRASH DETECTED: {exc_val}")
             print("[IMMUNE SYSTEM] 🔄 Initiating Emergency Rollback...")
             self.safeguard.restore_backup(self.current_backup)
-            return True # Suppress exception after rollback? Maybe re-raise to notify controller?
-            # For now, let's print and return True to suppress, so the main loop continues smoothly.
+            self.passed = False
+            return True # Suppress exception after rollback
         
         # No crash, but is the brain still working?
         print("[IMMUNE SYSTEM] 🧠 Checking Cognitive Integrity...")
         try:
-            passed = run_integrity_suite()
+            self.passed = run_integrity_suite()
         except Exception as e:
             print(f"[IMMUNE SYSTEM] 🚨 Integrity Test Crashed: {e}")
-            passed = False
+            self.passed = False
 
-        if not passed:
+        if not self.passed:
             print("[IMMUNE SYSTEM] ❌ Integrity Check FAILED. Mutation rejected.")
             print("[IMMUNE SYSTEM] 🔄 Initiating Emergency Rollback...")
             self.safeguard.restore_backup(self.current_backup)

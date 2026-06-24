@@ -52,9 +52,9 @@ class DigitalTwin:
         # We use the 'reasoning' model (Nemotron-Ultra) for high-level thought
         self.brain = Teacher(model_type="reasoning") 
         
-        # Reflection / Dreaming Config
-        self.last_reflection = time.time()
-        self.reflection_interval = 300 # 5 minutes 
+        # Reflection / Dreaming Config (Instant reflection on boot, then every 45s)
+        self.last_reflection = time.time() - 300
+        self.reflection_interval = 45 # 45 seconds
         
         # Task Management
         self.current_task = None 
@@ -82,7 +82,27 @@ class DigitalTwin:
             await asyncio.sleep(5) 
 
     async def cycle(self):
+        import psutil
+        import gc
         now = time.time()
+        
+        # Monitor RAM usage of the current process
+        process = psutil.Process(os.getpid())
+        ram_mb = process.memory_info().rss / 1024 / 1024
+        
+        if ram_mb > 150.0:
+            print(f"[Twin] [WARN] High RAM usage detected: {ram_mb:.2f}MB. Triggering garbage collection...")
+            self.memory.log_thought(f"My memory is cluttered ({ram_mb:.1f}MB). Triggering active pruning.", mood="concerned")
+            gc.collect()
+            
+            # Recheck RAM after GC
+            ram_mb = process.memory_info().rss / 1024 / 1024
+            if ram_mb > 150.0 and self.state == TwinState.IDLE:
+                self.memory.log_thought(f"Pruning failed to reduce RAM ({ram_mb:.1f}MB). Triggering self-evolution of RAG engine to optimize memory footprint.", mood="determined")
+                target_file = os.path.join("src", "research", "enhanced_rag.py")
+                instruction = "Optimize RAG memory usage by releasing cached vector embeddings and calling gc.collect() in search routines."
+                # Run otonom evolve in the background
+                await self.evolve(target_file, instruction)
         
         # 1. Self-Reflection (Dreaming)
         if self.state == TwinState.IDLE and (now - self.last_reflection > self.reflection_interval):
@@ -131,7 +151,7 @@ class DigitalTwin:
             thought_content = thought_content.strip()
             
             # Log it
-            print(f"[Twin] 💭 {thought_content}")
+            print(f"[Twin] Thought: {thought_content}")
             self.memory.log_thought(thought_content, mood="reflective")
             
             if thought_content.startswith("PLAN:"):
@@ -325,7 +345,7 @@ class DigitalTwin:
         Decides on self-improvement tasks using Reasoning Model.
         """
         self.state = TwinState.PLANNING
-        print(f"[Twin] 📋 Planning: {goal}")
+        print(f"[Twin] Planning: {goal}")
         self.memory.log_thought(f"Formulating plan for: {goal}", mood="focused")
 
         # Ask Reasoning Model for code

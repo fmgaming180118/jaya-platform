@@ -53,7 +53,7 @@ class SlideDeckGenerator:
         
         """
         
-        slides = self.brain.generate_completion(prompt, max_tokens=2000)
+        slides = self.brain.generate_completion(prompt)
         return slides
 
 if __name__ == "__main__":

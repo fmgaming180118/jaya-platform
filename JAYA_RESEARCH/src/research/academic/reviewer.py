@@ -39,7 +39,7 @@ class ReviewerAgent:
         """
         
         print(f"[Reviewer] Critiquing draft for {topic}...")
-        critique = self.critic.generate_completion(prompt, max_tokens=1000)
+        critique = self.critic.generate_completion(prompt)
         return critique
 
     def generate_defense_questions(self, topic: str, abstract: str) -> List[str]:
@@ -53,7 +53,7 @@ class ReviewerAgent:
         
         The questions should challenge the methodology, validity, and contribution of the work.
         """
-        response = self.critic.generate_completion(prompt, max_tokens=500)
+        response = self.critic.generate_completion(prompt)
         return response
 
 if __name__ == "__main__":

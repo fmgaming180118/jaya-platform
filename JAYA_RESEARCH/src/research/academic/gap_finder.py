@@ -78,7 +78,7 @@ class GapFinder:
         3. [Gap 3]
         """
         
-        return self.brain.generate_completion(prompt, max_tokens=1000)
+        return self.brain.generate_completion(prompt)
 
 if __name__ == "__main__":
     finder = GapFinder()

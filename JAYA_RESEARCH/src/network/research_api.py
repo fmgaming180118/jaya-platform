@@ -1,4 +1,12 @@
 import sys, os
+# Reconfigure stdout/stderr to UTF-8 to prevent charmap UnicodeEncodeErrors on Windows
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from config import config
 """
@@ -29,7 +37,8 @@ from research.enhanced_rag import EnhancedRAGClient, VectorStore
 from research.graph_rag import GraphRAGEngine
 from research.meta_analysis import MetaAnalyst
 from network.api_models import ResearchRequest, ChatRequest, VideoIngestRequest, DebateRequest
-from research.video_processor import VideoProcessor
+# VideoProcessor dimuat secara lazy (saat endpoint digunakan) karena membutuhkan cv2/ffmpeg opsional
+VideoProcessor = None  # akan dimuat on-demand di endpoint /ingest/video
 from research.workspace_manager import WorkspaceManager
 from research.academic.journal_processor import JournalProcessor
 
@@ -40,6 +49,7 @@ from evolution.twin import DigitalTwin
 
 # Global Managers
 workspace_manager = WorkspaceManager()
+meta_analyst = MetaAnalyst()
 active_sessions = {} # workspace_id -> {rag, graph}
 # DigitalTwin may require external config/env — initialize safely
 try:
@@ -293,15 +303,22 @@ async def ingest_video(request: VideoIngestRequest, background_tasks: Background
     """
     Ingest Youtube video using AI-Q Video Analysis Logic
     """
-    from research.video_processor import VideoProcessor
-    
+    try:
+        from research.video_processor import VideoProcessor as _VP
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Fitur video tidak aktif (dependency opsional tidak terpasang: {e}). "
+                   "Install dengan: pip install opencv-python yt-dlp static-ffmpeg"
+        )
+
     def process(url):
-        processor = VideoProcessor()
+        processor = _VP()
         result = processor.process_video(url)
-        
+
         # Store in Memory
         from memory import DiscoveryMemory
-        memory = DiscoveryMemory(config.EVOLUTION_MEMORY_PATH)
+        memory = DiscoveryMemory(config.DISCOVERY_MEMORY_PATH)
         memory.add_experience(
             code=result['report'],
             result="VIDEO_ANALYSIS",
