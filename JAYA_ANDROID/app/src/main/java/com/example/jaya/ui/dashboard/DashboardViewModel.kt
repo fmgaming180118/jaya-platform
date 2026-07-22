@@ -77,9 +77,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         _state.value = JarvisState.PROCESSING
         viewModelScope.launch {
             try {
-                // Use a dedicated session for Dashboard or 0 as global
-                val response = repository.getAiResponse(0, text, "meta/llama-3.1-8b-instruct")
-                
+                val response = repository.sendPromptToJaya(0, text)
                 _aiResponse.value = response
                 speak(response)
             } catch (e: Exception) {
@@ -91,8 +89,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     private fun speak(text: String) {
         _state.value = JarvisState.SPEAKING
-        // Clean text from Markdown or special tags before speaking
-        val cleanText = text.replace(Regex("\\[.*?\\]"), "").replace("*", "")
+        val cleanText = text.replace(Regex("\\[.*?/\]"), "").replace("*", "")
         tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "JayaTTS")
     }
 
@@ -121,7 +118,6 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
     override fun onEvent(eventType: Int, params: Bundle?) {}
 
     override fun onCleared() {
-        super.onCleared()
         speechRecognizer?.destroy()
         tts?.stop()
         tts?.shutdown()
