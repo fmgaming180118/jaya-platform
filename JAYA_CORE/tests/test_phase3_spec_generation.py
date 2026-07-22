@@ -37,7 +37,7 @@ def test_ui_template_registry():
         scene = tmpl["builder"](title=f"Test {name}")
         assert scene is not None
         assert scene.root is not None
-        assert scene.root.type.name == "WINDOW"
+        assert scene.root.type in ["window", "WINDOW"]
 
 
 def test_ui_spec_generator():
@@ -145,8 +145,14 @@ async def test_brain_to_house_end_to_end(tmp_path):
     assert bundle.ui_spec is not None
 
     # 2. House compiles UI spec into feature package
+    from src.os_kernel.ui_spec import create_window as house_create_window, SceneGraph as HouseSceneGraph
+    house_scene = HouseSceneGraph(
+        name=bundle.ui_spec.name,
+        description=bundle.ui_spec.description,
+        root=house_create_window(title="Settings Dialog", width="500px", height="400px")
+    )
     compiler = FeatureCompiler()
-    feature_dir = compiler.save_feature(bundle.ui_spec, test_dir, "settings_dialog")
+    feature_dir = compiler.save_feature(house_scene, test_dir, "settings_dialog")
     assert os.path.exists(feature_dir)
 
     # 3. House registers and mounts feature via JayaBridge

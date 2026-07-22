@@ -2,6 +2,11 @@
 spec_generators.py — Phase 3 Brain-Side Specification Generation Engine for JAYA_CORE
 
 Implements brain-side spec generators:
+- IntentMatch: Pure brain-side intent match dataclass.
+- SceneGraph & WidgetSpec: Pure brain-side UI specification contracts.
+- FeatureManifest: Pure brain-side feature capability manifest specification.
+- ExecutionPlan: Task Spec DAG specification.
+- ActionSpec: Action Spec IPC command specification.
 - SpecBundle: Container for generated UI, Feature, Task, and Action specifications.
 - SpecGenerator: Abstract base class for spec generators.
 - UITemplateRegistry: Registry of built-in UI templates.
@@ -17,11 +22,91 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 import time
 
-from src.os_kernel.ui_spec import (
-    SceneGraph, WidgetSpec, WidgetType, LayoutType,
-    create_window, create_panel, create_label, create_button, create_text_input
-)
-from src.os_kernel.intent_to_ui import IntentMatch
+
+@dataclass
+class IntentMatch:
+    """Pure brain-side intent match result."""
+    intent_type: str
+    confidence: float
+    parameters: Dict[str, Any] = field(default_factory=dict)
+    suggested_ui: Optional[str] = None
+
+
+@dataclass
+class WidgetSpec:
+    """Pure brain-side Widget specification."""
+    id: str
+    type: str
+    label: str = ""
+    placeholder: str = ""
+    value: Any = None
+    options: List[Dict[str, Any]] = field(default_factory=list)
+    children: List["WidgetSpec"] = field(default_factory=list)
+    style: Dict[str, Any] = field(default_factory=dict)
+    layout: Optional[str] = None
+    events: List[Dict[str, Any]] = field(default_factory=list)
+    bindings: List[Dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass
+class SceneGraph:
+    """Pure brain-side SceneGraph UI specification."""
+    name: str
+    description: str
+    root: WidgetSpec
+    version: str = "1.0"
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+def create_window(title: str, width: str = "600px", height: str = "400px", children: List[WidgetSpec] = None) -> WidgetSpec:
+    """Helper to create a window widget spec."""
+    return WidgetSpec(
+        id=f"win_{int(time.time()*1000)}",
+        type="window",
+        label=title,
+        style={"width": width, "height": height, "title": title},
+        children=children or []
+    )
+
+
+def create_panel(layout: str = "flex_col", children: List[WidgetSpec] = None) -> WidgetSpec:
+    """Helper to create a panel widget spec."""
+    return WidgetSpec(
+        id=f"panel_{int(time.time()*1000)}",
+        type="panel",
+        layout=layout,
+        children=children or []
+    )
+
+
+def create_label(text: str, id: Optional[str] = None) -> WidgetSpec:
+    """Helper to create a label widget spec."""
+    return WidgetSpec(
+        id=id or f"lbl_{int(time.time()*1000)}",
+        type="label",
+        label=text,
+        value=text
+    )
+
+
+def create_button(label: str, on_click: str = "", id: Optional[str] = None) -> WidgetSpec:
+    """Helper to create a button widget spec."""
+    events = [{"event": "click", "action": on_click}] if on_click else []
+    return WidgetSpec(
+        id=id or f"btn_{int(time.time()*1000)}",
+        type="button",
+        label=label,
+        events=events
+    )
+
+
+def create_text_input(placeholder: str = "", id: Optional[str] = None) -> WidgetSpec:
+    """Helper to create a text input widget spec."""
+    return WidgetSpec(
+        id=id or f"txt_{int(time.time()*1000)}",
+        type="text_input",
+        placeholder=placeholder
+    )
 
 
 @dataclass
@@ -140,7 +225,7 @@ class UITemplateRegistry:
                     title=title, width="380px", height="280px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("Username"),
                                 create_text_input(placeholder="Enter username", id="username_input"),
@@ -166,7 +251,7 @@ class UITemplateRegistry:
                     title=title, width="800px", height="600px",
                     children=[
                         create_panel(
-                            layout=LayoutType.GRID,
+                            layout="grid",
                             children=[
                                 create_label("CPU Load: 12%"),
                                 create_label("RAM Usage: 1.4 GB"),
@@ -191,7 +276,7 @@ class UITemplateRegistry:
                     title=title, width="500px", height="400px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("Theme: Dark Sovereign"),
                                 create_label("Log Level: INFO"),
@@ -215,7 +300,7 @@ class UITemplateRegistry:
                     title=title, width="700px", height="500px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("Workspace Root: ./"),
                                 create_button(label="Open File", on_click="jaya:open_file"),
@@ -238,7 +323,7 @@ class UITemplateRegistry:
                     title=title, width="600px", height="700px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("JAYA Sovereign RAG Agent"),
                                 create_text_input(placeholder="Type your prompt...", id="chat_input"),
@@ -262,7 +347,7 @@ class UITemplateRegistry:
                     title=title, width="350px", height="200px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label(message),
                                 create_button(label="Confirm", on_click="jaya:confirm_yes"),
@@ -286,7 +371,7 @@ class UITemplateRegistry:
                     title=title, width="400px", height="180px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("Executing task..."),
                                 create_label("Progress: 100%"),
@@ -309,7 +394,7 @@ class UITemplateRegistry:
                     title=title, width="650px", height="450px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("Registered Items"),
                                 create_button(label="Add Item", on_click="jaya:add_item"),
@@ -332,7 +417,7 @@ class UITemplateRegistry:
                     title=title, width="480px", height="380px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label("Input Data"),
                                 create_text_input(placeholder="Enter data...", id="form_input"),
@@ -356,7 +441,7 @@ class UITemplateRegistry:
                     title=title, width="400px", height="300px",
                     children=[
                         create_panel(
-                            layout=LayoutType.FLEX_COL,
+                            layout="flex_col",
                             children=[
                                 create_label(title),
                                 create_button(label="OK", on_click="jaya:close_dialog"),
