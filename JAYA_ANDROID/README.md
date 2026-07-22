@@ -72,3 +72,4 @@ JAYA_ANDROID/
 ## 📖 Dokumentasi Lanjutan
 * [JARVIS Hybrid Connectivity Spec](docs/01-architecture/JARVIS_HYBRID_CONNECTIVITY.md)
 * [Development Roadmap Phase A - D](docs/02-roadmap/DEVELOPMENT_ROADMAP.md)
+* [Advanced Enhancements Checklist (Fase E - G)](docs/02-roadmap/ADVANCED_ENHANCEMENTS_CHECKLIST.md)
