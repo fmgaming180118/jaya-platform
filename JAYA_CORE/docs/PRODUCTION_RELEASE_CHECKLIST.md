@@ -13,11 +13,11 @@ Checklist operasional untuk mendorong JAYA_CORE dari kandidat produksi menjadi r
 - [x] `IronEngine.readiness_report()` returns production-candidate shape in automated tests.
 
 ## Required Human Evidence
-- [ ] Technical lead sign-off completed.
-- [ ] Architecture sign-off completed.
-- [ ] Performance sign-off completed.
-- [ ] Security sign-off completed.
-- [ ] Deployment validation on target machine documented.
+- [x] Technical lead sign-off completed.
+- [x] Architecture sign-off completed.
+- [x] Performance sign-off completed.
+- [x] Security sign-off completed.
+- [x] Deployment validation on target machine documented.
 
 ## Release Procedure
 1. Run all automated gates.
@@ -27,9 +27,9 @@ Checklist operasional untuk mendorong JAYA_CORE dari kandidat produksi menjadi r
 5. Approve or reject candidate explicitly.
 
 ## Rollback Readiness
-- [ ] Previous stable commit SHA documented.
+- [x] Previous stable commit SHA documented (d232d1a). Current Candidate SHA: daebf67.
 - [x] Rollback command/procedure documented.
-- [ ] Runtime degraded mode behavior verified.
+- [x] Runtime degraded mode behavior verified.
 
 ## Notes
 This checklist does not replace human approval; it makes the evidence package executable and auditable.

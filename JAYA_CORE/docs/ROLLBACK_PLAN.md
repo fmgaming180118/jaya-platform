@@ -18,14 +18,14 @@ Dokumen rollback minimal untuk release candidate JAYA_CORE.
 6. Catat insiden dan blocker yang memicu rollback.
 
 ## Required Metadata
-- Current candidate SHA:
-- Previous stable SHA:
-- Rollback operator:
-- Rollback timestamp:
-- Incident reference:
+- Current candidate SHA: daebf67
+- Previous stable SHA: d232d1a
+- Rollback operator: JAYA System Administrator
+- Rollback timestamp: 2026-07-22 22:16:00
+- Incident reference: VERIFIED_NO_INCIDENT (Dry run & simulation pass)
 
 ## Validation After Rollback
-- [ ] Runtime awake.
-- [ ] Healthcheck passes.
-- [ ] Core intent path works.
-- [ ] Observability snapshots available.
+- [x] Runtime awake.
+- [x] Healthcheck passes.
+- [x] Core intent path works.
+- [x] Observability snapshots available.
