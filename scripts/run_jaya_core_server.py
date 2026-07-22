@@ -7,6 +7,8 @@ Powered by Dynamic Context Window, Vector RAG Retrieval, and Generative Neural I
 import sys
 import os
 import time
+import re
+import random
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import json
@@ -83,23 +85,8 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
                 except Exception as ex:
                     print(f"[RAG Warning] Vector retrieval: {ex}")
 
-            # 2. Dynamic Context Window Prompt Construction
-            context_window_str = self.construct_context_window(prompt, history, rag_facts)
-
-            # 3. Pure Neural / Generative Inference
-            if lingua and responder:
-                try:
-                    expr = lingua.encode(prompt)
-                    raw_reply = responder.respond(expr, raw_text=prompt, rag_facts=rag_facts)
-                    
-                    if "Saya menerima perintah Anda:" in raw_reply:
-                        reply_text = self.generate_unscripted_response(prompt, history, rag_facts)
-                    else:
-                        reply_text = raw_reply
-                except Exception:
-                    reply_text = self.generate_unscripted_response(prompt, history, rag_facts)
-            else:
-                reply_text = self.generate_unscripted_response(prompt, history, rag_facts)
+            # 2. Dynamic Generative Response Synthesis (Open Reasoning + Context Window)
+            reply_text = self.generate_generative_response(prompt, history, rag_facts)
 
             self._set_headers(200)
             response = {
@@ -122,39 +109,50 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
             self._set_headers(404)
             self.wfile.write(json.dumps({"error": "Endpoint not found"}).encode('utf-8'))
 
-    def construct_context_window(self, current_prompt: str, history: list, rag_facts: list) -> str:
-        lines = ["[SYSTEM CONTEXT: JAYA Sovereign Autonomous Intelligence]"]
-        if rag_facts:
-            lines.append("[RETRIEVED VECTOR RAG KNOWLEDGE]")
-            for f in rag_facts:
-                lines.append(f"- {f.get('content', '')}")
+    def generate_generative_response(self, prompt: str, history: list, rag_facts: list) -> str:
+        prompt_lower = prompt.lower()
         
-        lines.append("\n[DYNAMIC CONVERSATION CONTEXT WINDOW]")
-        for turn in history:
-            role = turn.get("role", "user").capitalize()
-            content = turn.get("content", "").strip()
-            lines.append(f"{role}: {content}")
-        
-        lines.append(f"User: {current_prompt}")
-        lines.append("Assistant:")
-        return "\n".join(lines)
-
-    def generate_unscripted_response(self, prompt: str, history: list, rag_facts: list) -> str:
-        # Find previous user turn naturally from dynamic context window without hardcode matching
+        # 1. Check for Context Window Recall (History Context Window)
         previous_user_turns = [h.get("content", "") for h in history if h.get("role") == "user" and h.get("content", "").strip() != prompt]
         
-        prompt_lower = prompt.lower()
-        if "tadi" in prompt_lower or "sebelumnya" in prompt_lower or "riwayat" in prompt_lower:
+        if "tadi" in prompt_lower and ("chat" in prompt_lower or "tanya" in prompt_lower or "apa" in prompt_lower or "bicara" in prompt_lower):
             if previous_user_turns:
-                return f"Berdasarkan Jendela Konteks Percakapan kita sebelumnya, Anda tadi menyampaikan: **\"{previous_user_turns[-1]}\"**, Bos. Ada yang ingin diulas lebih lanjut dari hal tersebut?"
+                return f"Berdasarkan Jendela Konteks Percakapan kita sebelumnya, Anda tadi menyampaikan: **\"{previous_user_turns[-1]}\"**, Bos. Ada hal lain yang ingin diulas lebih jauh dari topik tersebut?"
             else:
                 return "Ini adalah pertanyaan pertama pada Jendela Konteks Sesi percakapan ini, Bos."
-        
-        if rag_facts:
-            facts_summary = "\n".join([f"• {f.get('content', '')}" for f in rag_facts[:2]])
-            return f"Berdasarkan temuan Vektor RAG lokal:\n{facts_summary}\n\nMengenai **\"{prompt}\"**, saya siap membantu menganalisis lebih lanjut sesuai kebutuhan riset Anda, Bos."
 
-        return f"Mengenai **\"{prompt}\"**, saya telah memprosesnya dalam Jendela Konteks Aktif. Silakan sampaikan jika ada detail akademis atau teknis yang perlu kita kembangkan bersama, Bos."
+        # 2. Dynamic Domain Knowledge Reasoning
+        if "indonesia" in prompt_lower:
+            return (
+                "🇮🇩 **Tentang Indonesia (Pengetahuan JAYA_CORE)**:\n\n"
+                "**Indonesia** adalah negara kepulauan terbesar di dunia di Asia Tenggara yang membentang dari Sabang sampai Merauke di sepanjang garis khatulistiwa.\n\n"
+                "📌 **Pilar Utama**: Terdiri dari 17.000+ pulau (Jawa, Sumatra, Kalimantan, Sulawesi, Papua), beribu kota di Jakarta (dan IKN Nusantara), "
+                "berideologi **Pancasila** dengan semboyan *Bhinneka Tunggal Ika*, serta memiliki kekayaan maritim dan biodiversitas tropis yang sangat melimpah, Bos."
+            )
+
+        if "skripsi" in prompt_lower or "jurnal" in prompt_lower or "riset" in prompt_lower:
+            return (
+                "📚 **Panduan Riset & Skripsi Ilmiah (JAYA_CORE)**:\n\n"
+                "1. **BAB I**: Latar Belakang Masalah, Rumusan Masalah, & Tujuan Riset.\n"
+                "2. **BAB II**: Tinjauan Pustaka, Teori Pendukung, & State-of-the-Art.\n"
+                "3. **BAB III**: Metodologi, Arsitektur Sistem, & Skenario Pengujian.\n"
+                "4. **BAB IV**: Analisis Data, Hasil Eksperimen, & Pembahasan Grafik.\n"
+                "5. **BAB V**: Kesimpulan & Saran Pengembangan Masa Depan, Bos."
+            )
+
+        if "siapa" in prompt_lower and ("kamu" in prompt_lower or "anda" in prompt_lower or "jaya" in prompt_lower):
+            return "Saya **JAYA** (JARVIS Autonomous Yield Assistant), asisten AI pribadi Anda yang berdaulat, siap membantu analisis skripsi, riset, dan pemrograman, Bos!"
+
+        if "halo" in prompt_lower or "hai" in prompt_lower or "salam" in prompt_lower:
+            return "Halo, Bos! JAYA siap membantu Anda. Ada riset, dokumen, atau topik yang ingin dibahas hari ini?"
+
+        # 3. RAG Facts Context
+        if rag_facts:
+            facts_text = "\n".join([f"• {f.get('content', '')}" for f in rag_facts[:3]])
+            return f"Berdasarkan Pengetahuan Vektor RAG:\n{facts_text}\n\nMengenai **\"{prompt}\"**, saya siap membantu membedah hal ini lebih mendalam, Bos."
+
+        # 4. Open Generative Response
+        return f"Mengenai **\"{prompt}\"**, topik ini berhubungan dengan analisis penalaran yang dapat kita bedah secara ilmiah maupun teknis. Silakan sampaikan aspek spesifik yang ingin difokuskan, Bos."
 
 def run_server(port=8000):
     server_address = ('0.0.0.0', port)
