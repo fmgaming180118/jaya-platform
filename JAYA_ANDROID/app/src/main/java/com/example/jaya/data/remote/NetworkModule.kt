@@ -9,6 +9,9 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
+    // Default URL: 10.0.2.2 points to Host PC localhost from Android Emulator
+    const val DEFAULT_JAYA_API_URL = "http://10.0.2.2:8000/"
+
     private val moshi = Moshi.Builder()
         .add(KotlinJsonAdapterFactory())
         .build()
@@ -24,8 +27,7 @@ object NetworkModule {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    fun createService(baseUrl: String): NvidiaApiService {
-        // Ensure base URL ends with /
+    fun createJayaService(baseUrl: String = DEFAULT_JAYA_API_URL): JayaApiService {
         val sanitizedUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
         
         return Retrofit.Builder()
@@ -33,6 +35,6 @@ object NetworkModule {
             .client(okHttpClient)
             .addConverterFactory(MoshiConverterFactory.create(moshi))
             .build()
-            .create(NvidiaApiService::class.java)
+            .create(JayaApiService::class.java)
     }
 }

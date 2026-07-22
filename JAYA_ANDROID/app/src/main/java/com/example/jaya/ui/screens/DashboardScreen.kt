@@ -39,7 +39,15 @@ fun DashboardScreen(
     val aiResponse by viewModel.aiResponse.collectAsStateWithLifecycle()
     
     val context = LocalContext.current
-    val permissionLauncher = rememberLauncherForActivityResult(
+    var isStoragePermissionGranted by remember { mutableStateOf(false) }
+
+    val storagePermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        isStoragePermissionGranted = isGranted
+    }
+
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {

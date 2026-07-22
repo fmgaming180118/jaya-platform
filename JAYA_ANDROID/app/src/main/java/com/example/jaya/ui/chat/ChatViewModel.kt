@@ -36,16 +36,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _selectedModel = MutableStateFlow("meta/llama-3.1-8b-instruct")
+    private val _selectedModel = MutableStateFlow("JAYA Sovereign Brain (Remote Server / LAN)")
     val selectedModel: StateFlow<String> = _selectedModel.asStateFlow()
 
     val availableModels = listOf(
-        "meta/llama-3.1-8b-instruct",
-        "meta/llama-3.1-70b-instruct",
-        "meta/llama-3.1-405b-instruct",
-        "nvidia/nemotron-4-340b-instruct",
-        "nvidia/llama-3.1-nemotron-70b-instruct",
-        "mistralai/mixtral-8x7b-instruct-v0.1"
+        "JAYA Sovereign Brain (Remote Server / LAN)",
+        "JAYA Local GGUF Nano Kernel (Space Mode)",
+        "JAYA Dynamic Research Engine"
     )
 
     init {
@@ -73,8 +70,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         messagesJob?.cancel()
         messagesJob = viewModelScope.launch {
             repository.getMessages(sessionId).collect { dbMessages ->
-                // Only update if we are not currently streaming, or if the DB has new content
-                // For simplicity, we merge or take DB as truth when not actively streaming
                 if (!_isLoading.value) {
                     _messages.value = dbMessages
                 }
@@ -84,7 +79,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun createNewChat() {
         viewModelScope.launch {
-            val id = repository.createNewSession("New Chat ${System.currentTimeMillis() / 100000}")
+            val id = repository.createNewSession("JAYA Chat ${System.currentTimeMillis() / 100000}")
             _currentSessionId.value = id
             selectSession(id)
         }
@@ -99,14 +94,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (content.isBlank()) return
 
         viewModelScope.launch {
-            // Save user message to DB
-            repository.saveMessage(sessionId, "user", content)
             _isLoading.value = true
             
             val matchedSkill = skills.find { it.matches(content) }
             
             if (matchedSkill != null) {
                 try {
+                    repository.saveMessage(sessionId, "user", content)
                     val result = matchedSkill.execute(content, sessionId)
                     var fileId: Long? = null
                     if (result.attachedFileContent != null && result.attachedFileName != null) {
@@ -119,47 +113,14 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     _isLoading.value = false
                 }
             } else {
-                // Streaming Response
-                var streamContent = ""
                 try {
-                    // Create a placeholder message in the list for real-time update
-                    val placeholderMsg = LocalChatMessage(sessionId = sessionId, role = "assistant", content = "...")
-                    _messages.value = _messages.value + placeholderMsg
-
-                    repository.getAiResponseStream(sessionId, content, _selectedModel.value)
-                        .onStart { _isLoading.value = false } // Transition from general loading to streaming
-                        .catch { e -> 
-                            streamContent = "Error: ${e.localizedMessage}"
-                            updateLastMessageInList(streamContent)
-                        }
-                        .collect { chunk ->
-                            streamContent += chunk
-                            updateLastMessageInList(streamContent)
-                        }
-                    
-                    // Final save to DB
-                    repository.saveMessage(sessionId, "assistant", streamContent)
+                    repository.sendPromptToJaya(sessionId, content)
                 } catch (e: Exception) {
-                    val errorMsg = "Error: ${e.localizedMessage}"
-                    updateLastMessageInList(errorMsg)
-                    repository.saveMessage(sessionId, "assistant", errorMsg)
+                    Log.e("ChatViewModel", "Error sending prompt to JAYA", e)
                 } finally {
                     _isLoading.value = false
                 }
             }
-            
-            // Check for compacting
-            if (_messages.value.size > 25) {
-                repository.compactChat(sessionId, _selectedModel.value)
-            }
-        }
-    }
-
-    private fun updateLastMessageInList(content: String) {
-        val currentList = _messages.value.toMutableList()
-        if (currentList.isNotEmpty() && currentList.last().role == "assistant") {
-            currentList[currentList.size - 1] = currentList.last().copy(content = content)
-            _messages.value = currentList
         }
     }
 }
