@@ -83,4 +83,8 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
     suspend fun savePreference(key: String, value: String) {
         chatDao.insertUserPreference(UserPreference(key = key, value = value))
     }
+
+    suspend fun saveUserPreference(key: String, value: String) {
+        savePreference(key, value)
+    }
 }
