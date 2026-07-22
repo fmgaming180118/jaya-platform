@@ -919,6 +919,19 @@ class IronEngine:
                 "context": "",
             }
 
+        try:
+            snap = self._narrative.snapshot(limit=limit, max_chars=max_chars)
+            snap["ok"] = True
+            return snap
+        except Exception as exc:
+            return {
+                "ok": False,
+                "error": f"narrative_context_failed:{exc}",
+                "summary": "",
+                "recent": [],
+                "context": "",
+            }
+
     def healthcheck(self) -> Dict[str, Any]:
         """Return a compact runtime health snapshot for production supervision."""
         status = self.status()

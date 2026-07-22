@@ -1,0 +1,74 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual Environments
+.venv*/
+venv*/
+env*/
+ENV/
+
+# Environment / Secrets — JANGAN PERNAH commit file ini
+.env
+.env.local
+.env.*.local
+secrets.yaml
+
+# ─── DATA PRIBADI JAYA (Vector Store, Memory, Uploads) ───────────────────────
+# Semua folder ini berisi data runtime pribadi: embedding dokumen TA,
+# memori percakapan JAYA, dan file upload pengguna. TIDAK boleh di-push.
+data/
+workspaces/
+logs/
+backups/
+training/
+experiments/
+sandbox_env/
+evolution/
+jurnal_pdf/
+
+# Thesis uploads (PDF yang diupload pengguna)
+data/thesis_uploads/
+
+# ─── SCRATCH / DEBUG ─────────────────────────────────────────────────────────
+# Script-script debug sementara, tidak relevan untuk publik
+scratch/
+
+# ─── UI / Node ───────────────────────────────────────────────────────────────
+ui/node_modules/
+ui/dist/
+ui/.vite/
+ui/build/
+ui/.env
+ui/.env.local
+
+# ─── OS & Editor ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.idea/
+.vscode/settings.json
+*.sublime-project
+*.sublime-workspace
+
+# ─── Coverage / Testing ──────────────────────────────────────────────────────
+.coverage
+htmlcov/
+.pytest_cache/
+*.log
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.orig
+configs/local_*.yaml

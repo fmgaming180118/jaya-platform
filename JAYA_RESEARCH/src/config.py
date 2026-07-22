@@ -14,6 +14,12 @@ class Config:
 
     # Ensure base data dir exists
     DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _env(key: str, default) -> str:
+        """Ambil env var; jika kosong/tidak ada, gunakan default."""
+        v = os.getenv(key, "").strip()
+        return str(Path(v).resolve()) if v else str(default)
     
     # ==========================================
     # API Endpoints & Keys
@@ -26,12 +32,14 @@ class Config:
     SEMANTIC_SCHOLAR_BASE_URL = os.getenv("SEMANTIC_SCHOLAR_BASE_URL", "https://api.semanticscholar.org/graph/v1/paper")
     
     # ==========================================
-    # RAG & Memory Paths
-    @staticmethod
-    def _env(key: str, default) -> str:
-        """Ambil env var; jika kosong/tidak ada, gunakan default."""
-        v = os.getenv(key, "").strip()
-        return str(Path(v).resolve()) if v else str(default)
+    # RAG Settings
+    # ==========================================
+    RAG_CHUNK_SIZE = int(os.getenv("RAG_CHUNK_SIZE", "512"))
+    RAG_CHUNK_OVERLAP = int(os.getenv("RAG_CHUNK_OVERLAP", "128"))
+    NVIDIA_EMBEDDING_MODEL = os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/nv-embedqa-e5-v5")
+    RAG_EMBED_BATCH_SIZE = int(os.getenv("RAG_EMBED_BATCH_SIZE", "32"))
+    RAG_EMBED_DIMENSION = int(os.getenv("RAG_EMBED_DIMENSION", "1024"))
+    RAG_RERANK_ENABLED = os.getenv("RAG_RERANK_ENABLED", "false").lower() == "true"
 
     # ==========================================
     # RAG & Memory Paths

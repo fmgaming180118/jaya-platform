@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "id": "b0ebe034-8f17-4235-904d-14add60c4dac",
+  "name": "Dashboard",
+  "description": "Main dashboard with metrics and quick actions",
+  "protocol_version": "1.0",
+  "entry_point": "dashboard.run_feature",
+  "capabilities": [
+    "ui",
+    "events",
+    "state",
+    "jaya_actions"
+  ],
+  "permissions": [
+    "ui_mount",
+    "state_read",
+    "state_write",
+    "api_call"
+  ],
+  "dependencies": {},
+  "metadata": {}
+}

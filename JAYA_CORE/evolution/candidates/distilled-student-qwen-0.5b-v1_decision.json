@@ -1,0 +1,11 @@
+{
+  "accepted": true,
+  "code": "ACCEPT",
+  "reason": "candidate accepted",
+  "details": {
+    "candidate_id": "distilled-student-qwen-0.5b-v1",
+    "observed_perf_gain_pct": 132.60871465041026,
+    "ram_delta_pct": 1.0,
+    "cpu_delta_pct": 1.0
+  }
+}

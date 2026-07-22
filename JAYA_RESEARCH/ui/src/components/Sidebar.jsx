@@ -1,11 +1,15 @@
+import { useState, useEffect } from 'react';
 import { NavLink, Link } from 'react-router-dom';
 import {
     MessageSquare, Library, Network, BookOpen, Activity,
-    ChevronLeft, Settings, Code2, FlaskConical
+    ChevronLeft, Settings, Code2, FlaskConical, X, RotateCw,
+    CheckCircle2, ChevronDown
 } from 'lucide-react';
 import clsx from 'clsx';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../context/AppContext';
 import EnvironmentBadge from './EnvironmentBadge';
+import api from '../services/api';
 
 const NavItem = ({ to, icon: Icon, label, devOnly = false }) => {
     const { isDevMode } = useApp();
@@ -45,6 +49,51 @@ const NavItem = ({ to, icon: Icon, label, devOnly = false }) => {
 export default function Sidebar({ workspaceId }) {
     const { isDevMode, features } = useApp();
     const baseUrl = `/project/${workspaceId}`;
+
+    // Settings Modal State
+    const [showSettings, setShowSettings] = useState(false);
+    const [models, setModels] = useState([]);
+    const [activeModel, setActiveModel] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [success, setSuccess] = useState(false);
+
+    // Fetch models on settings open
+    useEffect(() => {
+        if (showSettings) {
+            setLoading(true);
+            setSuccess(false);
+            api.getModels()
+                .then(res => {
+                    setModels(res.available_models || []);
+                    setActiveModel(res.active_model || '');
+                })
+                .catch(err => {
+                    console.error('[Sidebar] Gagal mengambil list model:', err);
+                })
+                .finally(() => {
+                    setLoading(false);
+                });
+        }
+    }, [showSettings]);
+
+    const handleSave = async () => {
+        if (!activeModel) return;
+        setSaving(true);
+        setSuccess(false);
+        try {
+            await api.updateModel(activeModel);
+            setSuccess(true);
+            setTimeout(() => {
+                setShowSettings(false);
+                setSuccess(false);
+            }, 1000);
+        } catch (err) {
+            console.error('[Sidebar] Gagal memperbarui model:', err);
+        } finally {
+            setSaving(false);
+        }
+    };
 
     return (
         <aside className="w-[260px] h-full bg-[#0c0e13] border-r border-white/5 flex flex-col py-5 shrink-0">
@@ -100,13 +149,105 @@ export default function Sidebar({ workspaceId }) {
                 </div>
 
                 {/* Settings — selalu tampil */}
-                <div className="flex items-center gap-3 px-2 py-2 rounded-xl text-gray-500 hover:text-gray-300 hover:bg-white/5 cursor-pointer transition-colors group">
+                <div
+                    onClick={() => setShowSettings(true)}
+                    className="flex items-center gap-3 px-2 py-2 rounded-xl text-gray-500 hover:text-gray-300 hover:bg-white/5 cursor-pointer transition-colors group"
+                >
                     <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
                         <Settings size={14} />
                     </div>
                     <span className="text-sm">Pengaturan</span>
                 </div>
             </div>
+
+            {/* Settings Modal (AnimatePresence) */}
+            <AnimatePresence>
+                {showSettings && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.95 }}
+                            className="bg-[#141721] border border-white/10 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl text-left"
+                        >
+                            {/* Modal Header */}
+                            <div className="p-5 border-b border-white/5 flex items-center justify-between">
+                                <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                                    <Settings size={16} className="text-yellow-400" />
+                                    Pengaturan Model
+                                </h3>
+                                <button
+                                    onClick={() => setShowSettings(false)}
+                                    className="text-gray-400 hover:text-white transition-colors"
+                                >
+                                    <X size={16} />
+                                </button>
+                            </div>
+                            
+                            {/* Modal Content */}
+                            <div className="p-5 space-y-4">
+                                <div>
+                                    <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider block mb-2">
+                                        NVIDIA NIM Model Penyelidikan (Reasoning)
+                                    </label>
+                                    {loading ? (
+                                        <div className="flex items-center gap-2.5 text-xs text-gray-500 py-3">
+                                            <RotateCw size={13} className="animate-spin text-yellow-400" />
+                                            <span>Mengambil daftar model dari NVIDIA NIM API...</span>
+                                        </div>
+                                    ) : (
+                                        <div className="relative">
+                                            <select
+                                                value={activeModel}
+                                                onChange={(e) => {
+                                                    setActiveModel(e.target.value);
+                                                    setSuccess(false);
+                                                }}
+                                                className="w-full bg-[#0c0e13] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-yellow-500/50 appearance-none cursor-pointer pr-10"
+                                            >
+                                                {models.map(m => (
+                                                    <option key={m} value={m} className="bg-[#141721] text-white">
+                                                        {m}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <ChevronDown size={13} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-gray-500 mt-2 leading-relaxed">
+                                        Model yang dipilih akan langsung digunakan oleh agen riset otonom, modul novelty check, gap finder, dan critique.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            {/* Modal Footer */}
+                            <div className="p-5 bg-white/[0.01] border-t border-white/5 flex items-center justify-between">
+                                {success ? (
+                                    <span className="text-xs text-green-400 flex items-center gap-1.5 font-medium animate-pulse">
+                                        <CheckCircle2 size={12} /> Model berhasil diperbarui!
+                                    </span>
+                                ) : <span />}
+                                
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setShowSettings(false)}
+                                        className="px-3.5 py-1.5 text-xs font-semibold text-gray-400 hover:text-white rounded-lg transition-colors"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        onClick={handleSave}
+                                        disabled={saving || loading}
+                                        className="px-4 py-1.5 text-xs font-bold text-black bg-yellow-400 hover:bg-yellow-300 disabled:opacity-40 rounded-lg transition-all"
+                                    >
+                                        {saving ? 'Menyimpan...' : 'Simpan'}
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </aside>
     );
 }

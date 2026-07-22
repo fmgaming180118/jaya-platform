@@ -93,37 +93,64 @@ class ArxivClient:
 
     def download_paper(self, pdf_url: str, save_dir: Path) -> Optional[Path]:
         """
-        Downloads a paper from ArXiv.
+        Downloads a paper from a given URL (supports ArXiv and other publishers).
         """
         if not pdf_url: return None
-        if not pdf_url.endswith(".pdf"): pdf_url += ".pdf"
         
-        filename = pdf_url.split("/")[-1]
+        # Try to determine a filename from URL
+        url_clean = pdf_url.split("?")[0]
+        filename = url_clean.split("/")[-1]
+        
+        if not filename.lower().endswith(".pdf"):
+            filename += ".pdf"
+            
+        # Clean filename characters to be safe for OS
+        filename = "".join(c for c in filename if c.isalnum() or c in "._-")
+        if not filename or filename == ".pdf":
+            import uuid
+            filename = f"paper_{uuid.uuid4().hex[:8]}.pdf"
+            
         save_path = save_dir / filename
         
         if save_path.exists():
-            print(f"[ArXiv] File already exists: {save_path}")
+            print(f"[AcademicDownloader] File already exists: {save_path}")
             return save_path
             
-        print(f"[ArXiv] Downloading {pdf_url} to {save_path}...")
+        print(f"[AcademicDownloader] Downloading {pdf_url} to {save_path}...")
         try:
-            # Create directory if not exists
             save_dir.mkdir(parents=True, exist_ok=True)
             
-            import ssl
-            ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
-
-            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            req = urllib.request.Request(pdf_url, headers=headers)
-            with urllib.request.urlopen(req, context=ctx) as response:
+            import requests
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
+            }
+            
+            r = requests.get(pdf_url, headers=headers, timeout=25, verify=False, allow_redirects=True)
+            if r.status_code == 200:
+                # Double check content-disposition header for filename if available
+                cd = r.headers.get("Content-Disposition", "")
+                if "filename=" in cd:
+                    import re
+                    fn_match = re.findall(r'filename="?([^"]+)"?', cd)
+                    if fn_match:
+                        new_fn = "".join(c for c in fn_match[0] if c.isalnum() or c in "._-")
+                        if new_fn.lower().endswith(".pdf"):
+                            save_path = save_dir / new_fn
+                
                 with open(save_path, 'wb') as f:
-                    f.write(response.read())
-            print(f"[ArXiv] Download complete: {save_path}")
-            return save_path
+                    f.write(r.content)
+                print(f"[AcademicDownloader] Download complete: {save_path} ({round(len(r.content)/1024, 1)} KB)")
+                return save_path
+            else:
+                print(f"[AcademicDownloader] Download failed: HTTP Status {r.status_code}")
+                return None
         except Exception as e:
-            print(f"[ArXiv] Download failed: {e}")
+            print(f"[AcademicDownloader] Download failed with error: {e}")
             return None
 
 

@@ -8,6 +8,16 @@ from openai import OpenAI
 # Load environment variables from .env
 load_dotenv()
 
+# Global model overrides set dynamically from API/UI
+_override_model = None
+
+def set_override_model(model_name: str):
+    global _override_model
+    _override_model = model_name
+
+def get_override_model():
+    return _override_model
+
 class Teacher:
     def __init__(self, config_path="config.yaml", model_type="reasoning"):
         self.config = self._load_config(config_path)
@@ -16,26 +26,27 @@ class Teacher:
         if not self.api_key:
             raise ValueError("NVIDIA_API_KEY not found in environment variables.")
 
-        # Dynamic Model Selection based on Role
-        # STRICT NO-HARDCODING POLICY
-        # Dynamic Model Selection based on Role
-        # STRICT NO-HARDCODING POLICY
-        # Find a suitable reasoning model as global fallback
-        reasoning_fallback = os.getenv("RESEARCH_REASONING_MODEL") or \
-                             os.getenv("NVIDIA_LLAMA3.1_MODEL") or \
-                             os.getenv("NVIDIA_LLAMA31_MODEL")
-
-        if model_type == "reasoning":
-            self.model = reasoning_fallback
-        elif model_type == "chat":
-            self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
-        elif model_type == "coding":
-            self.model = os.getenv("NVIDIA_CODING_MODEL") or reasoning_fallback
-        elif model_type == "vision":
-             self.model = os.getenv("VIDEO_VLM_MODEL") or reasoning_fallback
+        # Check for dynamic override first
+        global _override_model
+        if _override_model:
+            self.model = _override_model
         else:
-            # Default fallback
-            self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
+            # Find a suitable reasoning model as global fallback
+            reasoning_fallback = os.getenv("RESEARCH_REASONING_MODEL") or \
+                                 os.getenv("NVIDIA_LLAMA3.1_MODEL") or \
+                                 os.getenv("NVIDIA_LLAMA31_MODEL")
+            
+            if model_type == "reasoning":
+                self.model = reasoning_fallback
+            elif model_type == "chat":
+                self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
+            elif model_type == "coding":
+                self.model = os.getenv("NVIDIA_CODING_MODEL") or reasoning_fallback
+            elif model_type == "vision":
+                 self.model = os.getenv("VIDEO_VLM_MODEL") or reasoning_fallback
+            else:
+                # Default fallback
+                self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
 
         if not self.model:
              # Critical Error if env var is missing

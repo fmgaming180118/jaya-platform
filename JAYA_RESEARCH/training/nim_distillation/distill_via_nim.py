@@ -1,146 +1,345 @@
 #!/usr/bin/env python3
-"""
-Knowledge distillation from NVIDIA NIM API to Jaya runtime.
+"""Distil pengetahuan dari NVIDIA NIM ke artefak riset JAYA Research.
 
-This script queries a lightweight NIM model (e.g., nemotron-3-8b-instruct) 
-to generate knowledge (facts, procedures) and stores it into Jaya's 
-AgenticRAG via the public API of IronEngine.
+Script ini menjaga boundary domain: hasil distilasi disimpan ke artefak lokal
+JSON/Markdown di JAYA_RESEARCH dan tidak mengimpor logika internal JAYA_CORE.
+
+Fitur utama:
+- orkestrasi workflow yang dibatasi jumlah prompt dan timeout jaringan
+- pemanggilan API NIM yang terpisah dari parsing dan penyimpanan artefak
+- logging jelas, error handling aman, dan metadata reproducibility
 
 Usage:
     python distill_via_nim.py --prompts prompts.txt --output-json distilled_knowledge.json
 
 Environment variables:
-    NIM_API_URL: The base URL for the NIM endpoint (e.g., https://ai.api.nvidia.com/v1/nim/<model>)
-    NIM_API_KEY: The API key for authentication.
-    NIM_MODEL: The model name to use (optional, can be part of the URL).
+    NIM_API_URL: URL endpoint NIM, mis. https://ai.api.nvidia.com/v1/nim/<model>
+    NIM_API_KEY: API key untuk autentikasi.
+    NIM_MODEL: Nama model opsional.
 """
+
+from __future__ import annotations
 
 import argparse
 import json
 import os
 import sys
 import time
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 import requests
+from dotenv import load_dotenv
 
-# Add JayaCore to path so we can import IronEngine (public API)
-JAYA_CORE_PATH = Path(__file__).resolve().parents[3] / "JAYA_CORE"
-if str(JAYA_CORE_PATH) not in sys.path:
-    sys.path.insert(0, str(JAYA_CORE_PATH))
+# Load .env from JAYA_RESEARCH root
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
-from src.brain_v2.engine.runtime import IronEngine
+
+@dataclass(frozen=True)
+class DistillationConfig:
+    """Konfigurasi runtime untuk satu sesi distilasi."""
+
+    api_url: str
+    api_key: str
+    model: Optional[str]
+    max_tokens: int
+    temperature: float
+    timeout_seconds: int
+    max_prompts: int
+    seed: int
+
+
+@dataclass(frozen=True)
+class DistillationItem:
+    """Satu hasil distilasi beserta metadata reproducibility."""
+
+    prompt: str
+    response: str
+    model: str
+    elapsed_seconds: float
+    seed: int
+    timestamp_unix: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Ubah item menjadi dictionary serializable."""
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DistillationResult:
+    """Kumpulan hasil distilasi dan ringkasan kegagalan."""
+
+    metadata: Dict[str, Any]
+    items: List[Dict[str, Any]]
+    failures: List[Dict[str, Any]]
+
+
+def parse_args() -> argparse.Namespace:
+    """Parse argumen CLI secara terpisah dari eksekusi utama."""
+    parser = argparse.ArgumentParser(description="Distill knowledge from NIM API into JAYA Research artifacts")
+    parser.add_argument("--prompts", type=Path, required=True, help="File berisi prompt, satu per baris")
+    parser.add_argument("--output-json", type=Path, help="Opsional: simpan output terstruktur ke JSON")
+    parser.add_argument("--output-md", type=Path, help="Opsional: simpan ringkasan Markdown")
+    parser.add_argument("--max-tokens", type=int, default=150, help="Maksimum token generasi")
+    parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
+    parser.add_argument("--timeout-seconds", type=int, default=30, help="Timeout request ke NIM")
+    parser.add_argument("--max-prompts", type=int, default=50, help="Batas prompt per eksekusi")
+    parser.add_argument("--seed", type=int, default=42, help="Seed untuk reproducibility")
+    return parser.parse_args()
 
 
 def load_prompts(file_path: Path) -> List[str]:
-    """Load prompts from a text file (one per line)."""
-    with open(file_path, "r", encoding="utf-8") as f:
-        return [line.strip() for line in f if line.strip()]
+    """Muat prompt dari file teks, satu prompt per baris."""
+    with file_path.open("r", encoding="utf-8") as handle:
+        prompts = [line.strip() for line in handle if line.strip()]
+    return prompts
 
 
-def query_nim(prompt: str, api_url: str, api_key: str, model: str = None, max_tokens: int = 150, temperature: float = 0.7) -> str:
-    """Query the NIM API and return the generated text."""
+def build_request_payload(prompt: str, config: DistillationConfig) -> Dict[str, Any]:
+    """Bangun payload request NIM secara deterministik."""
+    payload: Dict[str, Any] = {
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": config.max_tokens,
+        "temperature": config.temperature,
+        "stream": False,
+        "seed": config.seed,
+    }
+    if config.model:
+        payload["model"] = config.model
+    return payload
+
+
+def query_nim(prompt: str, config: DistillationConfig) -> str:
+    """Kirim prompt ke NIM dan kembalikan teks hasil generasi."""
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {config.api_key}",
         "Accept": "application/json",
+        "Content-Type": "application/json",
     }
-    payload = {
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "stream": False
-    }
-    if model:
-        payload["model"] = model
+    payload = build_request_payload(prompt, config)
 
-    response = requests.post(api_url, headers=headers, json=payload, timeout=30)
+    response = requests.post(
+        config.api_url,
+        headers=headers,
+        json=payload,
+        timeout=config.timeout_seconds,
+    )
     response.raise_for_status()
     result = response.json()
-    # Assuming OpenAI-compatible chat completion format
-    return result["choices"][0]["message"]["content"].strip()
+
+    try:
+        return result["choices"][0]["message"]["content"].strip()
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError(f"Format respons NIM tidak dikenali: {result}") from exc
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Distill knowledge from NIM API to Jaya")
-    parser.add_argument("--prompts", type=Path, required=True, help="File containing prompts (one per line)")
-    parser.add_argument("--model-path", type=Path, default=JAYA_CORE_PATH / "JAYA_SOVEREIGN_V18.jay", help="Path to Jaya model .jay file")
-    parser.add_argument("--password", type=str, default="x", help="Password for Jaya model (if encrypted)")
-    parser.add_argument("--output-json", type=Path, help="Optional: save distilled knowledge to JSON file")
-    parser.add_argument("--max-tokens", type=int, default=150, help="Max tokens for NIM generation")
-    parser.add_argument("--temperature", type=float, default=0.7, help="Sampling temperature")
-    args = parser.parse_args()
+def collect_distilled_item(
+    prompt: str,
+    response_text: str,
+    model: str,
+    elapsed_seconds: float,
+    seed: int,
+) -> DistillationItem:
+    """Bentuk satu item hasil distilasi beserta metadata reproducibility."""
+    return DistillationItem(
+        prompt=prompt,
+        response=response_text,
+        model=model,
+        elapsed_seconds=round(elapsed_seconds, 4),
+        seed=seed,
+        timestamp_unix=time.time(),
+    )
 
-    # Load environment variables for NIM
+
+def save_distilled_json(output_json: Path, result: DistillationResult) -> None:
+    """Simpan hasil distilasi ke file JSON yang bisa dipakai ulang."""
+    output_json.parent.mkdir(parents=True, exist_ok=True)
+    with output_json.open("w", encoding="utf-8") as handle:
+        json.dump(asdict(result), handle, indent=2, ensure_ascii=False)
+
+
+def render_markdown_summary(result: DistillationResult, source_prompts: Path) -> str:
+    """Render ringkasan Markdown agar mudah dibaca manusia atau model lain."""
+    lines = [
+        "# Distilled Knowledge Summary",
+        "",
+        f"- Sumber prompt: `{source_prompts.name}`",
+        f"- Jumlah item sukses: {len(result.items)}",
+        f"- Jumlah kegagalan: {len(result.failures)}",
+        f"- Seed: `{result.metadata.get('seed', 'unknown')}`",
+        f"- Model: `{result.metadata.get('model') or 'unknown'}`",
+        "",
+        "## Metadata",
+        "",
+        "```json",
+        json.dumps(result.metadata, indent=2, ensure_ascii=False),
+        "```",
+        "",
+    ]
+
+    if result.failures:
+        lines.extend([
+            "## Kegagalan",
+            "",
+            "```json",
+            json.dumps(result.failures, indent=2, ensure_ascii=False),
+            "```",
+            "",
+        ])
+
+    lines.append("## Item Hasil")
+    lines.append("")
+
+    for index, item in enumerate(result.items, start=1):
+        lines.extend([
+            f"### Item {index}",
+            f"- Prompt: {item['prompt']}",
+            f"- Elapsed: {item['elapsed_seconds']}s",
+            f"- Seed: {item['seed']}",
+            "- Respons:",
+            "",
+            "```text",
+            item["response"],
+            "```",
+            "",
+        ])
+    return "\n".join(lines)
+
+
+def write_markdown(output_path: Path, markdown_text: str) -> None:
+    """Tulis artefak Markdown ke disk."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(markdown_text, encoding="utf-8")
+
+
+def build_config(args: argparse.Namespace) -> DistillationConfig:
+    """Bangun konfigurasi runtime dari CLI dan environment."""
     api_url = os.getenv("NIM_API_URL")
     api_key = os.getenv("NIM_API_KEY")
-    model = os.getenv("NIM_MODEL")  # optional
+    model = os.getenv("NIM_MODEL")
 
     if not api_url or not api_key:
-        print("Error: NIM_API_URL and NIM_API_KEY must be set in environment.", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError("NIM_API_URL dan NIM_API_KEY harus diset di environment.")
 
-    # Load prompts
-    prompts = load_prompts(args.prompts)
-    print(f"Loaded {len(prompts)} prompts from {args.prompts}")
+    return DistillationConfig(
+        api_url=api_url,
+        api_key=api_key,
+        model=model,
+        max_tokens=args.max_tokens,
+        temperature=args.temperature,
+        timeout_seconds=args.timeout_seconds,
+        max_prompts=args.max_prompts,
+        seed=args.seed,
+    )
 
-    # Initialize Jaya engine (we'll use it to memorize the knowledge)
-    print(f"Initializing Jaya engine with model {args.model_path}...")
-    engine = IronEngine(model_path=str(args.model_path), password=args.password, enable_twin=False)
-    engine.ignite()
-    print("Jaya engine initialized and ignited.")
 
-    distilled: List[Dict[str, Any]] = []
+def run_distillation(prompts: List[str], config: DistillationConfig) -> DistillationResult:
+    """Jalankan distilasi dengan batas prompt dan handling error yang aman."""
+    bounded_prompts = prompts[: config.max_prompts]
+    distilled_items: List[Dict[str, Any]] = []
+    failures: List[Dict[str, Any]] = []
 
-    for i, prompt in enumerate(prompts, start=1):
-        print(f"[{i}/{len(prompts)}] Querying NIM for: {prompt[:80]}{'...' if len(prompt) > 80 else ''}")
+    print(f"Runtime config: {json.dumps(asdict(config), ensure_ascii=False)}")
+
+    for index, prompt in enumerate(bounded_prompts, start=1):
+        preview = prompt[:80] + ("..." if len(prompt) > 80 else "")
+        print(f"[{index}/{len(bounded_prompts)}] Querying NIM for: {preview}")
+
         try:
-            start = time.time()
-            response = query_nim(prompt, api_url, api_key, model=model, max_tokens=args.max_tokens, temperature=args.temperature)
-            elapsed = time.time() - start
-            print(f"  -> Response received in {elapsed:.2f}s: {response[:100]}{'...' if len(response) > 100 else ''}")
+            start_time = time.time()
+            response_text = query_nim(prompt, config)
+            elapsed_seconds = time.time() - start_time
+            print(
+                f"  -> Response received in {elapsed_seconds:.2f}s: "
+                f"{response_text[:100]}{'...' if len(response_text) > 100 else ''}"
+            )
+            item = collect_distilled_item(
+                prompt=prompt,
+                response_text=response_text,
+                model=config.model or "unknown",
+                elapsed_seconds=elapsed_seconds,
+                seed=config.seed,
+            )
+            distilled_items.append(item.to_dict())
+        except requests.Timeout as exc:
+            error_message = f"Timeout saat query NIM: {exc}"
+            print(f"  !! {error_message}", file=sys.stderr)
+            failures.append({"prompt": prompt, "error": error_message})
+        except requests.RequestException as exc:
+            error_message = f"HTTP error saat query NIM: {exc}"
+            print(f"  !! {error_message}", file=sys.stderr)
+            failures.append({"prompt": prompt, "error": error_message})
+        except ValueError as exc:
+            error_message = f"Error parsing respons NIM: {exc}"
+            print(f"  !! {error_message}", file=sys.stderr)
+            failures.append({"prompt": prompt, "error": error_message})
+        except Exception as exc:
+            error_message = f"Error tak terduga saat memproses prompt: {exc}"
+            print(f"  !! {error_message}", file=sys.stderr)
+            failures.append({"prompt": prompt, "error": error_message})
 
-            # Store the knowledge in Jaya's AgenticRAG as a fact.
-            # We use the public memorize method of AgenticRAG via the engine.
-            # Note: Engine exposes AgenticRAG via engine._agentic_rag? Actually, engine has a public method to memorize?
-            # Looking at runtime.py, there is no public memorize method on IronEngine for arbitrary facts.
-            # However, there is a method `memorize_agentic_procedure` for procedures, and `memorize` is internal to AgenticRAG.
-            # But we can access engine._agentic_rag because it's an attribute (though private). 
-            # Since we are in JayaResearch and we are allowed to use JayaCore's public interface, we should avoid accessing private attributes.
-            # However, the tests in JayaCore also access engine._agentic_rag? Let's check the test file we saw earlier.
-            # In test_phase1_agentic_rag_runtime_gate.py, they use engine.memorize_agentic_procedure and engine.query_agentic_rag.
-            # There is no public method to memorize arbitrary facts. But we can use the AgenticRAG's memorize via the engine's internal attribute?
-            # Alternatively, we can store the distilled knowledge in a file and later have a separate process ingest it into Jaya's RAG.
-            # Given the boundary, we should not rely on private attributes. Let's change approach: we will output the distilled knowledge to a JSON file,
-            # and then provide a separate script (or a function) that can be run within JayaCore's test suite or via a custom command to ingest it.
-            # For now, we'll just collect the results and optionally save to JSON.
+    metadata = {
+        "api_url": config.api_url,
+        "model": config.model,
+        "max_tokens": config.max_tokens,
+        "temperature": config.temperature,
+        "timeout_seconds": config.timeout_seconds,
+        "max_prompts": config.max_prompts,
+        "seed": config.seed,
+        "source_prompt_count": len(prompts),
+        "executed_prompt_count": len(bounded_prompts),
+        "success_count": len(distilled_items),
+        "failure_count": len(failures),
+    }
+    return DistillationResult(metadata=metadata, items=distilled_items, failures=failures)
 
-            distilled.append({
-                "prompt": prompt,
-                "response": response,
-                "model": model or "unknown",
-                "timestamp": time.time()
-            })
 
-        except Exception as e:
-            print(f"  !! Error processing prompt: {e}", file=sys.stderr)
-            continue
+def main() -> int:
+    """Entry point CLI utama dengan exit code eksplisit."""
+    args = parse_args()
 
-    # Optionally save to JSON
+    try:
+        config = build_config(args)
+    except RuntimeError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        prompts = load_prompts(args.prompts)
+    except FileNotFoundError:
+        print(f"Error: file prompt tidak ditemukan: {args.prompts}", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"Error saat membaca file prompt {args.prompts}: {exc}", file=sys.stderr)
+        return 1
+
+    if not prompts:
+        print("Error: tidak ada prompt valid yang ditemukan.", file=sys.stderr)
+        return 1
+
+    print(f"Loaded {len(prompts)} prompts from {args.prompts}")
+    result = run_distillation(prompts, config)
+
     if args.output_json:
-        with open(args.output_json, "w", encoding="utf-8") as f:
-            json.dump(distilled, f, indent=2, ensure_ascii=False)
+        save_distilled_json(args.output_json, result)
         print(f"Saved distilled knowledge to {args.output_json}")
 
-    print("Distillation complete.")
-    # If we wanted to actually feed into Jaya's memory, we could do:
-    # for item in distilled:
-    #     engine._agentic_rag.memorize(topic=item["prompt"], content=item["response"], source="nim_distillation", importance=5)
-    # But since _agentic_rag is private, we leave it as a comment for the user to decide if they want to break the boundary for this specific purpose.
-    # Alternatively, we can extend JayaCore with a public method to ingest facts from distillation, but that would require a JayaCore change.
-    # For now, we output the knowledge and let the user decide how to ingest.
+    if args.output_md:
+        markdown_text = render_markdown_summary(result, args.prompts)
+        write_markdown(args.output_md, markdown_text)
+        print(f"Saved markdown summary to {args.output_md}")
+
+    print(
+        f"Distillation complete. Success={len(result.items)} Failure={len(result.failures)} "
+        f"PromptLimit={config.max_prompts}"
+    )
+
+    if result.failures:
+        print("Some prompts failed, but the process ended safely with preserved state.", file=sys.stderr)
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

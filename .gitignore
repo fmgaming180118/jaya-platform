@@ -24,9 +24,8 @@ wheels/
 *.egg
 
 # Compiled Core Extensions (Keep .pyd but ignore intermediates)
-# UNCOMMENT below if you want to push binaries. 
-# For now, we allow .pyd but ignore .c / .obj / .exp / .lib
-*.c
+# For now, we allow .pyd but ignore compiled object/library files
+*.o
 *.obj
 *.exp
 *.lib
@@ -60,6 +59,9 @@ JAYA_RESEARCH/.venv312/
 # JAYA Data & Logs (Ignored to keep repo clean)
 /data/
 /src/
+JAYA_CORE/data/
+JAYA_CORE/src/os_kernel/*.bin
+JAYA_CORE/src/os_kernel/isodir/
 JAYA_RESEARCH/data/
 JAYA_RESEARCH/backups/
 JAYA_RESEARCH/reports/
@@ -96,3 +98,51 @@ file-uji-coba/
 /test_*.txt
 /verify_*.txt
 /tmp_*.py
+
+# JAYA Sensitive Data (Never commit)
+JAYA_CORE/rag_vault.db
+JAYA_CORE/data/distilled/
+JAYA_CORE/features/
+JAYA_CORE/test_features/
+test_features/
+JAYA_CORE/test_ipc*.py
+JAYA_CORE/test_scene.py
+JAYA_CORE/test_ipc_debug*.py
+JAYA_CORE/test_ipc_debug.py
+JAYA_CORE/test_ipc_debug2.py
+JAYA_CORE/test_ipc_debug3.py
+
+# JAYA_RESEARCH Sensitive
+JAYA_RESEARCH/JAYA_RESEARCH_MODE.bat
+JAYA_RESEARCH/.venv312/
+
+# JAYA_CORE Test Artifacts
+JAYA_CORE/test_features/
+JAYA_CORE/test_ipc*.py
+JAYA_CORE/test_scene.py
+JAYA_CORE/test_ipc_debug*.py
+
+# Archives and backups
+docs/archive/
+blueprint/
+file-uji-coba/
+
+# Model files (large binary files)
+*.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Training data & documents
+data-training/
+*.pdf
+distilled_*.json
+distilled_*.jsonl
+test_*.jsonl

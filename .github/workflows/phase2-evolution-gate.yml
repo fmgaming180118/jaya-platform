@@ -1,0 +1,140 @@
+name: Phase 2 Evolution Gate
+
+on:
+  push:
+    paths:
+      - 'JAYA_CORE/src/brain_v2/engine/evolution_gate.py'
+      - 'JAYA_CORE/src/brain_v2/engine/evolution_manifest.py'
+      - 'JAYA_CORE/src/brain_v2/engine/runtime.py'
+      - 'JAYA_CORE/tests/test_phase2_*.py'
+  pull_request:
+    paths:
+      - 'JAYA_CORE/src/brain_v2/engine/evolution_gate.py'
+      - 'JAYA_CORE/src/brain_v2/engine/evolution_manifest.py'
+      - 'JAYA_CORE/src/brain_v2/engine/runtime.py'
+      - 'JAYA_CORE/tests/test_phase2_*.py'
+
+jobs:
+  phase2-evolution-gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: JAYA_CORE
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest pytest-asyncio
+
+      - name: Run Phase 2 Evolution Gate tests
+        run: |
+          python -m pytest tests/test_phase2_evolution_gate.py tests/test_phase2_rollback.py tests/test_phase2_manifest.py -v
+
+      - name: Run Phase 1 regression tests
+        run: |
+          python -m pytest tests/test_phase1_jaya_ir.py tests/test_phase1_architecture_boundary.py -v
+
+      - name: Run Phase 1 Benchmark Gate (strict)
+        run: |
+          python scripts/benchmark_phase1_ir.py --rounds 40 --gate --fail-on-gate --max-warm-p50-ms 0.05 --max-warm-p95-ms 0.10 --min-hit-rate 0.95
+
+      - name: Phase 2 Integration Test
+        run: |
+          python -c "
+import sys
+import time
+sys.path.insert(0, '.')
+
+from src.brain_v2.engine.evolution_gate import EvolutionGate, EvolutionCandidate, CandidateEvidence
+from src.brain_v2.engine.runtime import IronEngine
+
+engine = IronEngine(model_path='test.jay', password='test123', enable_twin=False)
+engine.ignite()
+
+# Register baseline
+engine.register_stable_state('stable-v1', {'topk_ratio': 0.10, 'version': 1})
+
+# Test ACCEPT path
+candidate = EvolutionCandidate(
+    candidate_id='ci-test-accept',
+    source_hash='ci-hash-1',
+    created_at=time.time(),
+    candidate_payload='CI test payload',
+    expected_perf_gain_pct=10.0,
+    rollback_target='stable-v1'
+)
+engine._evolution_gate.sign_candidate(candidate)
+evidence = CandidateEvidence(tests_passed=True, benchmark_gate_passed=True, observed_perf_gain_pct=12.0, ram_delta_pct=2.0, cpu_delta_pct=3.0)
+decision = engine._evolution_gate.evaluate(candidate, evidence)
+assert decision.accepted, 'ACCEPT path failed'
+assert decision.code.value == 'ACCEPT'
+
+# Test REJECT_PERF path
+candidate2 = EvolutionCandidate(
+    candidate_id='ci-test-reject-perf',
+    source_hash='ci-hash-2',
+    created_at=time.time(),
+    candidate_payload='slow payload',
+    expected_perf_gain_pct=5.0,
+    rollback_target='stable-v1'
+)
+engine._evolution_gate.sign_candidate(candidate2)
+evidence2 = CandidateEvidence(tests_passed=True, benchmark_gate_passed=True, observed_perf_gain_pct=4.0, ram_delta_pct=1.0, cpu_delta_pct=1.0)
+decision2 = engine._evolution_gate.evaluate(candidate2, evidence2)
+assert not decision2.accepted, 'REJECT_PERF should reject'
+assert decision2.code.value == 'REJECT_PERF'
+
+# Test REJECT_RESOURCE (RAM) path
+candidate3 = EvolutionCandidate(
+    candidate_id='ci-test-reject-ram',
+    source_hash='ci-hash-3',
+    created_at=time.time(),
+    candidate_payload='memory hungry',
+    expected_perf_gain_pct=15.0,
+    rollback_target='stable-v1'
+)
+engine._evolution_gate.sign_candidate(candidate3)
+evidence3 = CandidateEvidence(tests_passed=True, benchmark_gate_passed=True, observed_perf_gain_pct=15.0, ram_delta_pct=8.0, cpu_delta_pct=2.0)
+decision3 = engine._evolution_gate.evaluate(candidate3, evidence3)
+assert not decision3.accepted, 'REJECT_RESOURCE should reject'
+assert decision3.code.value == 'REJECT_RESOURCE'
+
+# Test REJECT_SECURITY (missing signature)
+candidate4 = EvolutionCandidate(
+    candidate_id='ci-test-no-sig',
+    source_hash='ci-hash-4',
+    created_at=time.time(),
+    candidate_payload='unsigned',
+    expected_perf_gain_pct=15.0,
+    rollback_target='stable-v1'
+)
+evidence4 = CandidateEvidence(tests_passed=True, benchmark_gate_passed=True, observed_perf_gain_pct=15.0, ram_delta_pct=2.0, cpu_delta_pct=2.0)
+decision4 = engine._evolution_gate.evaluate(candidate4, evidence4)
+assert not decision4.accepted, 'Missing signature should reject'
+assert decision4.code.value == 'REJECT_SECURITY'
+
+# Test rollback idempotency
+engine.register_stable_state('stable-v2', {'version': 2})
+rb1 = engine.rollback_stable_state('stable-v1')
+rb2 = engine.rollback_stable_state('stable-v1')
+assert rb1['ok'] and rb2['ok'] and rb2['idempotent'], 'Rollback not idempotent'
+
+print('ALL PHASE 2 CI INTEGRATION TESTS PASSED')
+          "
+
+      - name: Upload benchmark snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-benchmark-snapshot
+          path: JAYA_CORE/docs/phase1_benchmark_latest.json
+          retention-days: 30

@@ -18,6 +18,9 @@ from typing import List, Optional
 import asyncio
 import sys
 import os
+import shutil
+import tempfile
+import json
 from pathlib import Path
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
@@ -33,10 +36,19 @@ sys.path.insert(0, str(SRC_DIR))
 sys.path.insert(0, str(ROOT_DIR))
 
 from research.agent import ResearchAgent
-from research.enhanced_rag import EnhancedRAGClient, VectorStore
+from research.nvidia_rag_client import NVIDIARAGClient
 from research.graph_rag import GraphRAGEngine
 from research.meta_analysis import MetaAnalyst
-from network.api_models import ResearchRequest, ChatRequest, VideoIngestRequest, DebateRequest
+from network.api_models import (
+    ResearchRequest,
+    ChatRequest,
+    VideoIngestRequest,
+    DebateRequest,
+    IngestRequest,
+    IngestResponse,
+    RecursiveResearchRequest,
+    RecursiveResearchResponse,
+)
 # VideoProcessor dimuat secara lazy (saat endpoint digunakan) karena membutuhkan cv2/ffmpeg opsional
 VideoProcessor = None  # akan dimuat on-demand di endpoint /ingest/video
 from research.workspace_manager import WorkspaceManager
@@ -49,7 +61,7 @@ from evolution.twin import DigitalTwin
 
 # Global Managers
 workspace_manager = WorkspaceManager()
-meta_analyst = MetaAnalyst()
+meta_analyst = None
 active_sessions = {} # workspace_id -> {rag, graph}
 # DigitalTwin may require external config/env — initialize safely
 try:
@@ -65,7 +77,14 @@ async def lifespan(app: FastAPI):
     # Start the Digital Twin in background (if initialized)
     if digital_twin is not None:
         try:
-            asyncio.create_task(digital_twin.start_loop())
+            import threading
+            def run_twin():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(digital_twin.start_loop())
+            t = threading.Thread(target=run_twin, daemon=True)
+            t.start()
+            print("[API] Started DigitalTwin loop in background thread.")
         except Exception as e:
             print(f"[API] Failed to start DigitalTwin loop: {e}")
     yield
@@ -99,10 +118,13 @@ def get_engines(workspace_id: str = "default"):
     """
     if workspace_id not in active_sessions:
         print(f"[API] Loading engines for workspace: {workspace_id}")
-        paths = workspace_manager.get_paths(workspace_id)
+        paths = workspace_manager.get_or_create_paths(workspace_id)
         
         # Initialize engines with specific paths
-        rag = EnhancedRAGClient(vector_store_path=paths['vector_store'])
+        rag = NVIDIARAGClient(
+            vector_store_path=paths['vector_store'],
+            workspace_id=workspace_id,
+        )
         graph = GraphRAGEngine(storage_path=paths['knowledge_graph'])
         
         active_sessions[workspace_id] = {
@@ -111,6 +133,33 @@ def get_engines(workspace_id: str = "default"):
         }
     
     return active_sessions[workspace_id]["rag"], active_sessions[workspace_id]["graph"]
+
+
+def _recursive_search(rag_client, query: str, depth: int, max_sources_per_level: int, workspace_id: str):
+    """Perform bounded recursive retrieval for Phase A."""
+    seen_sources = set()
+    collected: list[dict] = []
+    frontier = [query]
+
+    for current_depth in range(depth):
+        next_frontier = []
+        for item in frontier:
+            results = rag_client.search(item, top_k=max_sources_per_level, workspace_id=workspace_id)
+            for result in results:
+                document = result.get("document", {})
+                source = document.get("file_name") or document.get("source") or document.get("path") or "unknown"
+                if source in seen_sources:
+                    continue
+                seen_sources.add(source)
+                collected.append(result)
+                snippet = result.get("snippet") or result.get("content") or ""
+                if snippet:
+                    next_frontier.append(snippet[:300])
+        frontier = next_frontier[:max_sources_per_level]
+        if not frontier:
+            return collected, current_depth + 1
+
+    return collected, depth
 
 # Pre-load default (safe): try but don't crash if model config missing
 try:
@@ -122,6 +171,58 @@ except Exception as e:
 @app.get("/")
 def health_check():
     return {"status": "online", "service": "JAYA Research API"}
+
+
+@app.post("/ingest", response_model=IngestResponse)
+async def ingest_text(request: IngestRequest):
+    """Ingest raw text into the workspace RAG store."""
+    try:
+        rag_client, _ = get_engines(request.workspace_id)
+        result = rag_client.ingest_text(request.text, metadata=request.metadata)
+        return IngestResponse(
+            status=result.get("status", "success"),
+            chunks_added=int(result.get("chunks_added", 0)),
+            workspace_id=result.get("workspace_id", request.workspace_id),
+            message=result.get("message"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to ingest text: {e}")
+
+
+@app.post("/research/recursive", response_model=RecursiveResearchResponse)
+async def recursive_research(request: RecursiveResearchRequest):
+    """Bounded recursive retrieval + synthesis for academic research queries."""
+    try:
+        rag_client, graph_engine = get_engines(request.workspace_id)
+        results, depth_reached = _recursive_search(
+            rag_client=rag_client,
+            query=request.query,
+            depth=max(1, request.depth),
+            max_sources_per_level=max(1, request.max_sources_per_level),
+            workspace_id=request.workspace_id,
+        )
+
+        vector_context = "\n\n".join(
+            f"[{idx}] {item.get('snippet') or item.get('content', '')}" for idx, item in enumerate(results, 1)
+        )
+        graph_context = graph_engine.get_context(request.query) if graph_engine else ""
+        synthesis_parts = []
+        if vector_context:
+            synthesis_parts.append("[Vector Context]\n" + vector_context)
+        if graph_context:
+            synthesis_parts.append("[Graph Context]\n" + graph_context)
+
+        synthesis = "\n\n".join(synthesis_parts) if synthesis_parts else "No relevant context found."
+
+        return RecursiveResearchResponse(
+            query=request.query,
+            synthesis=synthesis,
+            sources=results,
+            depth_reached=depth_reached,
+            workspace_id=request.workspace_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to run recursive research: {e}")
 
 # --- Workspace Management ---
 @app.get("/workspaces")
@@ -180,6 +281,662 @@ async def generate_slides(topic: str, content: str = "Automated generated conten
     slides_md = presenter.generate_slides(topic, content)
     return {"topic": topic, "slides": slides_md}
 
+
+# =============================================================================
+# PDF INGESTION ENDPOINT - Multimodal PDF Processing with JAYA Integration
+# =============================================================================
+
+class PDFIngestRequest(BaseModel):
+    workspace_id: str = "default"
+    extract_images: bool = True
+    extract_tables: bool = True
+    analyze_with_llm: bool = True
+    store_in_rag: bool = True
+    store_in_graph: bool = True
+    store_in_citation_graph: bool = True
+
+
+@app.post("/documents/ingest-pdf")
+async def ingest_pdf_document(
+    background_tasks: BackgroundTasks,
+    workspace_id: str = "default",
+    extract_images: bool = True,
+    extract_tables: bool = True,
+    analyze_with_llm: bool = True,
+    store_in_rag: bool = True,
+    store_in_graph: bool = True,
+    store_in_citation_graph: bool = True,
+    file: UploadFile = File(...)
+):
+    """
+    Ingest a PDF document with multimodal extraction (text, images, tables).
+    
+    Features:
+    - Text extraction with pdfplumber (better than PyPDF)
+    - Image extraction with PyMuPDF
+    - Table extraction and conversion to Markdown
+    - LLM analysis for structured summary
+    - Integration with JAYA's RAG, Knowledge Graph, and Citation Graph
+    - Automatic workspace isolation
+    
+    Returns:
+        - Document metadata
+        - Extracted content summary
+        - Storage locations
+    """
+    # Validate file
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="File must be a PDF")
+    
+    # Get workspace paths
+    paths = workspace_manager.get_paths(workspace_id)
+    workspace_root = Path(paths['vector_store']).parent  # Get workspace root from vector_store path
+    
+    # Create documents directory in workspace
+    docs_dir = workspace_root / "documents"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save uploaded PDF
+    safe_filename = Path(file.filename).name
+    # prevent path traversal
+    pdf_path = docs_dir / safe_filename
+    
+    try:
+        with open(pdf_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save PDF: {e}")
+    
+    # Process in background
+    def process_pdf():
+        try:
+            _process_pdf_background(
+                pdf_path=pdf_path,
+                workspace_id=workspace_id,
+                paths=paths,
+                extract_images=extract_images,
+                extract_tables=extract_tables,
+                analyze_with_llm=analyze_with_llm,
+                store_in_rag=store_in_rag,
+                store_in_graph=store_in_graph,
+                store_in_citation_graph=store_in_citation_graph,
+            )
+        except Exception as e:
+            print(f"[API] PDF processing error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    background_tasks.add_task(process_pdf)
+    
+    return {
+        "status": "processing",
+        "message": "PDF upload successful, processing started in background",
+        "workspace_id": workspace_id,
+        "filename": safe_filename,
+        "pdf_path": str(pdf_path.relative_to(ROOT_DIR)),
+    }
+
+
+def _process_pdf_background(
+    pdf_path: Path,
+    workspace_id: str,
+    paths: dict,
+    extract_images: bool,
+    extract_tables: bool,
+    analyze_with_llm: bool,
+    store_in_rag: bool,
+    store_in_graph: bool,
+    store_in_citation_graph: bool,
+):
+    """Background task to process PDF with full multimodal extraction"""
+    import pdfplumber
+    import fitz  # PyMuPDF
+    import time
+    from teacher import Teacher
+    from research.academic.journal_processor import JournalProcessor, PaperCache
+    from research.academic.citation_graph import get_citation_graph
+    
+    print(f"[PDF Ingest] Starting processing: {pdf_path.name}")
+    start_time = time.time()
+    
+    # Compute workspace_root from paths
+    workspace_root = Path(paths['vector_store']).parent
+    
+    # Initialize components
+    teacher = Teacher(model_type="reasoning")
+    journal_processor = JournalProcessor()
+    paper_cache = PaperCache()
+    citation_graph = get_citation_graph()
+    
+    # Create output folder for this document
+    doc_folder_name = pdf_path.stem.replace(' ', '_').replace('(', '').replace(')', '')
+    doc_folder = workspace_root / "processed_docs" / doc_folder_name
+    doc_folder.mkdir(parents=True, exist_ok=True)
+    
+    # Copy PDF to processed folder
+    pdf_copy = doc_folder / pdf_path.name
+    shutil.copy2(pdf_path, pdf_copy)
+    
+    # ============================================================
+    # 1. EXTRACT TEXT & TABLES with pdfplumber
+    # ============================================================
+    print(f"[PDF Ingest] Extracting text and tables...")
+    pdfplumber_data = {
+        "pages": [],
+        "tables": [],
+        "full_text": ""
+    }
+    
+    with pdfplumber.open(str(pdf_path)) as pdf:
+        for i, page in enumerate(pdf.pages, 1):
+            text = page.extract_text(x_tolerance=2, y_tolerance=2) or ""
+            
+            tables = page.extract_tables() or []
+            page_tables = []
+            for table_idx, table in enumerate(tables):
+                if table and any(cell for row in table for cell in row if cell):
+                    page_tables.append({
+                        "page": i,
+                        "table_index": table_idx,
+                        "data": table
+                    })
+                    pdfplumber_data["tables"].append({
+                        "page": i,
+                        "table_index": table_idx,
+                        "data": table
+                    })
+            
+            pdfplumber_data["pages"].append({
+                "page": i,
+                "text": text,
+                "tables": page_tables
+            })
+            pdfplumber_data["full_text"] += f"\n--- PAGE {i} ---\n" + text + "\n\n"
+    
+    # Save full text
+    text_file = doc_folder / "full_text.txt"
+    with open(text_file, "w", encoding="utf-8") as f:
+        f.write(pdfplumber_data["full_text"])
+    
+    # ============================================================
+    # 2. EXTRACT IMAGES with PyMuPDF
+    # ============================================================
+    images = []
+    if extract_images:
+        print(f"[PDF Ingest] Extracting images...")
+        images_folder = doc_folder / "images"
+        images_folder.mkdir(parents=True, exist_ok=True)
+        
+        doc_fitz = fitz.open(str(pdf_path))
+        for page_num in range(len(doc_fitz)):
+            page = doc_fitz[page_num]
+            image_list = page.get_images(full=True)
+            
+            for img_idx, img in enumerate(image_list):
+                xref = img[0]
+                base_image = doc_fitz.extract_image(xref)
+                image_bytes = base_image["image"]
+                image_ext = base_image["ext"]
+                
+                img_filename = f"page_{page_num+1}_img_{img_idx+1}.{image_ext}"
+                img_path = images_folder / img_filename
+                
+                with open(img_path, "wb") as f:
+                    f.write(image_bytes)
+                
+                images.append({
+                    "page": page_num + 1,
+                    "index": img_idx + 1,
+                    "filename": img_filename,
+                    "path": str(img_path.relative_to(ROOT_DIR)),
+                    "width": base_image.get("width", 0),
+                    "height": base_image.get("height", 0),
+                    "ext": image_ext
+                })
+        doc_fitz.close()
+        print(f"[PDF Ingest] Extracted {len(images)} images")
+    
+    # ============================================================
+    # 3. EXTRACT REFERENCES SECTION
+    # ============================================================
+    import re
+    def extract_references_section(full_text: str) -> str:
+        ref_patterns = [
+            r'\n\s*references\s*\n',
+            r'\n\s*bibliography\s*\n',
+            r'\n\s*reference list\s*\n',
+            r'\n\s*literature cited\s*\n',
+            r'\n\s*works cited\s*\n',
+            r'\n\s*daftar pustaka\s*\n',
+            r'\n\s*referensi\s*\n',
+        ]
+        text_lower = full_text.lower()
+        for pattern in ref_patterns:
+            match = re.search(pattern, text_lower)
+            if match:
+                return full_text[match.start():]
+        return full_text[-15000:]
+    
+    references_text = extract_references_section(pdfplumber_data["full_text"])
+    ref_file = doc_folder / "references.txt"
+    with open(ref_file, "w", encoding="utf-8") as f:
+        f.write(references_text)
+    
+    # ============================================================
+    # 4. LLM ANALYSIS
+    # ============================================================
+    llm_analysis = {}
+    if analyze_with_llm:
+        print(f"[PDF Ingest] Analyzing with LLM...")
+        analysis_text = pdfplumber_data["full_text"][:50000]
+        
+        prompt = f"""
+Anda adalah Research Analyst. Analisis dokumen PDF berikut dan ekstrak informasi terstruktur.
+
+Nama File: {pdf_path.name}
+
+Konten Dokumen (ekstrak):
+{analysis_text}
+...
+
+Tugas:
+1. Ekstrak metadata: Judul, Penulis, Tahun, Abstrak, Kata Kunci
+2. Identifikasi struktur dokumen (Bab/Section)
+3. Ekstrak: Masalah, Tujuan, Metodologi, Hasil Utama, Kesimpulan, Saran
+4. Identifikasi tabel dan gambar penting beserta caption/deskripsi
+5. Ekstrak referensi utama (top 15 referensi paling relevan)
+6. Buat ringkasan eksekutif (3-4 paragraf)
+
+Format output sebagai JSON dengan keys:
+- metadata: {{title, authors, year, abstract, keywords}}
+- structure: {{sections: []}}
+- problem_statement: ""
+- objectives: []
+- methodology: ""
+- key_results: []
+- conclusions: []
+- suggestions: []
+- tables_summary: [{{page, description, caption}}]
+- figures_summary: [{{page, description, caption}}]
+- references: [{{title, authors, year, source}}]
+- executive_summary: ""
+"""
+        
+        try:
+            response = teacher.ask(
+                prompt,
+                system_instruction="Anda adalah Research Analyst. Output HANYA JSON valid, tanpa markdown atau penjelasan tambahan."
+            )
+            
+            response = response.strip()
+            response = re.sub(r'^```json\s*', '', response)
+            response = re.sub(r'^```\s*', '', response)
+            response = re.sub(r'\s*```$', '', response)
+            
+            llm_analysis = json.loads(response)
+        except Exception as e:
+            print(f"[PDF Ingest] LLM Analysis error: {e}")
+            llm_analysis = {}
+    
+    # Save LLM analysis
+    analysis_file = doc_folder / "analysis.json"
+    with open(analysis_file, "w", encoding="utf-8") as f:
+        json.dump(llm_analysis, f, ensure_ascii=False, indent=2)
+    
+    # ============================================================
+    # 5. CREATE MARKDOWN DOCUMENT
+    # ============================================================
+    def create_markdown(pdfplumber_data, images, llm_analysis, references_text):
+        metadata = llm_analysis.get("metadata", {})
+        structure = llm_analysis.get("structure", {})
+        problem = llm_analysis.get("problem_statement", "")
+        objectives = llm_analysis.get("objectives", [])
+        methodology = llm_analysis.get("methodology", "")
+        key_results = llm_analysis.get("key_results", [])
+        conclusions = llm_analysis.get("conclusions", [])
+        suggestions = llm_analysis.get("suggestions", [])
+        tables_summary = llm_analysis.get("tables_summary", [])
+        figures_summary = llm_analysis.get("figures_summary", [])
+        references = llm_analysis.get("references", [])
+        exec_summary = llm_analysis.get("executive_summary", "")
+        
+        md_lines = []
+        title = metadata.get('title', pdf_path.name)
+        md_lines.append(f"# {title}")
+        md_lines.append("")
+        
+        # Metadata
+        md_lines.append("## 📋 Metadata")
+        md_lines.append("")
+        md_lines.append(f"- **File Asli**: `{pdf_path.name}`")
+        md_lines.append(f"- **Judul**: {metadata.get('title', 'Tidak diketahui')}")
+        md_lines.append(f"- **Penulis**: {', '.join(metadata.get('authors', ['Tidak diketahui']))}")
+        md_lines.append(f"- **Tahun**: {metadata.get('year', 'Tidak diketahui')}")
+        md_lines.append(f"- **Kata Kunci**: {', '.join(metadata.get('keywords', []))}")
+        md_lines.append("")
+        
+        if exec_summary:
+            md_lines.append("## 🎯 Ringkasan Eksekutif")
+            md_lines.append("")
+            md_lines.append(exec_summary)
+            md_lines.append("")
+        
+        if problem:
+            md_lines.append("## ❓ Rumusan Masalah")
+            md_lines.append("")
+            md_lines.append(problem)
+            md_lines.append("")
+        
+        if objectives:
+            md_lines.append("## 🎯 Tujuan")
+            md_lines.append("")
+            for i, obj in enumerate(objectives, 1):
+                md_lines.append(f"{i}. {obj}")
+            md_lines.append("")
+        
+        if methodology:
+            md_lines.append("## 🔬 Metodologi")
+            md_lines.append("")
+            md_lines.append(methodology)
+            md_lines.append("")
+        
+        if key_results:
+            md_lines.append("## 📈 Hasil Utama")
+            md_lines.append("")
+            for i, result in enumerate(key_results, 1):
+                md_lines.append(f"{i}. {result}")
+            md_lines.append("")
+        
+        if conclusions:
+            md_lines.append("## ✅ Kesimpulan")
+            md_lines.append("")
+            for i, conc in enumerate(conclusions, 1):
+                md_lines.append(f"{i}. {conc}")
+            md_lines.append("")
+        
+        if suggestions:
+            md_lines.append("## 💡 Saran")
+            md_lines.append("")
+            for i, sug in enumerate(suggestions, 1):
+                md_lines.append(f"{i}. {sug}")
+            md_lines.append("")
+        
+        if structure.get('sections'):
+            md_lines.append("## 📑 Struktur Dokumen")
+            md_lines.append("")
+            for section in structure['sections']:
+                md_lines.append(f"- {section}")
+            md_lines.append("")
+        
+        # Tables
+        if tables_summary:
+            md_lines.append("## 📊 Tabel (Summary LLM)")
+            md_lines.append("")
+            for table in tables_summary:
+                md_lines.append(f"### Tabel Halaman {table.get('page', '?')}")
+                md_lines.append(f"**Deskripsi**: {table.get('description', '')}")
+                if table.get('caption'):
+                    md_lines.append(f"**Caption**: {table['caption']}")
+                md_lines.append("")
+        
+        if pdfplumber_data.get("tables"):
+            md_lines.append("## 📋 Data Tabel Lengkap (Ekstraksi Otomatis)")
+            md_lines.append("")
+            for table in pdfplumber_data["tables"]:
+                md_lines.append(f"### Tabel Halaman {table['page']} (Indeks {table['table_index']})")
+                md_lines.append("")
+                if table['data']:
+                    md_lines.append("| " + " | ".join(str(cell or "") for cell in table['data'][0]) + " |")
+                    md_lines.append("| " + " | ".join(["---"] * len(table['data'][0])) + " |")
+                    for row in table['data'][1:]:
+                        md_lines.append("| " + " | ".join(str(cell or "") for cell in row) + " |")
+                md_lines.append("")
+        
+        # Figures
+        if figures_summary:
+            md_lines.append("## 🖼️ Gambar/Figur (Summary LLM)")
+            md_lines.append("")
+            for fig in figures_summary:
+                md_lines.append(f"### Gambar Halaman {fig.get('page', '?')}")
+                md_lines.append(f"**Deskripsi**: {fig.get('description', '')}")
+                if fig.get('caption'):
+                    md_lines.append(f"**Caption**: {fig['caption']}")
+                md_lines.append("")
+        
+        if images:
+            md_lines.append("## 🖼️ Gambar yang Diekstrak")
+            md_lines.append("")
+            for img in images:
+                md_lines.append(f"### Gambar Halaman {img['page']} #{img['index']}")
+                md_lines.append(f"![Gambar]({img['path']})")
+                md_lines.append(f"*Ukuran: {img['width']}x{img['height']} px*")
+                md_lines.append("")
+        
+        # References
+        if references:
+            md_lines.append("## 📚 Referensi Utama")
+            md_lines.append("")
+            for i, ref in enumerate(references, 1):
+                md_lines.append(f"{i}. **{ref.get('title', 'Judul tidak tersedia')}**")
+                if ref.get('authors'):
+                    md_lines.append(f"   - Penulis: {', '.join(ref['authors'])}")
+                if ref.get('year'):
+                    md_lines.append(f"   - Tahun: {ref['year']}")
+                if ref.get('source'):
+                    md_lines.append(f"   - Sumber: {ref['source']}")
+                md_lines.append("")
+        
+        if references_text:
+            md_lines.append("## 📖 Bagian Referensi Lengkap (Ekstraksi)")
+            md_lines.append("")
+            md_lines.append("```")
+            md_lines.append(references_text[:5000])
+            if len(references_text) > 5000:
+                md_lines.append("... (dipotong)")
+            md_lines.append("```")
+            md_lines.append("")
+        
+        # Full text (truncated)
+        md_lines.append("## 📝 Teks Lengkap (Ekstraksi pdfplumber)")
+        md_lines.append("")
+        full_text = pdfplumber_data.get("full_text", "")
+        md_lines.append("```")
+        md_lines.append(full_text[:10000])
+        if len(full_text) > 10000:
+            md_lines.append("... (dipotong, lihat file teks terpisah)")
+        md_lines.append("```")
+        
+        return "\n".join(md_lines)
+    
+    markdown_content = create_markdown(pdfplumber_data, images, llm_analysis, references_text)
+    md_file = doc_folder / f"{doc_folder_name}.md"
+    with open(md_file, "w", encoding="utf-8") as f:
+        f.write(markdown_content)
+    
+    # ============================================================
+    # 6. STORE IN JAYA SYSTEMS
+    # ============================================================
+    
+    # 6a. Store in RAG (Vector Store)
+    if store_in_rag:
+        try:
+            print(f"[PDF Ingest] Storing in RAG...")
+            rag_client, _ = get_engines(workspace_id)
+            # Ingest the markdown content
+            rag_client.ingest_documents([str(md_file)])
+            print(f"[PDF Ingest] Stored in RAG")
+        except Exception as e:
+            print(f"[PDF Ingest] RAG storage error: {e}")
+    
+    # 6b. Store in Knowledge Graph
+    if store_in_graph:
+        try:
+            print(f"[PDF Ingest] Storing in Knowledge Graph...")
+            _, graph_engine = get_engines(workspace_id)
+            # Create a document node with metadata
+            doc_metadata = {
+                "title": llm_analysis.get("metadata", {}).get("title", pdf_path.name),
+                "source": "pdf_ingest",
+                "file_path": str(pdf_copy.relative_to(ROOT_DIR)),
+                "markdown_path": str(md_file.relative_to(ROOT_DIR)),
+                "pages": len(pdfplumber_data["pages"]),
+                "tables_count": len(pdfplumber_data["tables"]),
+                "images_count": len(images),
+                "workspace_id": workspace_id,
+                "ingested_at": time.time(),
+            }
+            graph_engine.ingest_document(markdown_content, f"Document: {pdf_path.name}")
+            print(f"[PDF Ingest] Stored in Knowledge Graph")
+        except Exception as e:
+            print(f"[PDF Ingest] Graph storage error: {e}")
+    
+    # 6c. Store in Citation Graph (if academic paper)
+    if store_in_citation_graph and llm_analysis.get("references"):
+        try:
+            print(f"[PDF Ingest] Storing in Citation Graph...")
+            paper_meta = {
+                "title": llm_analysis.get("metadata", {}).get("title", pdf_path.name),
+                "source": "pdf_ingest",
+                "year": str(llm_analysis.get("metadata", {}).get("year", "")),
+                "authors": llm_analysis.get("metadata", {}).get("authors", []),
+                "abstract": llm_analysis.get("metadata", {}).get("abstract", ""),
+                "pdf_link": "",
+                "local_path": str(pdf_copy),
+                "language": "id" if any(c in pdf_path.name.lower() for c in ['indonesia', 'ind']) else "en",
+                "rank_score": 0.5,
+                "insight_excerpt": llm_analysis.get("executive_summary", "")[:500],
+                "fetched_at": time.time(),
+            }
+            references = llm_analysis.get("references", [])
+            citation_graph.add_paper(paper_meta, references)
+            print(f"[PDF Ingest] Stored in Citation Graph with {len(references)} references")
+        except Exception as e:
+            print(f"[PDF Ingest] Citation graph storage error: {e}")
+    
+    # 6d. Store in Paper Cache
+    try:
+        paper_meta = {
+            "title": llm_analysis.get("metadata", {}).get("title", pdf_path.name),
+            "source": "pdf_ingest",
+            "published": str(llm_analysis.get("metadata", {}).get("year", "")),
+            "authors": llm_analysis.get("metadata", {}).get("authors", []),
+            "summary": llm_analysis.get("executive_summary", ""),
+            "pdf_link": "",
+            "landing_page_url": "",
+            "language": "id" if any(c in pdf_path.name.lower() for c in ['ind']) else "en",
+        }
+        insight = llm_analysis.get("executive_summary", "")
+        paper_cache.put(paper_meta, insight, str(pdf_copy), llm_analysis.get("references", []))
+        print(f"[PDF Ingest] Stored in Paper Cache")
+    except Exception as e:
+        print(f"[PDF Ingest] Paper cache error: {e}")
+    
+    # ============================================================
+    # 7. SAVE SUMMARY
+    # ============================================================
+    summary = {
+        "pdf_name": pdf_path.name,
+        "folder_name": doc_folder_name,
+        "pages": len(pdfplumber_data["pages"]),
+        "tables_count": len(pdfplumber_data["tables"]),
+        "images_count": len(images),
+        "has_llm_analysis": bool(llm_analysis),
+        "markdown_file": str(md_file.relative_to(ROOT_DIR)),
+        "pdf_file": str(pdf_copy.relative_to(ROOT_DIR)),
+        "text_file": str(text_file.relative_to(ROOT_DIR)),
+        "analysis_file": str(analysis_file.relative_to(ROOT_DIR)),
+        "references_file": str(ref_file.relative_to(ROOT_DIR)),
+        "images_folder": "images/",
+        "stored_in": {
+            "rag": store_in_rag,
+            "graph": store_in_graph,
+            "citation_graph": store_in_citation_graph,
+        },
+        "processing_time_sec": round(time.time() - start_time, 2),
+    }
+    
+    summary_file = doc_folder / "summary.json"
+    with open(summary_file, "w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+    
+    print(f"[PDF Ingest] ✅ Completed in {summary['processing_time_sec']}s: {pdf_path.name}")
+
+
+# =============================================================================
+# LIST PROCESSED DOCUMENTS
+# =============================================================================
+
+@app.get("/documents/processed")
+def list_processed_documents(workspace_id: str = "default"):
+    """List all processed documents in a workspace"""
+    paths = workspace_manager.get_paths(workspace_id)
+    workspace_root = Path(paths['vector_store']).parent
+    processed_dir = workspace_root / "processed_docs"
+    
+    if not processed_dir.exists():
+        return {"documents": []}
+    
+    documents = []
+    for doc_folder in processed_dir.iterdir():
+        if doc_folder.is_dir():
+            summary_file = doc_folder / "summary.json"
+            if summary_file.exists():
+                with open(summary_file, "r", encoding="utf-8") as f:
+                    summary = json.load(f)
+                documents.append(summary)
+    
+    # Sort by processing time (newest first)
+    documents.sort(key=lambda x: x.get("processing_time_sec", 0), reverse=True)
+    
+    return {"documents": documents}
+
+
+@app.get("/documents/processed/{doc_folder_name}")
+def get_processed_document(workspace_id: str, doc_folder_name: str):
+    """Get details of a processed document"""
+    paths = workspace_manager.get_paths(workspace_id)
+    workspace_root = Path(paths['vector_store']).parent
+    doc_folder = workspace_root / "processed_docs" / doc_folder_name
+    
+    if not doc_folder.exists():
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    summary_file = doc_folder / "summary.json"
+    if not summary_file.exists():
+        raise HTTPException(status_code=404, detail="Document summary not found")
+    
+    with open(summary_file, "r", encoding="utf-8") as f:
+        summary = json.load(f)
+    
+    # Also load markdown content
+    md_file = doc_folder / f"{doc_folder_name}.md"
+    markdown_content = ""
+    if md_file.exists():
+        with open(md_file, "r", encoding="utf-8") as f:
+            markdown_content = f.read()
+    
+    return {
+        "summary": summary,
+        "markdown": markdown_content
+    }
+
+
+@app.delete("/documents/processed/{doc_folder_name}")
+def delete_processed_document(workspace_id: str, doc_folder_name: str):
+    """Delete a processed document and all its files"""
+    paths = workspace_manager.get_paths(workspace_id)
+    workspace_root = Path(paths['vector_store']).parent
+    doc_folder = workspace_root / "processed_docs" / doc_folder_name
+    
+    if not doc_folder.exists():
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    try:
+        shutil.rmtree(doc_folder)
+        return {"status": "success", "message": f"Document {doc_folder_name} deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete: {e}")
+
 @app.post("/academic/revise")
 async def revise_chapter(draft: str, critique: str):
     """Auto-revises a draft based on critique"""
@@ -222,6 +979,11 @@ async def set_evolution_mode(mode: str):
     if not success:
         return {"status": "error", "message": "Invalid mode"}
     return {"status": "success", "mode": digital_twin.mode.value}
+
+def get_workspace_files_dir(workspace_id: str) -> Path:
+    ws_dir = Path(config.WORKSPACES_DIR) / workspace_id / "files"
+    ws_dir.mkdir(parents=True, exist_ok=True)
+    return ws_dir
 
 @app.post("/chat")
 async def chat_with_knowledge(request: ChatRequest):
@@ -289,14 +1051,135 @@ async def chat_with_knowledge(request: ChatRequest):
     Format your answer nicely with Markdown.
     """
     
-    system_instruction = "You are JAYA, an advanced AI Research Assistant. You help users understand complex topics by synthesizing information from their knowledge base (Vector Store & Knowledge Graph) and academic papers. Be helpful, precise, and scientific."
+    system_instruction = (
+        "You are JAYA, an advanced AI Research Assistant. You help users understand complex topics by synthesizing information "
+        "from their knowledge base (Vector Store & Knowledge Graph) and academic papers. Be helpful, precise, and scientific. "
+        "\n\n"
+        "CORE TOOL CAPABILITY: You have a tool to write/create files in the user's workspace directory. "
+        "Whenever the user asks you to write, save, or create a file (such as a markdown document, outline, script, report, notes, etc.), "
+        "you MUST write the content of the file and wrap it EXACTLY inside a `<create_file name=\"filename.ext\">...</create_file>` block. "
+        "For example:\n"
+        "<create_file name=\"outline.md\">\n"
+        "# Outline Tugas Akhir\n"
+        "1. Pendahuluan\n"
+        "</create_file>\n"
+        "You can write multiple files in a single response if requested. The file names must be simple and clean (e.g., report.md, script.py)."
+    )
     
     answer = teacher.ask(prompt, system_instruction=system_instruction)
     
+    # 5. Extract and save generated files
+    import re
+    files_dir = get_workspace_files_dir(workspace_id)
+    
+    # We match: <create_file name="filename.ext">content</create_file>
+    # or <write_file name="filename.ext">content</write_file>
+    pattern = re.compile(r'<(create_file|write_file)\s+name="([^"]+)"\s*>(.*?)</\1>', re.DOTALL)
+    matches = pattern.findall(answer)
+    
+    for tag_type, filename, content in matches:
+        # Sanitize to prevent path traversal
+        safe_filename = Path(filename).name
+        filepath = files_dir / safe_filename
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(content.strip())
+        print(f"[API] File generated via chat tool: {safe_filename} in workspace {workspace_id}")
+        
+    # Clean up the XML tags from the visible answer so it looks nice
+    clean_answer = answer
+    for tag_type, filename, content in matches:
+        notice = f"\n\n> 📁 **File Generated successfully:** `{filename}` (Tersedia di panel kanan untuk Preview & Download)\n\n"
+        escaped_filename = re.escape(filename)
+        clean_answer = re.sub(
+            rf'<{tag_type}\s+name="{escaped_filename}"\s*>.*?</{tag_type}>',
+            notice,
+            clean_answer,
+            flags=re.DOTALL
+        )
+    
     return {
-        "answer": answer,
+        "answer": clean_answer,
         "sources": [r['document'].get('file_name', 'Unknown') for r in results_vector] + ["Knowledge Graph"]
     }
+
+@app.get("/documents")
+def list_documents(workspace_id: str = "default"):
+    """
+    List all documents in the workspace files directory.
+    This implements the files panel listing on the right of the ChatPage.
+    """
+    files_dir = get_workspace_files_dir(workspace_id)
+    files = []
+    
+    if files_dir.exists():
+        for item in files_dir.iterdir():
+            if item.is_file():
+                stat = item.stat()
+                files.append({
+                    "name": item.name,
+                    "size": stat.st_size,
+                    "updated_at": stat.st_mtime,
+                    "type": item.suffix.lstrip('.').lower() or "txt",
+                    "source": "generated"
+                })
+                
+    # Sort files by update time (newest first)
+    files.sort(key=lambda x: x["updated_at"], reverse=True)
+    return files
+
+@app.get("/documents/view/{workspace_id}/{filename}")
+def view_document(workspace_id: str, filename: str):
+    """
+    Serve a file's raw content.
+    Used for downloading or previewing generated files in the UI.
+    """
+    files_dir = get_workspace_files_dir(workspace_id)
+    safe_filename = Path(filename).name
+    filepath = files_dir / safe_filename
+    
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    return FileResponse(filepath, filename=safe_filename)
+
+@app.delete("/documents/delete/{workspace_id}/{filename}")
+def delete_document(workspace_id: str, filename: str):
+    """
+    Delete a document/file from the workspace files directory.
+    """
+    files_dir = get_workspace_files_dir(workspace_id)
+    safe_filename = Path(filename).name
+    filepath = files_dir / safe_filename
+    
+    if not filepath.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    try:
+        filepath.unlink()
+        return {"status": "success", "message": f"File '{safe_filename}' deleted."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/documents/upload/{workspace_id}")
+async def upload_document_to_workspace(workspace_id: str, file: UploadFile = File(...)):
+    """
+    Upload a file directly to the workspace files directory.
+    """
+    files_dir = get_workspace_files_dir(workspace_id)
+    safe_filename = Path(file.filename).name
+    filepath = files_dir / safe_filename
+    
+    try:
+        with open(filepath, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+        return {
+            "status": "success",
+            "filename": safe_filename,
+            "message": f"File '{safe_filename}' uploaded successfully."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/ingest/video")
 async def ingest_video(request: VideoIngestRequest, background_tasks: BackgroundTasks):
@@ -383,6 +1266,72 @@ def get_knowledge_graph(workspace_id: str = "default"):
         print(f"Graph Error: {e}")
         return {"nodes": [], "edges": []}
 
+@app.get("/research/journals/citation-graph")
+def get_citation_graph_data():
+    """
+    Get the full citation graph (paper → references) for React Flow visualisation.
+    Different from /graph which shows knowledge triples.
+    """
+    try:
+        from research.academic.citation_graph import get_citation_graph
+        cg = get_citation_graph()
+        return cg.get_viz_data()
+    except Exception as e:
+        print(f"[API] Citation graph error: {e}")
+        return {"nodes": [], "edges": []}
+
+@app.get("/research/journals/cache")
+def get_cached_journals():
+    """
+    List all journals that have been previously processed and cached.
+    Returns paper metadata including local paths and insight excerpts.
+    """
+    try:
+        from research.academic.journal_processor import PaperCache
+        cache = PaperCache()
+        papers = cache.list_all()
+        from research.academic.citation_graph import get_citation_graph
+        cg = get_citation_graph()
+        stats = cg.get_stats()
+        return {
+            "status": "success",
+            "count": len(papers),
+            "papers": papers,
+            "graph_stats": stats,
+        }
+    except Exception as e:
+        print(f"[API] Cache list error: {e}")
+        return {"status": "error", "message": str(e), "papers": []}
+
+class FindCachedRequest(BaseModel):
+    query: str
+    top_k: int = 5
+
+@app.post("/research/journals/find-cached")
+def find_cached_journals(request: FindCachedRequest):
+    """
+    Search cached journals by keyword before triggering a new download.
+    UI can call this to check if relevant papers are already available locally.
+    """
+    try:
+        from research.academic.journal_processor import PaperCache
+        from research.academic.citation_graph import get_citation_graph
+        cache = PaperCache()
+        results = cache.search(request.query, top_k=request.top_k)
+        # Also search citation graph for broader matches
+        cg = get_citation_graph()
+        graph_results = cg.search_by_query(request.query, top_k=request.top_k)
+        return {
+            "status": "success",
+            "query": request.query,
+            "cache_hits": results,
+            "graph_hits": graph_results,
+            "total_hits": len(results),
+        }
+    except Exception as e:
+        print(f"[API] Find cached error: {e}")
+        return {"status": "error", "message": str(e), "cache_hits": []}
+
 @app.get("/evolution/status")
 async def get_evolution_status():
     """Get the current state of the Digital Twin"""
@@ -414,7 +1363,705 @@ def set_night_mode(enabled: bool):
 @app.get("/history")
 def get_history():
     """Get past research reports"""
+    global meta_analyst
+    if meta_analyst is None:
+        meta_analyst = MetaAnalyst()
     return meta_analyst.get_research_history()
+
+
+# ─── DYNAMIC MODEL CONFIGURATION ──────────────────────────────────────────────
+
+class ModelConfigRequest(BaseModel):
+    model_name: str
+
+@app.get("/config/models")
+def get_config_models():
+    """
+    Fetch list of available models from integrate.api.nvidia.com 
+    and get the currently active model.
+    """
+    from teacher import get_override_model
+    import os
+    
+    # Get active model
+    active_model = get_override_model() or os.getenv("NVIDIA_LLAMA31_MODEL") or "nvidia/nemotron-3-ultra-550b-a55b"
+    
+    # Get list of models from NVIDIA API
+    available_models = []
+    try:
+        api_key = os.getenv("NVIDIA_API_KEY")
+        base_url = os.getenv("NVIDIA_LLAMA31_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        if api_key:
+            from openai import OpenAI
+            client = OpenAI(base_url=base_url, api_key=api_key)
+            models = client.models.list()
+            # Ambil semua model yang tersedia
+            available_models = [m.id for m in models]
+            available_models.sort()
+    except Exception as e:
+        print(f"[API] Error listing NVIDIA models: {e}")
+        # Fallback list jika API list gagal
+        available_models = [
+            "nvidia/nemotron-3-ultra-550b-a55b",
+            "nvidia/nemotron-3-super-120b-a12b",
+            "nvidia/nemotron-4-instruct-340b",
+            "meta/llama-3.1-70b-instruct",
+            "meta/llama-3.1-8b-instruct",
+        ]
+        
+    return {
+        "active_model": active_model,
+        "available_models": available_models
+    }
+
+@app.post("/config/models")
+def update_config_model(request: ModelConfigRequest):
+    """
+    Update the active reasoning model.
+    """
+    from teacher import set_override_model
+    set_override_model(request.model_name)
+    return {
+        "status": "success",
+        "active_model": request.model_name
+    }
+
+
+# ============================================================
+# THESIS UPLOAD & ANALYSIS ENDPOINTS
+# ============================================================
+
+# In-memory store untuk progress analisis: session_id -> status dict
+_thesis_sessions: dict = {}
+
+THESIS_UPLOADS_DIR = ROOT_DIR / "data" / "thesis_uploads"
+THESIS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _extract_pdf_text(file_path: str) -> str:
+    """
+    Extract text dari PDF. Mencoba PyMuPDF dulu, lalu pdfplumber, lalu raw bytes.
+    """
+    text = ""
+
+    # Coba PyMuPDF (fitz) - tercepat
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(file_path)
+        pages = []
+        for page in doc:
+            pages.append(page.get_text())
+        text = "\n\n".join(pages)
+        doc.close()
+        print(f"[ThesisAPI] Extracted {len(text)} chars via PyMuPDF")
+        return text
+    except ImportError:
+        print("[ThesisAPI] PyMuPDF not available, trying pdfplumber...")
+    except Exception as e:
+        print(f"[ThesisAPI] PyMuPDF error: {e}, trying pdfplumber...")
+
+    # Fallback ke pdfplumber
+    try:
+        import pdfplumber
+        with pdfplumber.open(file_path) as pdf:
+            pages = [p.extract_text() or "" for p in pdf.pages]
+        text = "\n\n".join(pages)
+        print(f"[ThesisAPI] Extracted {len(text)} chars via pdfplumber")
+        return text
+    except ImportError:
+        print("[ThesisAPI] pdfplumber not available, trying pypdf2...")
+    except Exception as e:
+        print(f"[ThesisAPI] pdfplumber error: {e}")
+
+    # Fallback ke PyPDF2
+    try:
+        import PyPDF2
+        with open(file_path, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            pages = [page.extract_text() or "" for page in reader.pages]
+        text = "\n\n".join(pages)
+        print(f"[ThesisAPI] Extracted {len(text)} chars via PyPDF2")
+        return text
+    except ImportError:
+        print("[ThesisAPI] PyPDF2 not available either.")
+    except Exception as e:
+        print(f"[ThesisAPI] PyPDF2 error: {e}")
+
+    raise HTTPException(
+        status_code=422,
+        detail="Tidak bisa mengekstrak teks dari PDF. Install: pip install pymupdf pdfplumber"
+    )
+
+
+@app.post("/thesis/upload")
+async def upload_thesis(
+    file: UploadFile = File(...),
+    workspace_id: str = "default"
+):
+    """
+    Upload PDF Tugas Akhir. Simpan ke disk, ekstrak teks, dan kembalikan session_id
+    yang bisa digunakan untuk memanggil /thesis/analyze.
+    """
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Hanya file PDF yang diterima.")
+
+    # Simpan file
+    safe_name = "".join(c if c.isalnum() or c in "._- " else "_" for c in file.filename)
+    dest_path = THESIS_UPLOADS_DIR / safe_name
+    with open(dest_path, "wb") as out:
+        shutil.copyfileobj(file.file, out)
+
+    print(f"[ThesisAPI] File saved: {dest_path} ({dest_path.stat().st_size} bytes)")
+
+    # Ekstrak teks
+    raw_text = _extract_pdf_text(str(dest_path))
+    page_count = raw_text.count("\n\n") + 1  # rough estimate
+
+    # Simpan teks ke sesi
+    import uuid
+    session_id = str(uuid.uuid4())
+    _thesis_sessions[session_id] = {
+        "status": "uploaded",
+        "file_name": safe_name,
+        "file_path": str(dest_path),
+        "workspace_id": workspace_id,
+        "raw_text": raw_text,
+        "char_count": len(raw_text),
+        "analysis": None,
+        "error": None,
+    }
+
+    # Ingest ke vector store workspace agar bisa di-chat
+    try:
+        rag_client, graph_engine = get_engines(workspace_id)
+        rag_client.ingest_text(raw_text, metadata={"source": "thesis", "file_name": safe_name})
+        graph_engine.ingest_document(raw_text[:4000], f"Thesis: {safe_name}")
+        print(f"[ThesisAPI] Ingested to RAG workspace={workspace_id}")
+    except Exception as e:
+        print(f"[ThesisAPI] RAG ingest warning (non-fatal): {e}")
+
+    return {
+        "session_id": session_id,
+        "file_name": safe_name,
+        "char_count": len(raw_text),
+        "status": "uploaded",
+        "message": "File berhasil diupload dan teks berhasil diekstrak. Siap untuk dianalisis.",
+    }
+
+
+@app.post("/thesis/analyze/{session_id}")
+async def analyze_thesis(session_id: str, background_tasks: BackgroundTasks):
+    """
+    Jalankan analisis komprehensif Tugas Akhir:
+    1. Ekstrak judul, abstrak, topik (LLM)
+    2. Cek novelty vs literatur (NoveltyChecker)
+    3. Cari research gap (GapFinder)
+    4. Critique chapter (ReviewerAgent)
+    5. Generate defense questions
+    """
+    if session_id not in _thesis_sessions:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan. Upload file terlebih dahulu.")
+
+    sess = _thesis_sessions[session_id]
+    if sess["status"] == "analyzing":
+        return {"status": "analyzing", "message": "Analisis sedang berjalan..."}
+
+    sess["status"] = "analyzing"
+    sess["progress"] = 0
+    sess["steps"] = []
+
+    def run_analysis(sid: str):
+        s = _thesis_sessions[sid]
+        text = s["raw_text"]
+        # Ambil 8000 karakter pertama untuk LLM (token budget)
+        excerpt = text[:8000]
+
+        try:
+            from teacher import Teacher
+            brain = Teacher(model_type="reasoning")
+
+            # Step 1: Meta extraction
+            s["progress"] = 10
+            s["steps"].append({"step": "meta", "status": "running", "label": "Mengekstrak metadata..."})
+            meta_prompt = f"""
+Ekstrak informasi berikut dari dokumen Tugas Akhir di bawah ini dalam format JSON:
+{{
+  "judul": "...",
+  "penulis": "...",
+  "abstrak": "...",
+  "topik_utama": "...",
+  "metode": "...",
+  "keywords": ["...", "..."]
+}}
+
+DOKUMEN (potongan awal):
+{excerpt[:3000]}
+"""
+            meta_raw = brain.ask(meta_prompt)
+            # Parse JSON dari respons LLM
+            meta = {}
+            try:
+                # Cari blok JSON di respons
+                import re
+                json_match = re.search(r'\{.*\}', meta_raw, re.DOTALL)
+                if json_match:
+                    meta = json.loads(json_match.group())
+            except Exception:
+                meta = {"judul": s["file_name"], "topik_utama": "Tidak terdeteksi", "abstrak": excerpt[:500]}
+
+            s["meta"] = meta
+            s["steps"][-1]["status"] = "done"
+            print(f"[ThesisAPI] Meta: {meta.get('judul', 'N/A')}")
+
+            topic = meta.get("topik_utama", "AI Research")
+            abstract = meta.get("abstrak", excerpt[:1000])
+
+            # Step 2: Novelty check
+            s["progress"] = 25
+            s["steps"].append({"step": "novelty", "status": "running", "label": "Memeriksa novelty..."})
+            novelty_result = {}
+            try:
+                from research.academic.novelty_checker import NoveltyChecker
+                checker = NoveltyChecker()
+                # Run async in sync context
+                loop = asyncio.new_event_loop()
+                novelty_result = loop.run_until_complete(
+                    checker.verify_novelty(abstract, keywords=meta.get("keywords", []))
+                )
+                loop.close()
+            except Exception as e:
+                print(f"[ThesisAPI] Novelty check error: {e}")
+                novelty_result = {"is_novel": None, "confidence": 0, "reasoning": f"Error: {e}"}
+            s["novelty"] = novelty_result
+            s["steps"][-1]["status"] = "done"
+
+            # Step 3: Gap analysis
+            s["progress"] = 45
+            s["steps"].append({"step": "gap", "status": "running", "label": "Mengidentifikasi research gap..."})
+            gap_report = ""
+            try:
+                from research.academic.gap_finder import GapFinder
+                finder = GapFinder()
+                finder.build_network(topic, depth=1)
+                gap_report = finder.analyze_gaps()
+            except Exception as e:
+                print(f"[ThesisAPI] Gap finder error: {e}")
+                gap_report = f"Tidak bisa menjalankan analisis gap: {e}"
+            s["gap_report"] = gap_report
+            s["steps"][-1]["status"] = "done"
+
+            # Step 4: Critique
+            s["progress"] = 65
+            s["steps"].append({"step": "critique", "status": "running", "label": "Mengkritisi draft..."})
+            critique = ""
+            try:
+                from research.academic.reviewer import ReviewerAgent
+                reviewer = ReviewerAgent()
+                critique = reviewer.critique_chapter(excerpt, topic)
+            except Exception as e:
+                print(f"[ThesisAPI] Critique error: {e}")
+                critique = f"Tidak bisa menjalankan kritik: {e}"
+            s["critique"] = critique
+            s["steps"][-1]["status"] = "done"
+
+            # Step 5: Defense questions
+            s["progress"] = 85
+            s["steps"].append({"step": "defense", "status": "running", "label": "Membuat pertanyaan sidang..."})
+            defense_questions = ""
+            try:
+                from research.academic.reviewer import ReviewerAgent
+                reviewer2 = ReviewerAgent()
+                defense_questions = reviewer2.generate_defense_questions(topic, abstract)
+            except Exception as e:
+                print(f"[ThesisAPI] Defense questions error: {e}")
+                defense_questions = f"Tidak bisa membuat pertanyaan: {e}"
+            s["defense_questions"] = defense_questions
+            s["steps"][-1]["status"] = "done"
+
+            # Done
+            s["progress"] = 100
+            s["status"] = "done"
+            s["analysis"] = {
+                "meta": s.get("meta", {}),
+                "novelty": s.get("novelty", {}),
+                "gap_report": s.get("gap_report", ""),
+                "critique": s.get("critique", ""),
+                "defense_questions": s.get("defense_questions", ""),
+            }
+            # Jangan simpan raw_text di hasil (hemat memori response)
+            print(f"[ThesisAPI] Analysis complete for session {sid}")
+
+        except Exception as e:
+            import traceback
+            s["status"] = "error"
+            s["error"] = str(e)
+            print(f"[ThesisAPI] Analysis FAILED: {e}\n{traceback.format_exc()}")
+
+    background_tasks.add_task(run_analysis, session_id)
+    return {"status": "analyzing", "session_id": session_id, "message": "Analisis dimulai di background."}
+
+
+@app.get("/thesis/status/{session_id}")
+def get_thesis_status(session_id: str):
+    """Polling endpoint untuk progress analisis."""
+    if session_id not in _thesis_sessions:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan.")
+    s = _thesis_sessions[session_id]
+    return {
+        "session_id": session_id,
+        "status": s.get("status"),
+        "progress": s.get("progress", 0),
+        "steps": s.get("steps", []),
+        "file_name": s.get("file_name"),
+        "char_count": s.get("char_count", 0),
+        "analysis": s.get("analysis"),
+        "error": s.get("error"),
+    }
+
+
+@app.post("/thesis/chat/{session_id}")
+async def chat_with_thesis(session_id: str, request: ChatRequest):
+    """Tanya-jawab langsung dengan isi dokumen Tugas Akhir via RAG."""
+    if session_id not in _thesis_sessions:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan.")
+
+    sess = _thesis_sessions[session_id]
+    workspace_id = sess.get("workspace_id", "default")
+    raw_text = sess.get("raw_text", "")
+
+    # Ambil konteks relevan dari RAG jika tersedia
+    rag_context = ""
+    try:
+        rag_client, _ = get_engines(workspace_id)
+        results = rag_client.search(request.message, top_k=5)
+        rag_context = "\n".join([r['snippet'] for r in results])
+    except Exception:
+        pass
+
+    # Fallback: ambil langsung dari teks
+    if not rag_context:
+        rag_context = raw_text[:5000]
+
+    from teacher import Teacher
+    brain = Teacher(model_type="reasoning")
+    prompt = f"""
+Kamu adalah asisten analisis Tugas Akhir. Bantu menjawab pertanyaan berikut berdasarkan dokumen TA yang sudah diupload.
+
+KONTEKS DARI DOKUMEN TA:
+{rag_context}
+
+PERTANYAAN: {request.message}
+
+Jawab dengan detail, referensikan bagian dokumen yang relevan jika bisa.
+"""
+    answer = brain.ask(prompt)
+    return {"answer": answer, "sources": [sess.get("file_name", "thesis.pdf")]}
+
+
+# ─── REVISI BAGIAN TA ────────────────────────────────────────────────────────
+
+class ThesisReviseRequest(BaseModel):
+    section_text: str          # Teks bagian TA yang mau direvisi
+    instruction: str           # Instruksi: "perbaiki flow", "tambah referensi", dll.
+    revision_type: str = "general"  # general | formal | citation | methodology
+
+
+@app.post("/thesis/revise/{session_id}")
+async def revise_thesis_section(session_id: str, request: ThesisReviseRequest):
+    """
+    Revisi bagian tertentu dari Tugas Akhir berdasarkan instruksi pengguna.
+    Menggunakan AcademicEditor yang sudah ada + konteks dari analisis sebelumnya.
+    """
+    if session_id not in _thesis_sessions:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan. Upload file terlebih dahulu.")
+
+    sess = _thesis_sessions[session_id]
+    meta = sess.get("meta", {})
+    topic = meta.get("topik_utama", "")
+    critique = sess.get("critique", "")
+
+    # Buat prompt revisi yang kontekstual berdasarkan tipe
+    type_instructions = {
+        "general":     "Perbaiki kejelasan, alur, dan kualitas akademis secara umum.",
+        "formal":      "Ubah bahasa menjadi lebih formal dan akademis. Hilangkan bahasa kasual.",
+        "citation":    "Identifikasi klaim yang perlu sitasi dan tambahkan placeholder [Citation Needed] dengan saran sumber.",
+        "methodology": "Perkuat bagian metodologi — pastikan langkah-langkah penelitian logis dan reproducible.",
+    }
+    type_hint = type_instructions.get(request.revision_type, type_instructions["general"])
+
+    # Gunakan critique dari analisis sebelumnya sebagai context tambahan
+    critique_context = f"\n\nCATATAN DARI REVIEWER SEBELUMNYA:\n{critique[:2000]}" if critique else ""
+
+    try:
+        from research.academic.editor import AcademicEditor
+        editor = AcademicEditor()
+
+        combined_instruction = f"{request.instruction}\n\nTipe revisi: {type_hint}{critique_context}"
+        revised = editor.revise_chapter(request.section_text, combined_instruction, context=topic)
+
+        # Simpan riwayat revisi ke sesi
+        if "revisions" not in sess:
+            sess["revisions"] = []
+        sess["revisions"].append({
+            "original": request.section_text[:500],  # simpan preview saja
+            "instruction": request.instruction,
+            "type": request.revision_type,
+            "revised_preview": revised[:500],
+        })
+
+        return {
+            "revised_text": revised,
+            "revision_type": request.revision_type,
+            "session_id": session_id,
+        }
+    except Exception as e:
+        import traceback
+        print(f"[ThesisAPI] Revise error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Revisi gagal: {e}")
+
+
+# ─── PENCARIAN JURNAL RELEVAN ─────────────────────────────────────────────────
+
+@app.post("/thesis/journals/{session_id}")
+async def find_relevant_journals(session_id: str, max_papers: int = 10):
+    """
+    Cari jurnal dan paper akademis yang relevan dengan topik Tugas Akhir.
+    Menggunakan ArXiv + Semantic Scholar berdasarkan metadata yang sudah dianalisis.
+    """
+    if session_id not in _thesis_sessions:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan.")
+
+    sess = _thesis_sessions[session_id]
+    meta = sess.get("meta", {})
+    topic = meta.get("topik_utama", "")
+    keywords = meta.get("keywords", [])
+
+    if not topic and not keywords:
+        raise HTTPException(status_code=400, detail="Analisis belum selesai. Jalankan /thesis/analyze terlebih dahulu.")
+
+    # Buat query dari topik + keywords
+    search_queries = [topic] + keywords[:3]
+
+    results = []
+
+    try:
+        from research.academic.literature import ArxivClient, SemanticScholarClient
+        arxiv = ArxivClient()
+        scholar = SemanticScholarClient()
+
+        for query in search_queries[:2]:  # max 2 query untuk efisiensi
+            if not query:
+                continue
+
+            # ArXiv search
+            try:
+                arxiv_papers = arxiv.search_papers(query, max_results=max_papers // 2)
+                for p in arxiv_papers:
+                    results.append({
+                        "source": "ArXiv",
+                        "title": p.get("title", ""),
+                        "authors": p.get("authors", []),
+                        "year": p.get("published", "")[:4] if p.get("published") else "",
+                        "abstract": p.get("summary", "")[:300],
+                        "url": p.get("url", ""),
+                        "id": p.get("id", ""),
+                        "relevance_query": query,
+                    })
+            except Exception as e:
+                print(f"[ThesisAPI] ArXiv search error: {e}")
+
+            # Semantic Scholar search
+            try:
+                ss_papers = scholar.search_papers(query, max_results=max_papers // 2)
+                for p in ss_papers:
+                    results.append({
+                        "source": "Semantic Scholar",
+                        "title": p.get("title", ""),
+                        "authors": p.get("authors", []),
+                        "year": p.get("year", ""),
+                        "abstract": p.get("summary", p.get("abstract", ""))[:300],
+                        "url": p.get("url", f"https://www.semanticscholar.org/paper/{p.get('id', '')}"),
+                        "id": p.get("id", ""),
+                        "relevance_query": query,
+                    })
+            except Exception as e:
+                print(f"[ThesisAPI] Semantic Scholar search error: {e}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pencarian jurnal gagal: {e}")
+
+    # Deduplicate berdasarkan title
+    seen_titles = set()
+    unique_results = []
+    for r in results:
+        title_key = r["title"].lower().strip()
+        if title_key and title_key not in seen_titles:
+            seen_titles.add(title_key)
+            unique_results.append(r)
+
+    # Simpan ke sesi
+    sess["journals"] = unique_results
+
+    return {
+        "session_id": session_id,
+        "topic": topic,
+        "queries_used": [q for q in search_queries[:2] if q],
+        "total": len(unique_results),
+        "papers": unique_results[:max_papers],
+    }
+
+
+# ─── EKSPOR LAPORAN ──────────────────────────────────────────────────────────
+
+@app.get("/thesis/export/{session_id}")
+async def export_thesis_report(session_id: str):
+    """
+    Compile semua hasil analisis menjadi laporan Markdown lengkap yang bisa didownload.
+    """
+    from fastapi.responses import Response
+
+    if session_id not in _thesis_sessions:
+        raise HTTPException(status_code=404, detail="Session tidak ditemukan.")
+
+    sess = _thesis_sessions[session_id]
+    analysis = sess.get("analysis")
+
+    if not analysis:
+        raise HTTPException(status_code=400, detail="Analisis belum selesai. Jalankan /thesis/analyze terlebih dahulu.")
+
+    meta = analysis.get("meta", {})
+    novelty = analysis.get("novelty", {})
+    gap = analysis.get("gap_report", "")
+    critique = analysis.get("critique", "")
+    defense = analysis.get("defense_questions", "")
+    journals = sess.get("journals", [])
+
+    # Buat tanggal
+    from datetime import datetime
+    now = datetime.now().strftime("%d %B %Y, %H:%M")
+
+    # Susun laporan Markdown
+    report_lines = [
+        f"# Laporan Analisis Tugas Akhir",
+        f"",
+        f"> Dihasilkan oleh **JAYA Research** pada {now}",
+        f"> File: `{sess.get('file_name', 'thesis.pdf')}`",
+        f"",
+        f"---",
+        f"",
+    ]
+
+    # Metadata
+    if meta:
+        report_lines += [
+            f"## 📋 Informasi Dokumen",
+            f"",
+            f"| Field | Value |",
+            f"|---|---|",
+            f"| **Judul** | {meta.get('judul', '-')} |",
+            f"| **Penulis** | {meta.get('penulis', '-')} |",
+            f"| **Topik Utama** | {meta.get('topik_utama', '-')} |",
+            f"| **Metode** | {meta.get('metode', '-')} |",
+        ]
+        if meta.get("keywords"):
+            kws = ", ".join(f"`{k}`" for k in meta["keywords"])
+            report_lines += [f"| **Keywords** | {kws} |"]
+        report_lines += [f"", f"### Abstrak", f"", meta.get("abstrak", "-"), f""]
+
+    # Novelty
+    if novelty:
+        is_novel = novelty.get("is_novel")
+        pct = int((novelty.get("confidence", 0)) * 100)
+        badge = "✅ NOVEL" if is_novel else ("❌ KURANG NOVEL" if is_novel is False else "⚠️ TIDAK TERDETEKSI")
+        report_lines += [
+            f"## 🔬 Analisis Novelty",
+            f"",
+            f"**Status**: {badge} (Confidence: {pct}%)",
+            f"",
+            f"**Reasoning**:",
+            f"",
+            novelty.get("reasoning", "-"),
+            f"",
+        ]
+
+    # Research Gap
+    if gap:
+        report_lines += [
+            f"## 📈 Research Gap & Peluang",
+            f"",
+            gap,
+            f"",
+        ]
+
+    # Critique
+    if critique:
+        report_lines += [
+            f"## ⚔️ Kritik Akademis (Peer Review)",
+            f"",
+            critique,
+            f"",
+        ]
+
+    # Defense Questions
+    if defense:
+        report_lines += [
+            f"## 🛡️ Pertanyaan Sidang yang Mungkin Muncul",
+            f"",
+            defense,
+            f"",
+        ]
+
+    # Jurnal Relevan
+    if journals:
+        report_lines += [
+            f"## 📚 Jurnal Relevan",
+            f"",
+        ]
+        for i, paper in enumerate(journals[:15], 1):
+            year = f" ({paper['year']})" if paper.get("year") else ""
+            url = f" — [Link]({paper['url']})" if paper.get("url") else ""
+            report_lines += [
+                f"### {i}. {paper.get('title', 'Untitled')}{year}",
+                f"",
+                f"**Sumber**: {paper.get('source', '-')}{url}",
+                f"",
+                paper.get("abstract", "") or "_Abstrak tidak tersedia._",
+                f"",
+            ]
+
+    # Riwayat Revisi
+    revisions = sess.get("revisions", [])
+    if revisions:
+        report_lines += [
+            f"## 📝 Riwayat Revisi",
+            f"",
+        ]
+        for i, rev in enumerate(revisions, 1):
+            report_lines += [
+                f"### Revisi {i} — `{rev.get('type', 'general')}`",
+                f"",
+                f"**Instruksi**: {rev.get('instruction', '-')}",
+                f"",
+                f"**Preview teks asli**: _{rev.get('original', '')[:200]}..._",
+                f"",
+            ]
+
+    report_lines += [
+        f"---",
+        f"",
+        f"*Laporan ini dihasilkan secara otomatis oleh JAYA Research. Selalu verifikasi hasil dengan pembimbing.*",
+    ]
+
+    report_md = "\n".join(report_lines)
+
+    # Kembalikan sebagai file download
+    file_name = f"jaya_analysis_{sess.get('file_name', 'thesis').replace('.pdf', '')}.md"
+    return Response(
+        content=report_md.encode("utf-8"),
+        media_type="text/markdown",
+        headers={"Content-Disposition": f"attachment; filename=\"{file_name}\""},
+    )
+
 
 def start():
     """Launch server"""
@@ -422,7 +2069,6 @@ def start():
 
 if __name__ == "__main__":
     import uvicorn
-    # Use environment variable for port or default to 8000
     import os
     port = int(os.getenv("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)

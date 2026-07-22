@@ -3,149 +3,81 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from config import config
 """
 RAG Client for JAYA Research Assistant
-Lightweight wrapper for document search using DiscoveryMemory + Web fallback
+Wrapper around NVIDIARAGClient for backward compatibility.
 """
-import os
-import json
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 
+# Import the new production RAG client
+from research.nvidia_rag_client import NVIDIARAGClient
+
+
 class RAGClient:
     """
-    Simplified RAG client that uses JAYA's existing infrastructure.
-    For full multimodal RAG, this would integrate with NVIDIA RAG blueprint.
+    Backward-compatible wrapper around NVIDIARAGClient.
+    Delegates all operations to the production implementation.
     """
     
-    def __init__(self, memory_path: str = config.EVOLUTION_MEMORY_PATH):
-        """Initialize RAG client with memory backend"""
-        self.memory_path = memory_path
-        self.documents = []
-        self._load_documents()
-    
-    def _load_documents(self):
-        """Load indexed documents from memory"""
-        if os.path.exists(self.memory_path):
-            with open(self.memory_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                # Filter research-related entries
-                self.documents = [
-                    entry for entry in data 
-                    if entry.get('type') in ['research_report', 'evolution_variant']
-                ]
+    def __init__(self, memory_path: str = config.EVOLUTION_MEMORY_PATH, workspace_id: str = "default"):
+        """Initialize RAG client with NVIDIARAGClient backend"""
+        # memory_path is kept for backward compatibility but not used
+        # The new client uses FAISS + SQLite via VectorStore
+        self._client = NVIDIARAGClient(workspace_id=workspace_id)
+        self.workspace_id = workspace_id
     
     def ingest_documents(self, file_paths: List[str]) -> Dict[str, Any]:
         """
         Ingest new documents into RAG system.
-        
-        Args:
-            file_paths: List of document paths to ingest
-            
-        Returns:
-            Status dictionary with ingestion results
+        Delegates to NVIDIARAGClient.ingest_file for each path.
         """
-        # For MVP, we'll use simple text extraction
-        # Full implementation would use NVIDIA NIM multimodal ingestion
+        ingested = 0
+        total_chunks = 0
+        files = []
         
-        ingested = []
         for path in file_paths:
             if not os.path.exists(path):
                 continue
-                
-            # Read document (simplified - just text files for now)
-            try:
-                with open(path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                doc = {
-                    "type": "research_document",
-                    "file_path": path,
-                    "file_name": os.path.basename(path),
-                    "content": content,
-                    "timestamp": __import__('time').time()
-                }
-                
-                self.documents.append(doc)
-                ingested.append(path)
-                
-            except Exception as e:
-                print(f"Error ingesting {path}: {e}")
-        
-        # Save to memory
-        self._save_documents()
+            result = self._client.ingest_file(path, metadata={"source": os.path.basename(path)})
+            if result.get("chunks_added", 0) > 0:
+                ingested += 1
+                total_chunks += result.get("chunks_added", 0)
+                files.append(path)
         
         return {
-            "status": "success",
-            "ingested": len(ingested),
-            "files": ingested
+            "status": "success" if ingested else "empty",
+            "ingested": ingested,
+            "chunks": total_chunks,
+            "chunks_added": total_chunks,
+            "files": files
         }
     
-    def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
+    def ingest_text(self, text: str, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Ingest raw text - delegates to NVIDIARAGClient.ingest_text"""
+        return self._client.ingest_text(text, metadata, self.workspace_id)
+    
+    def search(self, query: str, top_k: int = 5, workspace_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Search for relevant documents.
-        
-        Args:
-            query: Search query
-            top_k: Number of results to return
-            
-        Returns:
-            List of relevant documents with scores
+        Delegates to NVIDIARAGClient.search with workspace filter.
         """
-        # Simple keyword search (MVP)
-        # Full implementation would use NVIDIA NIM embeddings + vector search
-        
-        results = []
-        query_lower = query.lower()
-        
-        for doc in self.documents:
-            # Check if query appears in content
-            content = doc.get('content', '') or \
-                     doc.get('compiler', '') or \
-                     doc.get('syntax', '')
-            
-            if query_lower in content.lower():
-                results.append({
-                    "document": doc,
-                    "score": 0.8,  # Placeholder
-                    "snippet": self._extract_snippet(content, query_lower)
-                })
-        
-        # Sort by score and limit
-        results.sort(key=lambda x: x['score'], reverse=True)
-        return results[:top_k]
+        ws_id = workspace_id or self.workspace_id
+        return self._client.search(query, top_k=top_k, workspace_id=ws_id)
     
-    def _extract_snippet(self, content: str, query: str, context_chars: int = 200) -> str:
-        """Extract relevant snippet around query match"""
-        idx = content.lower().find(query)
-        if idx == -1:
-            return content[:context_chars]
-        
-        start = max(0, idx - context_chars // 2)
-        end = min(len(content), idx + len(query) + context_chars // 2)
-        
-        snippet = content[start:end]
-        if start > 0:
-            snippet = "..." + snippet
-        if end < len(content):
-            snippet = snippet + "..."
-        
-        return snippet
-    
-    def _save_documents(self):
-        """Save documents back to memory"""
-        # For MVP, we just keep in memory
-        # Full implementation would update the actual memory file
-        pass
+    def query(self, query_text: str, top_k: int = 5, web_fallback: bool = True) -> Dict[str, Any]:
+        """High-level query with web fallback - delegates to NVIDIARAGClient.query"""
+        return self._client.query(query_text, top_k=top_k, web_fallback=web_fallback)
     
     def list_documents(self) -> List[Dict[str, str]]:
-        """List all indexed documents"""
-        return [
-            {
-                "name": doc.get('file_name', 'Unknown'),
-                "type": doc.get('type', 'Unknown'),
-                "path": doc.get('file_path', 'N/A')
-            }
-            for doc in self.documents
-        ]
+        """List all indexed documents - delegates to NVIDIARAGClient.list_documents"""
+        return self._client.list_documents()
+    
+    def get_stats(self) -> Dict[str, Any]:
+        """Get vector store statistics"""
+        return self._client.get_stats()
+    
+    def delete_by_source(self, source_id: str) -> int:
+        """Delete documents by source"""
+        return self._client.delete_by_source(source_id)
 
 
 # For future: Full NVIDIA RAG integration

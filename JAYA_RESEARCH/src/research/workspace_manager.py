@@ -22,6 +22,7 @@ class WorkspaceManager:
         """Creates workspace directory if it doesn't exist."""
         ws_path = self.base_dir / name
         ws_path.mkdir(parents=True, exist_ok=True)
+        (ws_path / "vector_store").mkdir(parents=True, exist_ok=True)
         
         # Create metadata file
         meta_path = ws_path / "metadata.json"
@@ -75,7 +76,7 @@ class WorkspaceManager:
             raise ValueError(f"Workspace '{workspace_id}' not found")
             
         return {
-            "vector_store": str(ws_path / "vector_store.json"),
+            "vector_store": str(ws_path / "vector_store"),
             "knowledge_graph": str(ws_path / "knowledge_graph.json")
         }
 
@@ -87,7 +88,7 @@ class WorkspaceManager:
             print(f"[WORKSPACE] 🆕 Auto-creating workspace: '{safe_id}'")
             self._ensure_workspace(safe_id)
         return {
-            "vector_store": str(ws_path / "vector_store.json"),
+            "vector_store": str(ws_path / "vector_store"),
             "knowledge_graph": str(ws_path / "knowledge_graph.json")
         }
 
