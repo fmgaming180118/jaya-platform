@@ -73,5 +73,19 @@ Visi dan arsitektur ekosistem otonom **JAYA Sovereign**, yang menggabungkan OS A
 
 ## 5. `JAYA_ANDROID` — Ekstensi Mobilitas Cross-Platform
 
-* **Visi**: Klien mobile Android yang terhubung via LAN Sync terenkripsi mTLS ke `JAYA_OS` & `JAYA_CORE`.
+* **Visi**: Klien mobile Android yang terhubung via LAN Sync / Secure Link terenkripsi mTLS ke `JAYA_OS` & `JAYA_CORE`.
 * **Fitur Utama**: *Remote control*, *voice interaction*, dan *knowledge synchronization* lintas perangkat.
+
+---
+
+## 6. Arsitektur Konektivitas Hybrid ala JARVIS (Sovereign Node + Portable Edge Cache)
+
+* **Visi**: Skema sinkronisasi & jaringan otonom seperti **JARVIS** pada Iron Man:
+  1. **PC Utama (Sovereign Central Server / Markas Pusat)**:
+     * Bertindak sebagai pusat repositori pengetahuan besar, penyimpanan proyek, model LLM berukuran besar, dan indeks RAG lengkap.
+  2. **Perangkat Mobile / HP (Terhubung via LAN / Remote Secure Link)**:
+     * Saat terhubung ke PC Utama (baik melalui WiFi LAN lokal maupun jaringan aman jarak jauh), HP mengakses seluruh pengetahuan dan proyek di PC secara real-time.
+  3. **Mode Offline / Tanpa Sinyal (Mode Luar Angkasa / Local Portable Edge)**:
+     * Ketika tidak ada sinyal atau terputus dari PC Utama, JAYA di HP **tetap dapat digunakan secara mandiri** menggunakan ingatan lokal (*nano model / local cache*) untuk tugas-tugas dasar dan pemrosesan offline lokal.
+  4. **Auto-Reconnection Sync**:
+     * Saat HP kembali terhubung ke PC Utama, seluruh riwayat percakapan dan pembaruan pengetahuan lokal di HP akan otomatis tersinkronisasi kembali ke PC Server Utama.
