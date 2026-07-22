@@ -305,7 +305,8 @@ fun ChatMessageItem(message: LocalChatMessage) {
 
 @Composable
 fun FormattedMarkdownText(text: String) {
-    val annotatedString = remember(text) {
+    val codeFontSize = MaterialTheme.typography.bodySmall.fontSize
+    val annotatedString = remember(text, codeFontSize) {
         buildAnnotatedString {
             var currentIndex = 0
             val codeBlockRegex = Regex("```(?:[a-zA-Z]+)?\\n([\\s\\S]*?)```")
@@ -323,7 +324,7 @@ fun FormattedMarkdownText(text: String) {
                     SpanStyle(
                         fontFamily = FontFamily.Monospace,
                         background = Color.Black.copy(alpha = 0.2f),
-                        fontSize = MaterialTheme.typography.bodySmall.fontSize
+                        fontSize = codeFontSize
                     )
                 ) {
                     append("\n$codeContent\n")
