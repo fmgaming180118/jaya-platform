@@ -87,9 +87,10 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    @Suppress("SpellCheckingInspection")
     private fun speak(text: String) {
         _state.value = JarvisState.SPEAKING
-        val cleanText = text.replace(Regex("\\[.*?/\]"), "").replace("*", "")
+        val cleanText = text.replace(Regex("""\[.*?]"""), "").replace("*", "")
         tts?.speak(cleanText, TextToSpeech.QUEUE_FLUSH, null, "JayaTTS")
     }
 
