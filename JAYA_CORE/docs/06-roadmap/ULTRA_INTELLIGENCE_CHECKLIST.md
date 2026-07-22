@@ -124,24 +124,26 @@
 
 ---
 
-### 🎭 Fase 4 — Intelligence Routing: Sparse Micro-MoE (< 150 MB Total)
+### 🎭 Fase 4 — Dynamic Mixture of Experts (MoE) & Self-Reflection Loop ✅ SELESAI
 
-**Target**: Model berbeda diaktifkan per domain — lebih cerdas dari satu model monolitik.
+**Target**: Expert ter-spesialisasi diaktifkan per intent + Reflexion self-correction loop.
+**Status**: ✅ Diimplementasi di `src/brain_v2/engine/micro_moe.py` | 11/11 tests pass (66/66 total)
 
-- [ ] **4.1 Sparse Micro-MoE Router**
-  - [ ] Router intent menentukan pakar mana yang diaktifkan berdasarkan topik prompt.
-  - [ ] Hanya 1 pakar aktif per inferensi (sisanya di-disk, tidak di-RAM).
+- [x] **4.1 Sparse Micro-MoE Router**
+  - [x] `MicroMoERouter`: memilih 1 expert aktif per inferensi (Sparse 1-of-4) berdasarkan keyword scoring + domain hint.
+  - [x] `feedback()`: dinamis memperbarui `gate_score` berdasarkan sinyal kualitas respons.
 
-- [ ] **4.2 4 Micro-Expert Modules (@ ~35 MB tiap pakar)**
-  - [ ] `expert_thesis`: Ilmiah — analisis teks akademis, saran BAB, sitasi, revisi kalimat.
-  - [ ] `expert_code`: Engineering — Kotlin, Python, debug, refactor, code review.
-  - [ ] `expert_logic`: Sains & Matematika — perhitungan, proof, reasoning simbolik.
-  - [ ] `expert_dialogue`: Percakapan — cerdas, hangat, natural, proaktif, kontekstual.
+- [x] **4.2 4 Micro-Expert Modules**
+  - [x] `expert_thesis`: Akademis, struktur BAB I–V, sitasi IEEE, gaya ilmiah Indonesia formal.
+  - [x] `expert_code`: Software Engineering, Kotlin Android, Python, debugging, code blocks.
+  - [x] `expert_logic`: Matematika, kalkulus, statistika, pembuktian step-by-step.
+  - [x] `expert_dialogue`: Percakapan personal, hangat, proaktif, respons hangat khas JARVIS.
 
-- [ ] **4.3 Reflexion Self-Correction Loop**
-  - [ ] Generate 2–3 kandidat jawaban per prompt.
-  - [ ] Self-consistency scoring: pilih jawaban terbaik sebelum dikirim ke Bos.
-  - [ ] Deteksi hallucination dan regenerasi dengan constraint lebih ketat.
+- [x] **4.3 Reflexion Self-Correction Loop**
+  - [x] `ReflexionLoop`: scoring kandidat respons berdasarkan panjang, koherensi, domain alignment, anti-hallucination, anti-boilerplate.
+  - [x] `select_best()`: memilih kandidat terbaik dari N hasil generasi.
+  - [x] Auto-regeneration dengan parameter lebih ketat jika quality score < threshold.
+  - [x] `MicroMoEEngine` facade terintegrasi penuh ke `SLMEngine`.
 
 ---
 

@@ -241,6 +241,8 @@ class SLMEngine:
         max_new_tokens: int = 256,
         context_max_tokens: int = 2048,
         memory_manager: Optional[Any] = None,
+        enable_moe: bool = True,
+        n_candidates: int = 2,
     ):
         self._model_key = model_key
         self._cache_dir = cache_dir or str(Path.home() / ".cache" / "jaya_models")
@@ -257,13 +259,27 @@ class SLMEngine:
         # Fase 3: MemoryManager integration
         self._memory: Optional[Any] = memory_manager
 
+        # Fase 4: MicroMoEEngine integration
+        self._moe: Optional[Any] = None
+        if enable_moe:
+            try:
+                from src.brain_v2.engine.micro_moe import MicroMoEEngine
+                self._moe = MicroMoEEngine(n_candidates=n_candidates, enable_regeneration=True)
+                logger.info("[SLMEngine] MicroMoEEngine (Fase 4) ready | n_candidates=%d", n_candidates)
+            except ImportError as moe_err:
+                logger.warning("[SLMEngine] MicroMoEEngine unavailable: %s", moe_err)
+
         self._context = SlidingContextWindow(
             max_tokens=context_max_tokens,
             system_prompt=JAYA_SYSTEM_PROMPT_BASE,
         )
 
-        logger.info("[SLMEngine] Initialized | model_key=%s | memory=%s",
-                    model_key, "enabled" if memory_manager else "disabled")
+        logger.info("[SLMEngine] Initialized | model_key=%s | memory=%s | moe=%s",
+                    model_key,
+                    "enabled" if memory_manager else "disabled",
+                    "enabled" if self._moe else "disabled")
+
+
 
 
     def _resolve_device(self) -> str:
@@ -404,19 +420,42 @@ class SLMEngine:
             logger.info("[SLMEngine] Domain switch: %s -> %s", self._active_domain, domain)
             self._active_domain = domain
 
-        # Fase 3: Inject memory context into system prompt
-        if self._memory:
+        # Fase 4: MoE Router — select expert, override system prompt
+        active_expert_name = "expert_dialogue"
+        active_expert_cfg = None
+        if self._moe:
+            try:
+                active_expert_name, active_expert_cfg, moe_conf = self._moe.router.route(
+                    prompt=prompt, domain_hint=domain
+                )
+                # Override system prompt with expert's specialized prompt
+                base = JAYA_SYSTEM_PROMPT_BASE
+                expert_sys = active_expert_cfg.system_prompt if active_expert_cfg else base
+                # Fase 3: Also inject memory context on top
+                if self._memory:
+                    try:
+                        mem_context = self._memory.get_context_for_prompt(prompt)
+                        if mem_context:
+                            expert_sys = f"{expert_sys}\n\n{mem_context}"
+                    except Exception as mem_exc:
+                        logger.warning("[SLMEngine] Memory context error: %s", mem_exc)
+                self._context.system_prompt = expert_sys
+            except Exception as moe_exc:
+                logger.warning("[SLMEngine] MoE routing error: %s", moe_exc)
+        elif self._memory:
+            # Fase 3 only (no MoE)
             try:
                 mem_context = self._memory.get_context_for_prompt(prompt)
                 if mem_context:
-                    enriched_prompt = f"{JAYA_SYSTEM_PROMPT_BASE}\n\n{mem_context}"
-                    self._context.system_prompt = enriched_prompt
+                    self._context.system_prompt = f"{JAYA_SYSTEM_PROMPT_BASE}\n\n{mem_context}"
             except Exception as mem_exc:
                 logger.warning("[SLMEngine] Memory context error: %s", mem_exc)
 
         self._context.push("user", prompt)
         messages = self._context.build_messages()
         prompt_str = self._build_prompt(messages)
+
+
 
         try:
             import torch
@@ -431,14 +470,26 @@ class SLMEngine:
                 input_ids = input_ids.cuda()
 
             t0 = time.time()
+
+            # Fase 4: Use expert-tuned generation params if MoE active
+            gen_temperature = 0.7
+            gen_top_p = 0.9
+            gen_rep_penalty = 1.15
+            gen_max_tokens = self._max_new_tokens
+            if active_expert_cfg:
+                gen_temperature = active_expert_cfg.temperature
+                gen_top_p = active_expert_cfg.top_p
+                gen_rep_penalty = active_expert_cfg.repetition_penalty
+                gen_max_tokens = active_expert_cfg.max_new_tokens
+
             with torch.no_grad():
                 output_ids = self._model.generate(
                     input_ids,
-                    max_new_tokens=self._max_new_tokens,
+                    max_new_tokens=gen_max_tokens,
                     do_sample=True,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.15,
+                    temperature=gen_temperature,
+                    top_p=gen_top_p,
+                    repetition_penalty=gen_rep_penalty,
                     pad_token_id=self._tokenizer.eos_token_id,
                 )
             elapsed = time.time() - t0
