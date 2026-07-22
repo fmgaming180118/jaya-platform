@@ -38,6 +38,19 @@ except Exception as e:
     memory_manager = None
     logger.warning("[JAYA_CORE Server] MemoryManager unavailable: %s", e)
 
+# ── Fase 5: JarvisAgentFacade — Autonomous Agentic Intelligence ──────────────
+jarvis_facade = None
+try:
+    from src.brain_v2.soul.agentic_jarvis import JarvisAgentFacade
+    jarvis_db_path = str(root_dir / "data" / "agentic_jarvis.db")
+    jarvis_facade = JarvisAgentFacade(db_path=jarvis_db_path)
+    logger.info("[JAYA_CORE Server] JarvisAgentFacade (Fase 5) ready at %s", jarvis_db_path)
+except Exception as e:
+    jarvis_facade = None
+    logger.warning("[JAYA_CORE Server] JarvisAgentFacade unavailable: %s", e)
+
+
+
 # ── Fase 1: SLMEngine — Primary Neural Backbone ─────────────────────────────
 slm_engine = None
 try:
@@ -129,7 +142,20 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
 
             logger.info("Prompt: '%s' | History turns: %d", prompt, len(history))
 
+            # 0. Fase 5 Agentic Input Gate (Clarification & Confirmation)
+            if jarvis_facade:
+                intercept, intercept_msg = jarvis_facade.process_input_gate(prompt)
+                if intercept:
+                    self._set_headers(200)
+                    self.wfile.write(json.dumps({
+                        "ok": True,
+                        "response": intercept_msg,
+                        "sources": ["JarvisAgentFacade (Fase 5 Agentic Gate)"],
+                    }).encode('utf-8'))
+                    return
+
             # 1. Fase 2 HybridRetriever — BM25 + Dense + GraphRAG RRF
+
             rag_facts = []
             if use_local_rag:
                 if hybrid_retriever:
