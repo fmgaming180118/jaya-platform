@@ -47,15 +47,27 @@ try:
 except Exception as e:
     logger.warning("[JAYA_CORE Server] Pillar 21 fallback unavailable: %s", e)
 
-# ── AgenticRAG VectorDB — Knowledge Retrieval ────────────────────────────────
+# ── Fase 2: HybridRetriever — Micro-GraphRAG + BM25 + Dense RRF ─────────────
+hybrid_retriever = None
+try:
+    from src.brain_v2.soul.hybrid_retriever import HybridRetriever
+    hr_db_path = str(root_dir / "data" / "hybrid_rag.db")
+    hybrid_retriever = HybridRetriever(db_path=hr_db_path)
+    logger.info("[JAYA_CORE Server] HybridRetriever (Fase 2) ready at %s", hr_db_path)
+except Exception as e:
+    hybrid_retriever = None
+    logger.warning("[JAYA_CORE Server] HybridRetriever unavailable: %s", e)
+
+# ── AgenticRAG VectorDB — Fallback Knowledge Retrieval ───────────────────────
 agentic_rag = None
 try:
     from src.brain_v2.soul.agentic_rag import AgenticRAG
     rag_db_path = str(root_dir / "data" / "rag_runtime.db")
     agentic_rag = AgenticRAG(db_path=rag_db_path)
-    logger.info("[JAYA_CORE Server] AgenticRAG VectorDB ready at %s", rag_db_path)
+    logger.info("[JAYA_CORE Server] AgenticRAG fallback ready at %s", rag_db_path)
 except Exception as e:
     logger.warning("[JAYA_CORE Server] AgenticRAG unavailable: %s", e)
+
 
 
 class JayaCoreApiHandler(BaseHTTPRequestHandler):
@@ -103,13 +115,19 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
 
             logger.info("Prompt: '%s' | History turns: %d", prompt, len(history))
 
-            # 1. AgenticRAG Vector Retrieval
+            # 1. Fase 2 HybridRetriever — BM25 + Dense + GraphRAG RRF
             rag_facts = []
-            if use_local_rag and agentic_rag:
-                try:
-                    rag_facts = agentic_rag.retrieve_facts(query=prompt, limit=3)
-                except Exception as ex:
-                    logger.warning("RAG retrieval warning: %s", ex)
+            if use_local_rag:
+                if hybrid_retriever:
+                    try:
+                        rag_facts = hybrid_retriever.retrieve_facts(query=prompt, limit=3)
+                    except Exception as ex:
+                        logger.warning("HybridRetriever warning: %s", ex)
+                if not rag_facts and agentic_rag:
+                    try:
+                        rag_facts = agentic_rag.retrieve_facts(query=prompt, limit=3)
+                    except Exception as ex:
+                        logger.warning("AgenticRAG fallback warning: %s", ex)
 
             # 2. SLMEngine — Fase 1 Neural Inference (Primary Path)
             reply_text = None
