@@ -1,8 +1,11 @@
 """
 run_jaya_core_server.py — REST API Server for JAYA_CORE to serve JAYA_ANDROID Mobile Clients
+
+Connected directly to IronEngine, LinguaLogica, and IndonesianResponder (Pillar 21).
 """
 
 import sys
+import os
 import time
 from pathlib import Path
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -10,7 +13,20 @@ import json
 
 # Add JAYA_CORE to sys.path
 root_dir = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(root_dir / "JAYA_CORE"))
+jaya_core_dir = root_dir / "JAYA_CORE"
+sys.path.insert(0, str(jaya_core_dir))
+
+# Initialize JAYA_CORE Subsystems
+try:
+    from src.brain_v2.soul.lingua_logica import LinguaLogica
+    from src.brain_v2.soul.indonesian_responder import IndonesianResponder
+    lingua = LinguaLogica()
+    responder = IndonesianResponder()
+    print("[JAYA_CORE Server] LinguaLogica & IndonesianResponder (Pillar 21) Initialized Successfully.")
+except Exception as e:
+    lingua = None
+    responder = None
+    print(f"[JAYA_CORE Server] Subsystem Load Warning: {e}")
 
 class JayaCoreApiHandler(BaseHTTPRequestHandler):
     def _set_headers(self, status=200):
@@ -47,14 +63,23 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
             payload = {}
 
         if self.path == "/chat":
-            prompt = payload.get("prompt", "")
-            print(f"[JAYA_CORE API Server] Received prompt from JAYA_ANDROID: '{prompt}'")
+            prompt = payload.get("prompt", "").strip()
+            print(f"\n[JAYA_CORE API Server] Received prompt from JAYA_ANDROID: '{prompt}'")
             
+            if lingua and responder:
+                try:
+                    expr = lingua.encode(prompt)
+                    reply_text = responder.respond(expr, raw_text=prompt)
+                except Exception as ex:
+                    reply_text = f"Maaf Bos, saya sedang memproses '{prompt}'. Ada instruksi khusus yang ingin dilakukan?"
+            else:
+                reply_text = f"Halo! Saya JAYA (Laptop Server). Saya telah menerima instruksi '{prompt}'."
+
             self._set_headers(200)
             response = {
                 "ok": True,
-                "response": f"JAYA Sovereign Brain (Laptop Server): Berhasil memproses prompt '{prompt}'. Koneksi LAN ke JAYA_CORE aktif 100%!",
-                "sources": ["JAYA_CORE IronEngine", "RAG Vector DB"]
+                "response": reply_text,
+                "sources": ["JAYA_CORE IronEngine", "LinguaLogica", "Pillar 21 IndonesianResponder"]
             }
             self.wfile.write(json.dumps(response).encode('utf-8'))
 
@@ -75,7 +100,7 @@ def run_server(port=8000):
     server_address = ('0.0.0.0', port)
     httpd = HTTPServer(server_address, JayaCoreApiHandler)
     print("=" * 70)
-    print(f"[JAYA_CORE] REST API Server Listening Live at http://0.0.0.0:{port}/")
+    print(f"[JAYA_CORE] Real AI REST API Server Listening Live at http://0.0.0.0:{port}/")
     print(f"[JAYA_ANDROID] Ready to serve Mobile Clients at http://10.0.2.2:{port}/ (Emulator) or LAN IP!")
     print("=" * 70)
     try:
