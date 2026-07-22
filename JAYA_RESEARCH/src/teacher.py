@@ -60,8 +60,17 @@ class Teacher:
         )
 
     def _load_config(self, path):
-        with open(path, "r") as f:
-            return yaml.safe_load(f)
+        if not os.path.isabs(path):
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            possible_path = os.path.join(base_dir, path)
+            if os.path.exists(possible_path):
+                path = possible_path
+            elif os.path.exists("config.yaml"):
+                path = "config.yaml"
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return yaml.safe_load(f) or {}
+        return {"system": {"name": "JAYA_RESEARCH"}}
 
     def ask(self, prompt, max_tokens=None, system_instruction="You are a helpful AI assistant."):
         """

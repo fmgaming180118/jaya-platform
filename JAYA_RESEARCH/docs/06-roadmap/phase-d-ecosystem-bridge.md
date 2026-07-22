@@ -45,10 +45,12 @@ Selesai jika **semua** workflow D.1–D.5 selesai.
 ## Master Checklist Fase D
 
 ### D.1 — Unified Chat Router
-- [ ] Semua item di [d1-unified-router.md](workflows/phase-d/d1-unified-router.md) selesai
+- [x] Semua item di [d1-unified-router.md](workflows/phase-d/d1-unified-router.md) selesai
 
-### D.2 — Knowledge Sync
-- [ ] Semua item di [d2-knowledge-sync.md](workflows/phase-d/d2-knowledge-sync.md) selesai
+### D.2 — Knowledge Sync & Ecosystem Auto-Upgrade Bridge ✅
+- [x] Implementasi `ResearchEcosystemBridge` — `src/research/ecosystem_bridge.py`
+- [x] Format `EvolutionCandidate` & evaluasi `EvolutionGate` `JAYA_CORE`
+- [x] Tes integrasi end-to-end — `tests/test_ecosystem_bridge.py` (LULUS)
 
 ### D.3 — Evolution UI
 - [ ] Semua item di [d3-evolution-ui.md](workflows/phase-d/d3-evolution-ui.md) selesai
