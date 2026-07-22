@@ -52,6 +52,9 @@ interface ChatDao {
     @Query("SELECT * FROM user_preferences")
     fun getAllUserPreferences(): Flow<List<UserPreference>>
 
+    @Query("SELECT * FROM user_preferences WHERE `key` = :key LIMIT 1")
+    suspend fun getPreference(key: String): UserPreference?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUserPreference(pref: UserPreference)
 

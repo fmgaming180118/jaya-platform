@@ -2,16 +2,12 @@ package com.example.jaya.data
 
 import com.example.jaya.data.local.*
 import com.example.jaya.data.remote.*
-import com.squareup.moshi.Moshi
-import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withContext
 import java.io.File
 
 class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
-
-    private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
 
     val allSessions: Flow<List<ChatSession>> = chatDao.getAllSessions()
 
@@ -85,6 +81,6 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
     }
 
     suspend fun savePreference(key: String, value: String) {
-        chatDao.insertPreference(UserPreference(key = key, value = value))
+        chatDao.insertUserPreference(UserPreference(key = key, value = value))
     }
 }
