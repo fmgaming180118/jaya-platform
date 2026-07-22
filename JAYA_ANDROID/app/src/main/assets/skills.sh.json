@@ -1,0 +1,71 @@
+{
+  "groupings": [
+    {
+      "title": "Agentic AI",
+      "description": "Build and operate agentic systems, including RAG workflows, evaluation harnesses, tool use, policy, sandboxing, agent configuration, and agent workflow automation.",
+      "skills": [
+        "aiq-deploy",
+        "aiq-research",
+        "nemoclaw-user-agent-skills",
+        "nemoclaw-user-configure-inference",
+        "nemoclaw-user-configure-security",
+        "nemoclaw-user-deploy-remote",
+        "nemoclaw-user-get-started",
+        "nemoclaw-user-manage-policy",
+        "nemoclaw-user-manage-sandboxes",
+        "nemoclaw-user-monitor-sandbox",
+        "nemoclaw-user-overview",
+        "nemoclaw-user-reference",
+        "skill-card-generator",
+        "rag-blueprint",
+        "rag-eval",
+        "rag-perf",
+        "nemo-evaluator-plugin",
+        "nemo-retriever"
+      ]
+    },
+    {
+      "title": "Physical AI",
+      "description": "Build and validate AI workflows that interact with the physical world, including robotics, autonomy, simulation, synthetic data, and embodied AI systems.",
+      "skills": [
+        "omniverse-cad-to-simready",
+        "omniverse-realtime-viewer",
+        "omniverse-usd-performance-tuning",
+        "physical-ai-defect-image-generation",
+        "physical-ai-infrastructure-setup-and-resilient-scaling",
+        "physical-ai-video-data-augmentation",
+        "physical-ai-neural-reconstruction"
+      ]
+    },
+    {
+      "title": "Vision AI",
+      "description": "Build vision and video AI workflows for analytics, search, summarization, alerts, real-time understanding, and model integration.",
+      "skills": [
+        "deepstream-dev",
+        "deepstream-import-vision-model",
+        "dicom-metadata-extract",
+        "dicom-series-preflight",
+        "dicom-series-to-volume",
+        "nv-generate-ct-rflow",
+        "nv-generate-mr",
+        "nv-generate-mr-brain",
+        "nv-generate-mr-brain-finetune",
+        "nv-generate-vae-finetune",
+        "nv-reason-cxr",
+        "nv-segment-ct",
+        "nv-segment-ct-finetune",
+        "nv-segment-ctmr"
+      ]
+    },
+    {
+      "title": "Conversational AI",
+      "description": "Build and deploy speech, voice, dialogue, and multimodal conversational AI workflows, including real-time assistant and voice-agent experiences.",
+      "skills": [
+        "digital-health-clinical-asr-build",
+        "digital-health-clinical-asr-eval",
+        "digital-health-clinical-asr-finetune",
+        "digital-health-clinical-asr-setup"
+      ]
+    }
+  ]
+}
