@@ -1,7 +1,6 @@
 package com.example.jaya.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,7 +9,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Menu
@@ -44,13 +42,11 @@ fun ChatScreen(
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val currentSessionId by viewModel.currentSessionId.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
-    val selectedModel by viewModel.selectedModel.collectAsStateWithLifecycle()
     
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     var textInput by remember { mutableStateOf("") }
-    var showModelMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -123,205 +119,181 @@ fun ChatScreen(
                         }
                     },
                     title = {
-                        Box {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { showModelMenu = true }
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.AutoAwesome, 
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                val displayName = selectedModel
-                                    .substringAfter("/")
-                                    .substringBefore("-instruct")
-                                    .replace("-", " ")
-                                    .uppercase()
-                                
-                                Text(
-                                    displayName,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
-                            }
-                            
-                            DropdownMenu(
-                                expanded = showModelMenu,
-                                onDismissRequest = { showModelMenu = false }
-                            ) {
-                                viewModel.availableModels.forEach { model ->
-                                    DropdownMenuItem(
-                                        text = { 
-                                            val itemLabel = model.substringAfter("/").replace("-", " ").uppercase()
-                                            Text(itemLabel) 
-                                        },
-                                        onClick = {
-                                            viewModel.selectModel(model)
-                                            showModelMenu = false
-                                        },
-                                        leadingIcon = {
-                                            if (model == selectedModel) {
-                                                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            Icon(
+                                Icons.Default.AutoAwesome, 
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "JAYA Sovereign Engine",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
-                )
-            },
-            bottomBar = {
-                ChatInputBar(
-                    textInput = textInput,
-                    onTextInputChange = { textInput = it },
-                    onSendClick = {
-                        viewModel.sendMessage(textInput)
-                        textInput = ""
-                    },
-                    isLoading = isLoading
                 )
             }
         ) { innerPadding ->
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
                     .padding(innerPadding)
+                    .fillMaxSize()
             ) {
+                // Messages List
                 LazyColumn(
                     state = listState,
                     modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
                 ) {
                     items(messages) { message ->
-                        ChatMessageBubble(message)
+                        ChatMessageItem(message = message)
                     }
+                    
                     if (isLoading) {
                         item {
                             Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.CenterStart
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp).padding(start = 16.dp),
+                                    modifier = Modifier.size(24.dp),
                                     strokeWidth = 2.dp
                                 )
                             }
                         }
                     }
                 }
-            }
-        }
-    }
-}
 
-@Composable
-fun JayaMarkdownText(text: String, color: Color) {
-    val annotatedString = buildAnnotatedString {
-        val parts = text.split("```")
-        parts.forEachIndexed { index, part ->
-            if (index % 2 == 1) { // Code block
-                withStyle(style = SpanStyle(fontFamily = FontFamily.Monospace, background = Color.Black.copy(alpha = 0.1f))) {
-                    append(part)
-                }
-            } else {
-                // Bold/Italic simple parsing
-                val subParts = part.split("**")
-                subParts.forEachIndexed { sIndex, sPart ->
-                    if (sIndex % 2 == 1) {
-                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
-                            append(sPart)
+                // Input Area
+                Surface(
+                    tonalElevation = 3.dp,
+                    shadowElevation = 8.dp,
+                    color = MaterialTheme.colorScheme.surface
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .navigationBarsPadding(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = textInput,
+                            onValueChange = { textInput = it },
+                            placeholder = { Text("Ask Jaya...") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            ),
+                            maxLines = 4
+                        )
+                        
+                        Spacer(modifier = Modifier.width(8.dp))
+                        
+                        IconButton(
+                            onClick = {
+                                if (textInput.isNotBlank()) {
+                                    val msg = textInput
+                                    textInput = ""
+                                    viewModel.sendMessage(msg)
+                                }
+                            },
+                            enabled = textInput.isNotBlank() && !isLoading,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    if (textInput.isNotBlank() && !isLoading) 
+                                        MaterialTheme.colorScheme.primary 
+                                    else 
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                )
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.Send, 
+                                contentDescription = "Send",
+                                tint = if (textInput.isNotBlank() && !isLoading) 
+                                    MaterialTheme.colorScheme.onPrimary 
+                                else 
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    } else {
-                        append(sPart)
                     }
                 }
             }
         }
     }
-    Text(text = annotatedString, color = color, style = MaterialTheme.typography.bodyLarge)
 }
 
 @Composable
-fun ChatMessageBubble(message: LocalChatMessage) {
+fun ChatMessageItem(message: LocalChatMessage) {
     val isUser = message.role == "user"
-    val alignment = if (isUser) Alignment.End else Alignment.Start
-    val bubbleColor = if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.secondaryContainer
-    val textColor = if (isUser) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSecondaryContainer
-    val shape = if (isUser) {
-        RoundedCornerShape(16.dp, 16.dp, 0.dp, 16.dp)
-    } else {
-        RoundedCornerShape(16.dp, 16.dp, 16.dp, 0.dp)
-    }
-
+    
     Column(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        horizontalAlignment = alignment
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
-        Text(
-            text = if (isUser) "You" else "Jaya AI",
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.secondary,
-            modifier = Modifier.padding(bottom = 4.dp, start = 4.dp, end = 4.dp)
-        )
-        Box(
-            modifier = Modifier
-                .clip(shape)
-                .background(bubbleColor)
-                .padding(12.dp)
+        Row(
+            horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Column {
-                if (isUser) {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = textColor
-                    )
-                } else {
-                    JayaMarkdownText(
-                        text = message.content,
-                        color = textColor
-                    )
-                }
-                
-                if (message.attachedFileId != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.clickable { /* Handle file open */ }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(8.dp)
-                        ) {
+            Surface(
+                color = if (isUser) 
+                    MaterialTheme.colorScheme.primary 
+                else 
+                    MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(
+                    topStart = 16.dp,
+                    topEnd = 16.dp,
+                    bottomStart = if (isUser) 16.dp else 4.dp,
+                    bottomEnd = if (isUser) 4.dp else 16.dp
+                ),
+                tonalElevation = 1.dp,
+                modifier = Modifier.widthIn(max = 300.dp)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    if (isUser) {
+                        Text(
+                            text = message.content,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        FormattedMarkdownText(text = message.content)
+                    }
+                    
+                    if (message.attachedFileId != null) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 Icons.Default.Description, 
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(14.dp),
+                                tint = if (isUser) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "Document Attached",
+                                text = "Attachment #${message.attachedFileId}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.primary
+                                color = if (isUser) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -332,52 +304,71 @@ fun ChatMessageBubble(message: LocalChatMessage) {
 }
 
 @Composable
-fun ChatInputBar(
-    textInput: String,
-    onTextInputChange: (String) -> Unit,
-    onSendClick: () -> Unit,
-    isLoading: Boolean
-) {
-    Surface(
-        tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .navigationBarsPadding()
-                .imePadding(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextField(
-                value = textInput,
-                onValueChange = onTextInputChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Ask Jaya...") },
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
-                maxLines = 4
-            )
-            IconButton(
-                onClick = onSendClick,
-                enabled = textInput.isNotBlank() && !isLoading
-            ) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.Send,
-                    contentDescription = "Send",
-                    tint = if (textInput.isNotBlank() && !isLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
-                )
+fun FormattedMarkdownText(text: String) {
+    val annotatedString = remember(text) {
+        buildAnnotatedString {
+            var currentIndex = 0
+            val codeBlockRegex = Regex("```(?:[a-zA-Z]+)?\\n([\\s\\S]*?)```")
+            
+            val matches = codeBlockRegex.findAll(text).toList()
+            
+            for (match in matches) {
+                if (match.range.first > currentIndex) {
+                    appendFormattedInlineText(text.substring(currentIndex, match.range.first))
+                }
+                
+                val codeContent = match.groupValues.getOrNull(1)?.trim() ?: ""
+                
+                withStyle(
+                    SpanStyle(
+                        fontFamily = FontFamily.Monospace,
+                        background = Color.Black.copy(alpha = 0.2f),
+                        fontSize = MaterialTheme.typography.bodySmall.fontSize
+                    )
+                ) {
+                    append("\n$codeContent\n")
+                }
+                
+                currentIndex = match.range.last + 1
+            }
+            
+            if (currentIndex < text.length) {
+                appendFormattedInlineText(text.substring(currentIndex))
             }
         }
     }
+    
+    Text(
+        text = annotatedString,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
 
-@Preview(showBackground = true, showSystemUi = true)
+fun androidx.compose.ui.text.AnnotatedString.Builder.appendFormattedInlineText(text: String) {
+    var currentIndex = 0
+    val boldRegex = Regex("\\*\\*(.*?)\\*\\*")
+    val matches = boldRegex.findAll(text).toList()
+    
+    for (match in matches) {
+        if (match.range.first > currentIndex) {
+            append(text.substring(currentIndex, match.range.first))
+        }
+        
+        val boldContent = match.groupValues.getOrNull(1) ?: ""
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) {
+            append(boldContent)
+        }
+        
+        currentIndex = match.range.last + 1
+    }
+    
+    if (currentIndex < text.length) {
+        append(text.substring(currentIndex))
+    }
+}
+
+@Preview(showBackground = true)
 @Composable
 fun ChatScreenPreview() {
     JayaTheme {
