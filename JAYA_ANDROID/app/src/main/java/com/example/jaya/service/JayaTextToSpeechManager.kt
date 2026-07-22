@@ -12,7 +12,8 @@ class JayaTextToSpeechManager(context: Context) : TextToSpeech.OnInitListener {
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
-            val result = tts?.setLanguage(Locale("id", "ID")) // Indonesian locale fallback to US
+            val indonesianLocale = Locale.forLanguageTag("id-ID")
+            val result = tts?.setLanguage(indonesianLocale)
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                 tts?.setLanguage(Locale.US)
             }

@@ -5,39 +5,39 @@ import com.squareup.moshi.JsonClass
 
 @JsonClass(generateAdapter = true)
 data class JayaChatRequest(
-    @Json(name = "prompt") val prompt: String,
-    @Json(name = "workspace_id") val workspaceId: String = "default",
-    @Json(name = "use_local_rag") val useLocalRag: Boolean = true
+    @param:Json(name = "prompt") val prompt: String,
+    @param:Json(name = "workspace_id") val workspaceId: String = "default",
+    @param:Json(name = "use_local_rag") val useLocalRag: Boolean = true
 )
 
 @JsonClass(generateAdapter = true)
 data class JayaChatResponse(
-    @Json(name = "ok") val ok: Boolean,
-    @Json(name = "response") val response: String,
-    @Json(name = "sources") val sources: List<String>? = emptyList()
+    @param:Json(name = "ok") val ok: Boolean,
+    @param:Json(name = "response") val response: String,
+    @param:Json(name = "sources") val sources: List<String>? = emptyList()
 )
 
 @JsonClass(generateAdapter = true)
 data class JayaEvolutionStatusResponse(
-    @Json(name = "state") val state: String,
-    @Json(name = "is_awake") val isAwake: Boolean,
-    @Json(name = "latest_thought") val latestThought: String? = null
+    @param:Json(name = "state") val state: String,
+    @param:Json(name = "is_awake") val isAwake: Boolean,
+    @param:Json(name = "latest_thought") val latestThought: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class JayaAutoUpgradeResponse(
-    @Json(name = "ok") val ok: Boolean,
-    @Json(name = "message") val message: String
+    @param:Json(name = "ok") val ok: Boolean,
+    @param:Json(name = "message") val message: String
 )
 
 @JsonClass(generateAdapter = true)
 data class JayaDocumentAnalysisRequest(
-    @Json(name = "document_path") val documentPath: String,
-    @Json(name = "topic") val topic: String = "thesis"
+    @param:Json(name = "document_path") val documentPath: String,
+    @param:Json(name = "topic") val topic: String = "thesis"
 )
 
 @JsonClass(generateAdapter = true)
 data class JayaDocumentAnalysisResponse(
-    @Json(name = "ok") val ok: Boolean,
-    @Json(name = "summary") val summary: String
+    @param:Json(name = "ok") val ok: Boolean,
+    @param:Json(name = "summary") val summary: String
 )
