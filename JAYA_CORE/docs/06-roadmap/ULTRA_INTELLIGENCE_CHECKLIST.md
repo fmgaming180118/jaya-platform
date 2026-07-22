@@ -1,6 +1,18 @@
-# JAYA_CORE Ultra-Intelligence Upgrade Checklist
+# JAYA_CORE Ultra-Intelligence Upgrade Checklist (< 200 MB Constraint)
 
-> **Goal**: Transform `JAYA_CORE` into an ultra-intelligent, sovereign, semi-AGI central brain capable of reasoning, writing scientific papers, coding, and competing with frontier AI models (GPT-4o, Claude 3.5 Sonnet, LLaMA-3.1 70B/405B).
+> **CRITICAL HARD CONSTRAINT**: Model size MUST strictly remain **< 200 MB** (Disk & RAM footprint). 
+> **Goal**: Transform `JAYA_CORE` into an ultra-intelligent, sovereign, semi-AGI central brain using extreme quantization, Small Language Models (SLMs), and Micro-MoE architectures capable of competing with large models while running 100% offline under 200 MB footprint.
+
+---
+
+## ⛔ Strictly Enforced Size & Memory Envelope
+
+| Component | Strict Allocation Ceiling | Technology Used |
+| :--- | :--- | :--- |
+| **Physical Model Weights (`.jay` / GGUF)** | **< 150 MB** | 2-bit Packed Weights / SmolLM-135M / Qwen-0.5B (2-bit `.jay`) |
+| **Vector RAG Embeddings & DB** | **< 30 MB** | MiniLM-L6-v2 (23MB) / BGE-Micro Vector Vault |
+| **KV-Cache & Context Window Memory** | **< 20 MB** | H2O KV-Cache Eviction & Token Sliding Window |
+| **TOTAL SYSTEM FOOTPRINT** | **< 200 MB** | 100% Sovereign Edge Execution |
 
 ---
 
@@ -8,80 +20,74 @@
 
 ```
                                   ┌─────────────────────────────────────────┐
-                                  │      JAYA_CORE ULTRA-INTELLIGENCE       │
+                                  │   JAYA_CORE ULTRA-INTELLIGENCE (<200MB) │
                                   └────────────────────┬────────────────────┘
                                                        │
          ┌──────────────────────┬──────────────────────┼──────────────────────┬──────────────────────┐
          ▼                      ▼                      ▼                      ▼                      ▼
-  [FASE 1: LOCAL LLM]   [FASE 2: GRAPHRAG]     [FASE 3: 128K ROPE]     [FASE 4: DYNAMIC MOE]   [FASE 5: CONTINUOUS]
-  Local High-Param       GraphRAG + Hybrid      KV-Cache Scaling        Multi-Expert Routing    Self-Evolution &
-  GGUF Model Engine      Vector Retrieval       FlashAttention-2        Self-Reflection Loop    ArXiv Auto-Patching
+  [FASE 1: SUB-200MB SLM] [FASE 2: MICRO-RAG]    [FASE 3: SLIDING CONTEXT] [FASE 4: MICRO-MOE]    [FASE 5: CONTINUOUS]
+  2-bit Packed `.jay`     MiniLM (23MB) +        16K Sliding Window      4x Micro-Experts        ArXiv Micro-Delta
+  SmolLM-135M / Qwen0.5B  GraphRAG SQLite        H2O KV-Cache (<20MB)    (Total < 150MB)         Patches (<5MB)
 ```
 
 ---
 
-## 📋 Checklist Upgrade Ke-Pintaran JAYA_CORE
+## 📋 Checklist Upgrade Kepintaran JAYA_CORE (< 200 MB)
 
-### 🧠 Fase 1: High-Parameter Local LLM Engine & Scientific Fine-Tuning
-- [ ] **Local Model Engine Integration (`llama-cpp-python` / Ollama / TensorRT-LLM)**
-  - [ ] Support LLaMA-3.1 8B Instruct (Q4_K_M / Q8_0) for fast sub-second local inference.
-  - [ ] Support LLaMA-3.1 70B / DeepSeek-Coder-V2 via GGUF offloading to Host PC GPU.
-- [ ] **Indonesian Academic & Coding Dataset Fine-Tuning (LoRA / QLoRA)**
-  - [ ] Fine-tune on Indonesian scientific thesis structure (BAB I - BAB V, ABSTRAK, JURNAL IEEE/ACM).
-  - [ ] Fine-tune on Python, Kotlin Android, C++, and System Engineering instruction sets.
-- [ ] **Native Function Calling / Agentic Tool Execution**
-  - [ ] Enable structured JSON schema outputs for tool calling (Calculator, RAG search, File editing, Smart Home).
+### 🧠 Fase 1: Sub-200MB Small Language Model (SLM) & 2-Bit Quantization Engine
+- [ ] **Physical `.jay` Model Weight Quantization (< 150 MB)**
+  - [ ] Support SmolLM-135M Instruct (Q4/Q8 ~80MB-130MB).
+  - [ ] Support Qwen2.5-0.5B with 2-bit Packed Weight `.jay` format (~140MB).
+  - [ ] Support BitNet 1.58-bit Ternary Weight Models (100M-200M parameters under 100MB).
+- [ ] **Indonesian Academic & Coding LoRA Micro-Adapters (< 15 MB)**
+  - [ ] Fine-tune micro-LoRA adapters on Indonesian thesis structure (BAB I - BAB V, ABSTRAK).
+  - [ ] Fine-tune micro-adapters on Kotlin, Python, and System Engineering instructions.
+- [ ] **Structured Tool Calling & JSON Spec Emission**
+  - [ ] Emit structured JSON function calls for local tools (RAG search, File editing, Smart Home).
 
-### 🔍 Fase 2: GraphRAG & Hybrid Retrieval-Augmented Generation
-- [ ] **Hybrid Dense-Sparse Vector Retrieval**
-  - [ ] Upgrade SQLite vector vault to use BGE-M3 multilingual embeddings (1024-dim).
+### 🔍 Fase 2: Micro-GraphRAG & Compact Vector Retrieval (< 30 MB)
+- [ ] **Ultra-Lightweight Vector Embeddings**
+  - [ ] Upgrade vector vault to use **all-MiniLM-L6-v2 (23 MB)** or **BGE-Micro (30 MB)**.
   - [ ] Combine BM25 keyword search + Dense Vector search using Reciprocal Rank Fusion (RRF).
-- [ ] **GraphRAG (Knowledge Graph Engine)**
-  - [ ] Construct entity-relation knowledge graphs from user thesis documents and PDFs.
-  - [ ] Multi-hop graph reasoning over complex academic queries.
-- [ ] **RAG Self-Correction (CRAG / Self-RAG)**
-  - [ ] Evaluate retrieved chunk relevance before feeding to LLM context window.
-  - [ ] Fall back to web search / ArXiv papers if local document facts are missing.
+- [ ] **SQLite Micro-GraphRAG Engine**
+  - [ ] Construct entity-relation knowledge graphs inside lightweight SQLite tables without external dependencies.
+  - [ ] Multi-hop graph reasoning over thesis documents.
 
-### ⚡ Fase 3: Infinite Sliding Context Window & KV-Cache Compression
-- [ ] **128K Token Context Window Expansion (RoPE Scaling)**
-  - [ ] Implement YaRN / RoPE position interpolation for 128,000+ token context window.
-- [ ] **Dynamic KV-Cache Compression & PagedAttention**
-  - [ ] Implement Heavy-Hitter Oracle (H2O) KV-cache eviction to save Host PC VRAM/RAM.
-  - [ ] Enable smooth processing of entire PDF textbooks and multi-chapter thesis drafts.
-- [ ] **Narrative & Episodic Long-Term Memory (Pillar 31 & 32)**
-  - [ ] Store long-term user preferences, past project decisions, and conversation summaries.
+### ⚡ Fase 3: Dynamic Sliding Context Window & KV-Cache Compression (< 20 MB RAM)
+- [ ] **16K-32K Token Sliding Context Window (RoPE Scaling)**
+  - [ ] Implement YaRN / RoPE position interpolation for 16,000+ token context window.
+- [ ] **Heavy-Hitter Oracle (H2O) KV-Cache Eviction**
+  - [ ] Dynamic KV-cache pruning to keep RAM overhead under 20 MB during long conversations.
+  - [ ] Enable smooth processing of PDF thesis drafts and long context turns.
 
-### 🎭 Fase 4: Dynamic Mixture of Experts (MoE) & Self-Reflection Loop
-- [ ] **Sparse MoE Expert Routing (Pillar 34)**
-  - [ ] **Expert 1 - Scientific Thesis & Academic Writing**: Specialized in paper structure and scientific prose.
-  - [ ] **Expert 2 - Code & System Architecture**: Specialized in Kotlin, Python, C++, and debugging.
-  - [ ] **Expert 3 - Mathematics & Logic**: Specialized in algebraic reasoning and formal logic.
-  - [ ] **Expert 4 - Conversational Companion**: Friendly, natural Indonesian dialogue.
-- [ ] **Meta-Cognitive Self-Correction (Reflexion)**
-  - [ ] Implement multi-candidate generation + self-consistency scoring before returning answers.
-  - [ ] Auto-detect hallucination and re-run inference with stricter constraints.
+### 🎭 Fase 4: Micro Mixture-of-Experts (Micro-MoE < 150 MB Total)
+- [ ] **Sparse Micro-MoE Expert Routing**
+  - [ ] **Expert 1 - Thesis & Scientific Writing**: Micro-expert (~35MB).
+  - [ ] **Expert 2 - Code & Logic Engineering**: Micro-expert (~35MB).
+  - [ ] **Expert 3 - Mathematics & Reasoning**: Micro-expert (~35MB).
+  - [ ] **Expert 4 - Natural Conversational Dialogue**: Micro-expert (~35MB).
+  - [ ] Total active memory for all 4 micro-experts combined strictly under 150 MB.
+- [ ] **Micro-Reflexion Self-Correction Loop**
+  - [ ] Candidate verification and self-consistency check before returning answer.
 
-### 🔄 Fase 5: Continuous Self-Evolution & Autonomous Research Integration
-- [ ] **ArXiv Auto-Research Patching (`JAYA_RESEARCH`)**
-  - [ ] Automatically scan daily ArXiv papers in AI/LLM/Systems.
-  - [ ] Generate and deploy code optimization patches to `JAYA_CORE` (`IronEngine`).
-- [ ] **Continuous Learning & Live Evolution (Pillar 28 & LiveEvolver)**
-  - [ ] Run micro-evolutionary weight updates during idle PC hours.
-  - [ ] Maintain strict safety gates (`EvolutionGate`) to ensure stability.
+### 🔄 Fase 5: Continuous Micro-Evolution & ArXiv Auto-Patching
+- [ ] **ArXiv Auto-Research Micro-Delta Patches (< 5 MB)**
+  - [ ] Automatically scan daily ArXiv papers and deploy micro-LoRA / delta patches to `JAYA_CORE`.
+- [ ] **Idle Hour Micro-Evolution (Pillar 28 & LiveEvolver)**
+  - [ ] Run micro-evolutionary weight updates during idle PC hours within the sub-200MB boundary.
 
 ---
 
-## 📊 Benchmarking & Success Metrics
+## 📊 Benchmarking & Success Metrics (< 200 MB Boundary)
 
-| Metric | Target Baseline | Ultra-Intelligence Goal |
+| Metric | Target Baseline | Ultra-Intelligence Goal (<200MB) |
 | :--- | :--- | :--- |
-| **Indonesian Thesis Assistance** | Basic Structural Template | Full Multi-Chapter Analysis, Citation Check, & Prose Synthesis |
-| **Context Length** | 4,096 Tokens | **128,000 Tokens (Full Textbook Context)** |
-| **Retrieval Accuracy** | Single-vector Cosine | **GraphRAG + Dense-Sparse RRF (98%+ Accuracy)** |
-| **Context Memory** | Session-level | **Cross-Session Long-Term Episodic Memory** |
-| **Reasoning Capabilities** | Direct Response | **Multi-Step Reflexion & Self-Consistency Verification** |
+| **Model Size Footprint** | 53 KB Stub / 12 MB | **< 150 MB (Physical `.jay` Model)** |
+| **Vector DB + Embeddings** | SQLite String Search | **all-MiniLM-L6-v2 (23 MB) + GraphRAG** |
+| **Context Window Memory** | 4,096 Tokens | **16,000+ Tokens (H2O KV-Cache < 20MB)** |
+| **Inference Speed (Host PC)** | > 50 tokens/sec | **> 120 tokens/sec (Pure CPU / NPU)** |
+| **Indonesian Thesis Reasoning** | Template Matching | **Dynamic Neural Generation (<200MB)** |
 
 ---
 
-*Document version: 2.0.0 — JAYA_CORE Sovereign Intelligence Architecture*
+*Document version: 2.1.0 — JAYA_CORE Sub-200MB Sovereign AI Architecture*
