@@ -56,8 +56,14 @@ class CameraXManager(private val context: Context) {
     }
 
     private fun processFrame(imageProxy: ImageProxy) {
-        // Frame analysis loop
-        imageProxy.close()
+        try {
+            val bitmap = imageProxy.toBitmap()
+            _lastCapturedFrame.value = bitmap
+        } catch (e: Exception) {
+            Log.e("CameraXManager", "Error converting frame to bitmap", e)
+        } finally {
+            imageProxy.close()
+        }
     }
 
     fun stopCamera() {

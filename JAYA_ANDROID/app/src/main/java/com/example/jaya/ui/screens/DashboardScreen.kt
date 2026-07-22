@@ -17,7 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -37,15 +37,6 @@ fun DashboardScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val transcribedText by viewModel.lastTranscribedText.collectAsStateWithLifecycle()
     val aiResponse by viewModel.aiResponse.collectAsStateWithLifecycle()
-    
-    val context = LocalContext.current
-    var isStoragePermissionGranted by remember { mutableStateOf(false) }
-
-    val storagePermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        isStoragePermissionGranted = isGranted
-    }
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -138,7 +129,7 @@ fun DashboardScreen(
                     if (state == JarvisState.LISTENING) {
                         viewModel.stopListening()
                     } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     }
                 },
                 containerColor = if (state == JarvisState.LISTENING) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
@@ -197,7 +188,9 @@ fun JarvisVisualizer(state: JarvisState) {
         
         // Main Circle
         Surface(
-            modifier = Modifier.size(120.dp),
+            modifier = Modifier
+                .size(120.dp)
+                .graphicsLayer { rotationZ = rotation },
             shape = CircleShape,
             color = Color.Transparent,
             border = androidx.compose.foundation.BorderStroke(

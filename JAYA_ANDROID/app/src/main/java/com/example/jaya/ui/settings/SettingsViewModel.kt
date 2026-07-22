@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.jaya.BuildConfig
 import com.example.jaya.data.ChatRepository
 import com.example.jaya.data.local.AppDatabase
+import com.example.jaya.data.remote.NetworkModule
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +18,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private val _apiKey = MutableStateFlow("")
     val apiKey: StateFlow<String> = _apiKey.asStateFlow()
 
-    private val _baseUrl = MutableStateFlow("https://integrate.api.nvidia.com/v1/")
+    private val _baseUrl = MutableStateFlow(NetworkModule.DEFAULT_JAYA_API_URL)
     val baseUrl: StateFlow<String> = _baseUrl.asStateFlow()
 
     init {
@@ -25,22 +26,22 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         repository = ChatRepository(database.chatDao(), application.filesDir)
         
         viewModelScope.launch {
-            _apiKey.value = repository.getPreference("API_KEY") ?: BuildConfig.NVIDIA_API_KEY
-            _baseUrl.value = repository.getPreference("BASE_URL") ?: "https://integrate.api.nvidia.com/v1/"
+            _apiKey.value = repository.getPreference("API_KEY") ?: "JAYA_SOVEREIGN_PASSPHRASE"
+            _baseUrl.value = repository.getPreference("BASE_URL") ?: BuildConfig.JAYA_API_URL
         }
     }
 
     fun updateApiKey(newKey: String) {
         _apiKey.value = newKey
         viewModelScope.launch {
-            repository.saveUserPreference("API_KEY", newKey)
+            repository.savePreference("API_KEY", newKey)
         }
     }
 
     fun updateBaseUrl(newUrl: String) {
         _baseUrl.value = newUrl
         viewModelScope.launch {
-            repository.saveUserPreference("BASE_URL", newUrl)
+            repository.savePreference("BASE_URL", newUrl)
         }
     }
 }
