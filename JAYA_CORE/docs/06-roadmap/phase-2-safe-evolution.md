@@ -20,7 +20,7 @@ Implement **safe, auditable self-improvement** for the cognitive core — enabli
 | 3 | PQC/Dilithium3 signing | `src/brain_v2/protection/pqc.py` | ✅ |
 | 4 | Deterministic rollback | `src/brain_v2/engine/rollback.py` | ✅ |
 | 5 | Morphic kernel safety filters | `src/brain_v2/engine/morphic.py` | ✅ |
-| 6 | Self-bootstrap curriculum | `src/brain_v2/engine/self_bootstrap.py` | 🔄 |
+| 6 | Self-bootstrap curriculum | `src/brain_v2/engine/self_bootstrap.py` | ✅ |
 | 7 | Evolution gate tests | `tests/test_phase2_evolution_gate.py` | ✅ |
 | 8 | Rollback tests | `tests/test_phase2_rollback.py` | ✅ |
 | 9 | Manifest verification tests | `tests/test_phase2_manifest.py` | ✅ |

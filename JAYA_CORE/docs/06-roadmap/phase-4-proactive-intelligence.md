@@ -15,17 +15,17 @@ Implement **anticipatory, autonomous intelligence** — enabling JAYA to act pro
 
 | # | Deliverable | Pillar | File | Status |
 |---|---|---|---|---|
-| 1 | SpontaneityEngine | 3, 6 | `src/brain_v2/engine/spontaneity.py` | 📋 Planned |
-| 2 | SpeculativeReasoner | 36 | `src/brain_v2/engine/speculative.py` | 📋 Planned |
-| 3 | MetaCognitivePlanner | 38 | `src/brain_v2/extensions/twin/meta_planner.py` | 📋 Planned |
-| 4 | NarrativeContinuity | 31 | `src/brain_v2/soul/narrative.py` | 📋 Planned |
-| 5 | CollectivePulse | 32 | `src/brain_v2/engine/collective_pulse.py` | 📋 Planned |
-| 6 | DynamicObjective | 39 | `src/brain_v2/soul/dynamic_objective.py` | 📋 Planned |
-| 7 | IntentExtrapolator | 40 | `src/brain_v2/engine/intent_extrapolation.py` | 📋 Planned |
-| 8 | ProactiveLoop | — | `src/brain_v2/engine/proactive_loop.py` | 📋 Planned |
-| 9 | TemporalWeighting integration | 27 | `src/brain_v2/soul/temporal_memory.py` | ✅ Partial |
-| 10 | CognitiveSilence integration | 7 | `src/brain_v2/engine/runtime.py` | ✅ Done |
-| 11 | Phase 4 integration tests | — | `tests/test_phase4_proactive.py` | 📋 Planned |
+| 1 | SpontaneityEngine | 3, 6 | `src/brain_v2/engine/spontaneity.py` | ✅ |
+| 2 | SpeculativeReasoner | 36 | `src/brain_v2/engine/speculative.py` | ✅ |
+| 3 | MetaCognitivePlanner | 38 | `src/brain_v2/engine/meta_cognitive.py` | ✅ |
+| 4 | NarrativeContinuity | 31 | `src/brain_v2/engine/narrative_continuity.py` | ✅ |
+| 5 | CollectivePulse | 32 | `src/brain_v2/engine/collective_pulse.py` | ✅ |
+| 6 | DynamicObjective | 39 | `src/brain_v2/engine/agentic_search.py` | ✅ |
+| 7 | IntentExtrapolator | 40 | `src/brain_v2/engine/intent_engine.py` | ✅ |
+| 8 | ProactiveLoop | — | `src/brain_v2/engine/proactive_loop.py` | ✅ |
+| 9 | TemporalWeighting integration | 27 | `src/brain_v2/engine/temporal_weights.py` | ✅ |
+| 10 | CognitiveSilence integration | 7 | `src/brain_v2/engine/runtime.py` | ✅ |
+| 11 | Phase 4 integration tests | — | `tests/test_phase4_proactive.py` | ✅ |
 
 ---
 
