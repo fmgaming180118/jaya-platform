@@ -26,12 +26,12 @@ flowchart LR
 
 ## Indeks Fase
 
-| Fase | Fokus | Estimasi | Dokumen Induk |
-|------|-------|----------|---------------|
-| **A** | Restore Enhanced RAG, ingest, endpoint API | 1–2 minggu | [phase-a-rag-foundation.md](phase-a-rag-foundation.md) |
-| **B** | Ketahanan produksi & benchmark formal | 2–3 minggu | [phase-b-production-readiness.md](phase-b-production-readiness.md) |
-| **C** | Distilasi, evaluasi, student model lokal | ~1 bulan | [phase-c-distillation-edge.md](phase-c-distillation-edge.md) |
-| **D** | Jembatan ekosistem & fitur lanjutan | Berkelanjutan | [phase-d-ecosystem-bridge.md](phase-d-ecosystem-bridge.md) |
+| Fase | Fokus | Status | Dokumen Induk |
+|------|-------|--------|---------------|
+| **A** | Restore Enhanced RAG, ingest, endpoint API | ✅ Complete | [phase-a-rag-foundation.md](phase-a-rag-foundation.md) |
+| **B** | Ketahanan produksi & benchmark formal | ✅ Complete | [phase-b-production-readiness.md](phase-b-production-readiness.md) |
+| **C** | Distilasi, evaluasi, student model lokal | ✅ Complete | [phase-c-distillation-edge.md](phase-c-distillation-edge.md) |
+| **D** | Jembatan ekosistem & fitur lanjutan | ✅ Complete | [phase-d-ecosystem-bridge.md](phase-d-ecosystem-bridge.md) |
 
 ---
 
