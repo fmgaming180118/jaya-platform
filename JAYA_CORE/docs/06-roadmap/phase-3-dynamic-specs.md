@@ -21,13 +21,13 @@ Enable the brain to generate **formal specifications** (UI specs, feature specs,
 | 4 | JayaBridge (mount/dispatch) | `src/os_kernel/feature_bridge.py` | ✅ |
 | 5 | IntentToUIPipeline (Phase 3C) | `src/os_kernel/intent_to_ui.py` | ✅ |
 | 6 | 10 Built-in UI Templates | `src/os_kernel/intent_to_ui.py` | ✅ |
-| 7 | SpecGenerators (brain-side) | `src/brain_v2/engine/spec_generators.py` | 🔄 Planned |
-| 8 | UITemplateRegistry | `src/brain_v2/engine/spec_generators.py` | 🔄 Planned |
-| 9 | FeatureSpecGenerator | `src/brain_v2/engine/spec_generators.py` | 🔄 Planned |
-| 10 | TaskSpecGenerator | `src/brain_v2/engine/spec_generators.py` | 🔄 Planned |
-| 11 | ActionSpecGenerator | `src/brain_v2/engine/spec_generators.py` | 🔄 Planned |
-| 12 | SpecGeneratorRouter | `src/brain_v2/engine/spec_generators.py` | 🔄 Planned |
-| 13 | Phase 3 integration tests | `tests/test_phase3_spec_generation.py` | 🔄 Planned |
+| 7 | SpecGenerators (brain-side) | `src/brain_v2/engine/spec_generators.py` | ✅ |
+| 8 | UITemplateRegistry | `src/brain_v2/engine/spec_generators.py` | ✅ |
+| 9 | FeatureSpecGenerator | `src/brain_v2/engine/spec_generators.py` | ✅ |
+| 10 | TaskSpecGenerator | `src/brain_v2/engine/spec_generators.py` | ✅ |
+| 11 | ActionSpecGenerator | `src/brain_v2/engine/spec_generators.py` | ✅ |
+| 12 | SpecGeneratorRouter | `src/brain_v2/engine/spec_generators.py` | ✅ |
+| 13 | Phase 3 integration tests | `tests/test_phase3_spec_generation.py` | ✅ |
 
 ---
 

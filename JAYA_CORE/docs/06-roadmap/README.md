@@ -50,9 +50,9 @@ python -m pytest tests/test_phase2_evolution_gate.py tests/test_phase2_rollback.
 
 ---
 
-## Phase 3: Dynamic Specification Generation 🔄 IN PROGRESS (Phase 3C Done)
+## Phase 3: Dynamic Specification Generation ✅ COMPLETE
 
-**Goal**: Brain generates specs (UI, Feature, Task) → House compiles & mounts.
+**Goal**: Brain generates specs (UI, Feature, Task, Action) → House compiles & mounts.
 
 ### Phase 3C: Intent → UI Pipeline ✅ COMPLETE
 - [x] `IntentToUIPipeline` — `src/os_kernel/intent_to_ui.py`
@@ -63,20 +63,18 @@ python -m pytest tests/test_phase2_evolution_gate.py tests/test_phase2_rollback.
 - [x] `SceneGraph` / `WidgetSpec` — `src/os_kernel/ui_spec.py`
 - [x] Integration test — `tests/test_phase3c_intent_to_ui.py`
 
-### Phase 3: Full Spec Generation (Planned)
-- [ ] `SpecGeneratorRouter` — `src/brain_v2/engine/spec_generators.py`
-- [ ] `UISpecGenerator` with template registry
-- [ ] `FeatureSpecGenerator` for background capabilities
-- [ ] `TaskSpecGenerator` delegating to TaskPlanner
-- [ ] `ActionSpecGenerator` for direct IPC
-- [ ] Brain-side spec generation (move from os_kernel)
-- [ ] House-side compilers for all spec types
+### Phase 3: Full Spec Generation ✅ COMPLETE
+- [x] `SpecGeneratorRouter` — `src/brain_v2/engine/spec_generators.py`
+- [x] `UISpecGenerator` with template registry
+- [x] `FeatureSpecGenerator` for background capabilities
+- [x] `TaskSpecGenerator` for JayaIR execution plans
+- [x] `ActionSpecGenerator` for direct IPC commands
+- [x] Brain-side spec generation engine
+- [x] Integration test — `tests/test_phase3_spec_generation.py`
 
 ### Verification
 ```bash
-python -m pytest tests/test_phase3c_intent_to_ui.py -v
-# Future:
-python -m pytest tests/ -k "spec_generator" -v
+python -m pytest tests/test_phase3_spec_generation.py tests/test_phase3c_intent_to_ui.py -v
 ```
 
 ---
@@ -111,7 +109,7 @@ python -m pytest tests/ -k "spontaneity or speculative or meta_cognitive or narr
 | **Resource Awareness** | ResourceMonitor → adaptive top-k, silence mode |
 | **Sovereignty** | Offline-first, LAN sync, vetted internet fallback |
 | **Observability** | Narrative continuity, benchmark snapshots, signed manifests |
-| **Testing** | Phase gates + 211 integration tests |
+| **Testing** | Phase gates + 219 integration tests |
 
 ---
 
@@ -121,8 +119,7 @@ python -m pytest tests/ -k "spontaneity or speculative or meta_cognitive or narr
 |---|---|---|---|
 | 1: Cognitive Foundation | ✅ Done | 100% | p50=0.032ms, hit-rate=97.5% |
 | 2: Safe Evolution | ✅ Done | 100% | Gate pass, rollback verified |
-| 3C: Intent→UI | ✅ Done | 100% | 10 templates, pipeline test pass |
-| 3: Full Spec Gen | 🔄 Planned | 0% | Spec generators in brain |
+| 3: Dynamic Specs | ✅ Done | 100% | Brain generators & 8 tests pass |
 | 4: Proactive Intelligence | 📋 Planned | 0% | 8 pillars to implement |
 
 ---
