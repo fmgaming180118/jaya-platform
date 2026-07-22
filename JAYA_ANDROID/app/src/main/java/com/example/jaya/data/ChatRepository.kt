@@ -58,8 +58,10 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
 
     suspend fun sendPromptToJaya(sessionId: Long, userPrompt: String): String = withContext(Dispatchers.IO) {
         saveMessage(sessionId, "user", userPrompt)
-        val recentHistory = chatDao.getRecentMessages(sessionId, 10)
-        val historyPayload = recentHistory.map { msg ->
+        
+        // Dynamic Context Window: fetch full session history in chronological order
+        val fullSessionHistory = chatDao.getAllMessagesForSessionList(sessionId)
+        val historyPayload = fullSessionHistory.map { msg ->
             mapOf("role" to msg.role, "content" to msg.content)
         }
 
@@ -77,15 +79,15 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
                 saveMessage(sessionId, "assistant", jayaReply)
                 jayaReply
             } else {
-                // Connection failed -> Fallback to Space Mode Nano Engine immediately with history
-                val nanoResult = nanoEngine.generateResponse(userPrompt, recentHistory)
+                // Connection failed -> Fallback to Space Mode Nano Engine immediately with full dynamic history context
+                val nanoResult = nanoEngine.generateResponse(userPrompt, fullSessionHistory)
                 val fallbackMsg = nanoResult.responseText
                 saveMessage(sessionId, "assistant", fallbackMsg)
                 fallbackMsg
             }
         } catch (e: Exception) {
-            // Server unreachable or timeout -> Fallback to Space Mode Nano Engine immediately with history
-            val nanoResult = nanoEngine.generateResponse(userPrompt, recentHistory)
+            // Server unreachable or timeout -> Fallback to Space Mode Nano Engine immediately with full dynamic history context
+            val nanoResult = nanoEngine.generateResponse(userPrompt, fullSessionHistory)
             val fallbackMsg = nanoResult.responseText
             saveMessage(sessionId, "assistant", fallbackMsg)
             fallbackMsg
