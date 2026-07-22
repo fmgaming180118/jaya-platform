@@ -560,6 +560,13 @@ class IronEngine:
             logger.warning("MorphicKernel unavailable: %s", exc)
 
         try:
+            from src.brain_v2.engine.auto_research_patch import QuantizedAttentionSparsityEngine
+            self._auto_research_patch = QuantizedAttentionSparsityEngine()
+            logger.info("[Autonomous Research Patch] QuantizedAttentionSparsityEngine integrated into IronEngine")
+        except ImportError as exc:
+            logger.warning("Auto Research Patch unavailable: %s", exc)
+
+        try:
             from src.brain_v2.engine.evolution_gate import EvolutionGate
             self._evolution_gate = EvolutionGate(
                 ethical_heart=self._ethical_heart,
