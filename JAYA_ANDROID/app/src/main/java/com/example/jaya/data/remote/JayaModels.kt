@@ -7,7 +7,8 @@ import com.squareup.moshi.JsonClass
 data class JayaChatRequest(
     @param:Json(name = "prompt") val prompt: String,
     @param:Json(name = "workspace_id") val workspaceId: String = "default",
-    @param:Json(name = "use_local_rag") val useLocalRag: Boolean = true
+    @param:Json(name = "use_local_rag") val useLocalRag: Boolean = true,
+    @param:Json(name = "history") val history: List<Map<String, String>>? = emptyList()
 )
 
 @JsonClass(generateAdapter = true)

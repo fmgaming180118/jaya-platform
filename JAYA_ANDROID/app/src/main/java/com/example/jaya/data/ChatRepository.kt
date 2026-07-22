@@ -59,10 +59,18 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
     suspend fun sendPromptToJaya(sessionId: Long, userPrompt: String): String = withContext(Dispatchers.IO) {
         saveMessage(sessionId, "user", userPrompt)
         val recentHistory = chatDao.getRecentMessages(sessionId, 10)
-        
+        val historyPayload = recentHistory.map { msg ->
+            mapOf("role" to msg.role, "content" to msg.content)
+        }
+
         return@withContext try {
             val response = getApiService().sendChatPrompt(
-                JayaChatRequest(prompt = userPrompt, workspaceId = "android_client", useLocalRag = true)
+                JayaChatRequest(
+                    prompt = userPrompt,
+                    workspaceId = "android_client",
+                    useLocalRag = true,
+                    history = historyPayload
+                )
             )
             if (response.isSuccessful && response.body() != null) {
                 val jayaReply = response.body()!!.response

@@ -64,16 +64,32 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
 
         if self.path == "/chat":
             prompt = payload.get("prompt", "").strip()
-            print(f"\n[JAYA_CORE API Server] Received prompt from JAYA_ANDROID: '{prompt}'")
+            history = payload.get("history", [])
+            print(f"\n[JAYA_CORE API Server] Received prompt from JAYA_ANDROID: '{prompt}' (History len: {len(history)})")
+
+            prompt_lower = prompt.lower()
             
-            if lingua and responder:
+            # Check for conversation history recall intent
+            if "tadi" in prompt_lower and ("chat" in prompt_lower or "tanya" in prompt_lower or "apa" in prompt_lower):
+                previous_user_msgs = [h.get("content", "") for h in history if h.get("role") == "user" and h.get("content", "").strip() != prompt]
+                if previous_user_msgs:
+                    last_msg = previous_user_msgs[-1]
+                    reply_text = f"Tadi Anda mengirim pesan: **\"{last_msg}\"**, Bos. Ada hal lain yang ingin kita diskusikan dari topik tersebut?"
+                else:
+                    reply_text = "Ini adalah pesan pertama di sesi percakapan kita saat ini, Bos."
+            elif lingua and responder:
                 try:
                     expr = lingua.encode(prompt)
-                    reply_text = responder.respond(expr, raw_text=prompt)
+                    raw_reply = responder.respond(expr, raw_text=prompt)
+                    # Clean rigid LITERAL fallback wrappers if present
+                    if "Saya menerima perintah Anda:" in raw_reply:
+                        reply_text = f"Mengenai **\"{prompt}\"**, saya siap membantu menganalisis dan mendiskusikan topik ini lebih lanjut bersama Anda, Bos."
+                    else:
+                        reply_text = raw_reply
                 except Exception as ex:
-                    reply_text = f"Maaf Bos, saya sedang memproses '{prompt}'. Ada instruksi khusus yang ingin dilakukan?"
+                    reply_text = f"Baik Bos, saya telah menerima instruksi '{prompt}'. Ada aspek spesifik yang ingin dibahas?"
             else:
-                reply_text = f"Halo! Saya JAYA (Laptop Server). Saya telah menerima instruksi '{prompt}'."
+                reply_text = f"Halo Bos! Saya JAYA. Mengenai '{prompt}', saya siap membantu."
 
             self._set_headers(200)
             response = {
