@@ -1,5 +1,6 @@
 package com.example.jaya.data
 
+import com.example.jaya.data.core.JayaNanoEngine
 import com.example.jaya.data.local.*
 import com.example.jaya.data.remote.*
 import kotlinx.coroutines.Dispatchers
@@ -8,6 +9,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
+
+    private val nanoEngine = JayaNanoEngine()
 
     val allSessions: Flow<List<ChatSession>> = chatDao.getAllSessions()
 
@@ -65,12 +68,16 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
                 saveMessage(sessionId, "assistant", jayaReply)
                 jayaReply
             } else {
-                val errorMsg = "JAYA API Server Connection Error: ${response.code()} ${response.message()}"
-                saveMessage(sessionId, "assistant", errorMsg)
-                errorMsg
+                // Connection failed -> Fallback to Space Mode Nano Engine immediately
+                val nanoResult = nanoEngine.generateResponse(userPrompt)
+                val fallbackMsg = nanoResult.responseText
+                saveMessage(sessionId, "assistant", fallbackMsg)
+                fallbackMsg
             }
         } catch (e: Exception) {
-            val fallbackMsg = "JAYA Local Space Mode Fallback: Server unreachable (${e.localizedMessage})"
+            // Server unreachable or timeout -> Fallback to Space Mode Nano Engine immediately
+            val nanoResult = nanoEngine.generateResponse(userPrompt)
+            val fallbackMsg = nanoResult.responseText
             saveMessage(sessionId, "assistant", fallbackMsg)
             fallbackMsg
         }
