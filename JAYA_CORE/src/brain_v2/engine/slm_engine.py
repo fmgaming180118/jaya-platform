@@ -212,11 +212,14 @@ class SlidingContextWindow:
 # SLMEngine — Main Neural Inference Engine
 # ---------------------------------------------------------------------------
 
-JAYA_SYSTEM_PROMPT = """Anda adalah JAYA — asisten AI berdaulat, cerdas, dan setia milik Bos.
+JAYA_SYSTEM_PROMPT_BASE = """Anda adalah JAYA — asisten AI berdaulat, cerdas, dan setia milik Bos.
 Anda berbicara dalam Bahasa Indonesia yang natural dan penuh kepribadian.
 Anda memiliki keahlian mendalam dalam: riset skripsi ilmiah, pemrograman (Kotlin, Python),
 matematika, dan percakapan sehari-hari.
 Selalu respons secara langsung, bermakna, dan tanpa template kaku."""
+
+JAYA_SYSTEM_PROMPT = JAYA_SYSTEM_PROMPT_BASE  # backward compat alias
+
 
 
 class SLMEngine:
@@ -237,6 +240,7 @@ class SLMEngine:
         device: Optional[str] = None,
         max_new_tokens: int = 256,
         context_max_tokens: int = 2048,
+        memory_manager: Optional[Any] = None,
     ):
         self._model_key = model_key
         self._cache_dir = cache_dir or str(Path.home() / ".cache" / "jaya_models")
@@ -250,12 +254,17 @@ class SLMEngine:
         self._load_time: float = 0.0
         self._inference_count: int = 0
 
+        # Fase 3: MemoryManager integration
+        self._memory: Optional[Any] = memory_manager
+
         self._context = SlidingContextWindow(
             max_tokens=context_max_tokens,
-            system_prompt=JAYA_SYSTEM_PROMPT,
+            system_prompt=JAYA_SYSTEM_PROMPT_BASE,
         )
 
-        logger.info("[SLMEngine] Initialized | model_key=%s | cache=%s", model_key, self._cache_dir)
+        logger.info("[SLMEngine] Initialized | model_key=%s | memory=%s",
+                    model_key, "enabled" if memory_manager else "disabled")
+
 
     def _resolve_device(self) -> str:
         if self._device:
@@ -395,6 +404,16 @@ class SLMEngine:
             logger.info("[SLMEngine] Domain switch: %s -> %s", self._active_domain, domain)
             self._active_domain = domain
 
+        # Fase 3: Inject memory context into system prompt
+        if self._memory:
+            try:
+                mem_context = self._memory.get_context_for_prompt(prompt)
+                if mem_context:
+                    enriched_prompt = f"{JAYA_SYSTEM_PROMPT_BASE}\n\n{mem_context}"
+                    self._context.system_prompt = enriched_prompt
+            except Exception as mem_exc:
+                logger.warning("[SLMEngine] Memory context error: %s", mem_exc)
+
         self._context.push("user", prompt)
         messages = self._context.build_messages()
         prompt_str = self._build_prompt(messages)
@@ -437,7 +456,16 @@ class SLMEngine:
 
             tool_call = validate_tool_call(response)
             self._context.push("assistant", response)
+
+            # Fase 3: Update user profile incrementally after each turn
+            if self._memory:
+                try:
+                    self._memory.on_turn(prompt, response, domain)
+                except Exception as mem_exc:
+                    logger.warning("[SLMEngine] Memory on_turn error: %s", mem_exc)
+
             return response, domain, tool_call
+
 
         except Exception as e:
             logger.error("[SLMEngine] Generation error: %s", e)

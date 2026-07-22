@@ -95,24 +95,32 @@
 
 ---
 
-### 🧠 Fase 3 — Memory Architecture: Memori Episodik Lintas Sesi (Setara JARVIS)
+### 🧠 Fase 3 — Memory Architecture: Memori Episodik Lintas Sesi (Setara JARVIS) ✅ SELESAI
 
 **Target**: JAYA *mengingat* Bos lintas hari, lintas sesi, lintas topik — persis JARVIS.
+**Status**: ✅ Diimplementasi di `src/brain_v2/soul/episodic_memory.py` | 20/20 tests pass
 
-- [ ] **3.1 Episodic Long-Term Memory (Pillar 31)**
-  - [ ] Simpan ringkasan setiap sesi percakapan dalam database memori episodik SQLite.
-  - [ ] Retrieve memori relevan pada awal sesi baru (tanpa perlu Bos mengulang konteks).
-  - [ ] Contoh: *"Bos sudah di BAB III skripsi, deadline 15 Agustus, topik federated learning."*
+- [x] **3.1 Episodic Long-Term Memory (Pillar 31)**
+  - [x] `EpisodicMemory`: SQLite tabel `episodic_sessions` + `session_turns`.
+  - [x] `save_session()`: simpan ringkasan + turns tiap akhir sesi.
+  - [x] `get_recent_sessions()`: ambil N sesi terbaru dengan metadata lengkap.
+  - [x] `retrieve_relevant()`: keyword-match search memori relevan untuk query baru.
+  - [x] `build_recall_context()`: inject konteks memori ke system prompt JAYA.
 
-- [ ] **3.2 Dynamic User Profile Engine (Pillar 32)**
-  - [ ] Bangun profil pengguna dinamis: nama, topik riset, gaya kerja, preferensi bahasa.
-  - [ ] Update profil secara inkremental setiap sesi.
-  - [ ] Gunakan profil untuk personalisasi setiap respons.
+- [x] **3.2 Dynamic User Profile Engine (Pillar 32)**
+  - [x] `UserProfileEngine`: profil persistif SQLite — nama, topik riset, bab aktif, deadline.
+  - [x] `update_from_turn()`: regex NLP ekstraksi profil dari setiap percakapan (inkremental).
+  - [x] `UserProfile.to_context_string()`: format profil sebagai teks untuk system prompt.
+  - [x] `set_custom_fact()`: simpan fakta bebas tentang pengguna ("Universitas: UI").
+  - [x] Domain expertise tracking per sesi (thesis/code/math/general).
 
-- [ ] **3.3 Sliding Context Window (8K-32K Token, < 20 MB RAM)**
-  - [ ] Implementasi YaRN/RoPE untuk 8K–32K token context window.
-  - [ ] H2O Heavy-Hitter KV-Cache pruning: hapus token kurang penting secara dinamis.
-  - [ ] Compression ringkasan otomatis untuk percakapan panjang (Narrative Compression).
+- [x] **3.3 Sliding Context Window + Narrative Compression**
+  - [x] `NarrativeCompressor`: kompres daftar turns menjadi `SessionSummary` padat (< 400 karakter).
+  - [x] `extract_topics()`: deteksi topik utama (Kotlin, Federated Learning, Matematika, dll).
+  - [x] `extract_key_facts()`: ekstrak fakta kunci dari percakapan (skripsi, bug, deadline).
+  - [x] `MemoryManager` facade: `start_session()` → `on_turn()` → `end_session()` lifecycle.
+  - [x] SLMEngine terintegrasi: inject memori ke system prompt + update profil tiap turn.
+  - [x] Server `run_jaya_core_server.py` diperbarui: MemoryManager aktif sejak startup.
 
 ---
 

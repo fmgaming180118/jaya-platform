@@ -24,16 +24,30 @@ root_dir = Path(__file__).resolve().parent.parent
 jaya_core_dir = root_dir / "JAYA_CORE"
 sys.path.insert(0, str(jaya_core_dir))
 
+# ── Fase 3: MemoryManager — Episodic Memory + User Profile ───────────────────
+memory_manager = None
+try:
+    from src.brain_v2.soul.episodic_memory import MemoryManager
+    mem_db_path = str(root_dir / "data" / "episodic_memory.db")
+    memory_manager = MemoryManager(db_path=mem_db_path)
+    memory_manager.start_session()
+    logger.info("[JAYA_CORE Server] MemoryManager (Fase 3) ready | sessions=%d | user=%s",
+                memory_manager.episodic.session_count(),
+                memory_manager.profile.name if memory_manager.profile else "Unknown")
+except Exception as e:
+    memory_manager = None
+    logger.warning("[JAYA_CORE Server] MemoryManager unavailable: %s", e)
+
 # ── Fase 1: SLMEngine — Primary Neural Backbone ─────────────────────────────
 slm_engine = None
 try:
     from src.brain_v2.engine.slm_engine import SLMEngine
-    slm_engine = SLMEngine(model_key="smollm2_135m")
-    # Lazy load — will download on first request if not cached
-    logger.info("[JAYA_CORE Server] SLMEngine (Fase 1) initialized. Model will load on first request.")
+    slm_engine = SLMEngine(model_key="smollm2_135m", memory_manager=memory_manager)
+    logger.info("[JAYA_CORE Server] SLMEngine (Fase 1) + MemoryManager (Fase 3) linked. Model loads on first request.")
 except Exception as e:
     slm_engine = None
     logger.warning("[JAYA_CORE Server] SLMEngine unavailable: %s", e)
+
 
 # ── Pillar 21: LinguaLogica + IndonesianResponder — Fallback ─────────────────
 lingua = None
