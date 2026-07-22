@@ -34,16 +34,15 @@ class ArxivClient:
         }
 
         # Check if query contains any known topics to refine search
-        search_query = f"all:{query}"
-        
-        # If user queries a specific field, boost that category
-        query_lower = query.lower()
-        for key, cat in category_map.items():
-            if key in query_lower:
-                 # Construct advanced query: "all:fullstack AND cat:cs.SE"
-                 # ArXiv API supports AND/OR
-                 search_query = f"all:{query} AND cat:{cat}"
-                 break
+        if query.startswith("cat:") or " AND " in query or " OR " in query:
+            search_query = query
+        else:
+            search_query = f"all:{query}"
+            query_lower = query.lower()
+            for key, cat in category_map.items():
+                if key in query_lower:
+                     search_query = f"all:{query} AND cat:{cat}"
+                     break
 
         params = {
             "search_query": search_query,
