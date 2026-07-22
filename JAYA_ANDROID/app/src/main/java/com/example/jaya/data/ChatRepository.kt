@@ -58,6 +58,7 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
 
     suspend fun sendPromptToJaya(sessionId: Long, userPrompt: String): String = withContext(Dispatchers.IO) {
         saveMessage(sessionId, "user", userPrompt)
+        val recentHistory = chatDao.getRecentMessages(sessionId, 10)
         
         return@withContext try {
             val response = getApiService().sendChatPrompt(
@@ -68,15 +69,15 @@ class ChatRepository(private val chatDao: ChatDao, private val filesDir: File) {
                 saveMessage(sessionId, "assistant", jayaReply)
                 jayaReply
             } else {
-                // Connection failed -> Fallback to Space Mode Nano Engine immediately
-                val nanoResult = nanoEngine.generateResponse(userPrompt)
+                // Connection failed -> Fallback to Space Mode Nano Engine immediately with history
+                val nanoResult = nanoEngine.generateResponse(userPrompt, recentHistory)
                 val fallbackMsg = nanoResult.responseText
                 saveMessage(sessionId, "assistant", fallbackMsg)
                 fallbackMsg
             }
         } catch (e: Exception) {
-            // Server unreachable or timeout -> Fallback to Space Mode Nano Engine immediately
-            val nanoResult = nanoEngine.generateResponse(userPrompt)
+            // Server unreachable or timeout -> Fallback to Space Mode Nano Engine immediately with history
+            val nanoResult = nanoEngine.generateResponse(userPrompt, recentHistory)
             val fallbackMsg = nanoResult.responseText
             saveMessage(sessionId, "assistant", fallbackMsg)
             fallbackMsg

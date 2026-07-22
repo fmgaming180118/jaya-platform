@@ -20,6 +20,9 @@ interface ChatDao {
     @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId AND isCompacted = 0 ORDER BY timestamp ASC")
     fun getMessagesForSession(sessionId: Long): Flow<List<LocalChatMessage>>
 
+    @Query("SELECT * FROM chat_messages WHERE sessionId = :sessionId ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getRecentMessages(sessionId: Long, limit: Int = 10): List<LocalChatMessage>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMessage(message: LocalChatMessage): Long
 
