@@ -97,7 +97,38 @@ except Exception as e:
 
 
 
+def is_coherent_indonesian(text: str) -> bool:
+    """Periksa apakah teks respons berupa kalimat Bahasa Indonesia yang koheren."""
+    if not text or len(text.strip()) < 5:
+        return False
+
+    # Deteksi frasa gibberish atau halusinasi kata buatan
+    gibberish_patterns = [
+        r"\b\w{3,}(lamanya|saptasi|putoran|bendangan|lulusian|dimamalkan|pihun)\b",
+        r"\b(pihun|angki|melaksura|benem|sempurnian|sebendangan)\b",
+    ]
+    for pat in gibberish_patterns:
+        if re.search(pat, text, re.IGNORECASE):
+            return False
+
+    # Kata fungsional Bahasa Indonesia yang umum
+    common_id_words = {
+        "yang", "dan", "di", "ini", "itu", "untuk", "saya", "dengan", "tidak", "adalah",
+        "bisa", "ada", "bos", "jaya", "skripsi", "halo", "kita", "akan", "dalam", "anda",
+        "tersebut", "mengenai", "tentang", "sudah", "bantu", "perintah", "proses", "kami"
+    }
+    words = [w.lower().strip(".,!?:;\"'") for w in text.split()]
+    id_word_count = sum(1 for w in words if w in common_id_words)
+
+    # Jika respons lebih dari 10 kata tetapi 0 kata fungsional Indonesia → gibberish
+    if len(words) >= 10 and id_word_count == 0:
+        return False
+
+    return True
+
+
 class JayaCoreApiHandler(BaseHTTPRequestHandler):
+
 
     def log_message(self, format, *args):
         logger.info("HTTP %s", format % args)
@@ -177,15 +208,22 @@ class JayaCoreApiHandler(BaseHTTPRequestHandler):
 
             if slm_engine:
                 try:
-                    reply_text, detected_domain, tool_call = slm_engine.generate(
+                    raw_reply, detected_domain, tool_call = slm_engine.generate(
                         prompt=prompt,
                         history=history,
                     )
-                    active_engine = f"SLMEngine/{slm_engine._model_key}"
-                    logger.info("SLMEngine generated response | domain=%s | tool_call=%s", detected_domain, tool_call)
+                    # Validate coherence — fallback if raw SLM output is gibberish
+                    if raw_reply and is_coherent_indonesian(raw_reply):
+                        reply_text = raw_reply
+                        active_engine = f"SLMEngine/{slm_engine._model_key}"
+                        logger.info("SLMEngine generated response | domain=%s | tool_call=%s", detected_domain, tool_call)
+                    else:
+                        logger.warning("SLMEngine raw response failed coherence check — using Pillar 21 fallback")
+                        reply_text = None
                 except Exception as slm_ex:
                     logger.error("SLMEngine generation error: %s", slm_ex)
                     reply_text = None
+
 
             # 3. Pillar 21 fallback if SLM is unavailable or still loading
             if not reply_text:
