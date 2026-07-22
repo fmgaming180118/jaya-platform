@@ -1,93 +1,182 @@
-# JAYA_CORE Ultra-Intelligence Upgrade Checklist (< 200 MB Constraint)
+# JAYA_CORE Sovereign Superintelligence Roadmap
+**Setara JARVIS — Di Dalam 200 MB**
 
-> **CRITICAL HARD CONSTRAINT**: Model size MUST strictly remain **< 200 MB** (Disk & RAM footprint). 
-> **Goal**: Transform `JAYA_CORE` into an ultra-intelligent, sovereign, semi-AGI central brain using extreme quantization, Small Language Models (SLMs), and Micro-MoE architectures capable of competing with large models while running 100% offline under 200 MB footprint.
-
----
-
-## ⛔ Strictly Enforced Size & Memory Envelope
-
-| Component | Strict Allocation Ceiling | Technology Used |
-| :--- | :--- | :--- |
-| **Physical Model Weights (`.jay` / GGUF)** | **< 150 MB** | 2-bit Packed Weights / SmolLM-135M / Qwen-0.5B (2-bit `.jay`) |
-| **Vector RAG Embeddings & DB** | **< 30 MB** | MiniLM-L6-v2 (23MB) / BGE-Micro Vector Vault |
-| **KV-Cache & Context Window Memory** | **< 20 MB** | H2O KV-Cache Eviction & Token Sliding Window |
-| **TOTAL SYSTEM FOOTPRINT** | **< 200 MB** | 100% Sovereign Edge Execution |
+> **Hard Constraint**: Total Model + RAG + Cache **< 200 MB** disk & RAM.
+> **Visi**: JAYA tidak sekedar menjawab. JAYA *berpikir*, *merencanakan*, *mengingat*, *bereaksi proaktif*, dan *terus belajar* — persis seperti JARVIS dalam Iron Man, hanya dalam genggaman dan berdaulat penuh tanpa cloud.
 
 ---
 
-## 🏛️ Master Architecture & Intelligence Phasing
+## 🎯 Mengapa JARVIS, Bukan Sekedar Chatbot?
+
+| Chatbot Biasa | JAYA Setara JARVIS |
+| :--- | :--- |
+| Hanya menjawab prompt | **Proaktif mengingatkan, merencanakan, & menginisiasi** |
+| Lupa percakapan sebelumnya | **Memori episodik lintas sesi (ingat proyek, kebiasaan, preferensi)** |
+| Tidak mengenal pengguna | **Profil pengguna dinamis: nama, tujuan, ritme kerja, domain riset** |
+| Satu model untuk semua | **Sparse Micro-MoE: pakar berbeda diaktifkan per topik** |
+| Tidak bisa merencanakan | **Hierarchical Task Planning: pecah tujuan jadi sub-langkah eksekusi** |
+| Pasif menunggu perintah | **Agentic Loop: bertanya balik, memverifikasi, konfirmasi** |
+
+---
+
+## ⛔ Hard Constraint Ukuran (TIDAK BISA DILANGGAR)
 
 ```
-                                  ┌─────────────────────────────────────────┐
-                                  │   JAYA_CORE ULTRA-INTELLIGENCE (<200MB) │
-                                  └────────────────────┬────────────────────┘
-                                                       │
-         ┌──────────────────────┬──────────────────────┼──────────────────────┬──────────────────────┐
-         ▼                      ▼                      ▼                      ▼                      ▼
-  [FASE 1: SUB-200MB SLM] [FASE 2: MICRO-RAG]    [FASE 3: SLIDING CONTEXT] [FASE 4: MICRO-MOE]    [FASE 5: CONTINUOUS]
-  2-bit Packed `.jay`     MiniLM (23MB) +        16K Sliding Window      4x Micro-Experts        ArXiv Micro-Delta
-  SmolLM-135M / Qwen0.5B  GraphRAG SQLite        H2O KV-Cache (<20MB)    (Total < 150MB)         Patches (<5MB)
+┌─────────────────────────────────────────────────────────────────────┐
+│    TOTAL JAYA_CORE FOOTPRINT  < 200 MB (disk) & < 200 MB (RAM)     │
+├───────────────────────┬────────────────┬────────────────────────────┤
+│  Komponen             │ Batas Maksimal │ Teknologi Target           │
+├───────────────────────┼────────────────┼────────────────────────────┤
+│ Model Weights (.jay)  │  < 150 MB      │ Qwen2.5-0.5B 2-bit packed  │
+│                       │                │ SmolLM2-135M Instruct      │
+│                       │                │ BitNet b1.58 (ternary)     │
+├───────────────────────┼────────────────┼────────────────────────────┤
+│ Vector RAG Embeddings │  < 20 MB       │ all-MiniLM-L6-v2 (23MB)   │
+│ + SQLite KnowledgeDB  │                │ GraphRAG dalam SQLite       │
+├───────────────────────┼────────────────┼────────────────────────────┤
+│ KV-Cache Runtime      │  < 20 MB       │ H2O Eviction, 8K Sliding   │
+├───────────────────────┼────────────────┼────────────────────────────┤
+│ LoRA Micro-Adapters   │  < 5 MB each   │ Rank-8 LoRA per domain     │
+├───────────────────────┼────────────────┼────────────────────────────┤
+│  TOTAL                │  < 200 MB      │ Edge-sovereign 100% offline │
+└───────────────────────┴────────────────┴────────────────────────────┘
 ```
 
 ---
 
-## 📋 Checklist Upgrade Kepintaran JAYA_CORE (< 200 MB)
+## 📋 Checklist Peningkatan Menuju JARVIS-Level
 
-### 🧠 Fase 1: Sub-200MB Small Language Model (SLM) & 2-Bit Quantization Engine
-- [ ] **Physical `.jay` Model Weight Quantization (< 150 MB)**
-  - [ ] Support SmolLM-135M Instruct (Q4/Q8 ~80MB-130MB).
-  - [ ] Support Qwen2.5-0.5B with 2-bit Packed Weight `.jay` format (~140MB).
-  - [ ] Support BitNet 1.58-bit Ternary Weight Models (100M-200M parameters under 100MB).
-- [ ] **Indonesian Academic & Coding LoRA Micro-Adapters (< 15 MB)**
-  - [ ] Fine-tune micro-LoRA adapters on Indonesian thesis structure (BAB I - BAB V, ABSTRAK).
-  - [ ] Fine-tune micro-adapters on Kotlin, Python, and System Engineering instructions.
-- [ ] **Structured Tool Calling & JSON Spec Emission**
-  - [ ] Emit structured JSON function calls for local tools (RAG search, File editing, Smart Home).
+### 🧠 Fase 1 — Core Neural Engine: Model Ultra-Compact Tapi Cerdas
 
-### 🔍 Fase 2: Micro-GraphRAG & Compact Vector Retrieval (< 30 MB)
-- [ ] **Ultra-Lightweight Vector Embeddings**
-  - [ ] Upgrade vector vault to use **all-MiniLM-L6-v2 (23 MB)** or **BGE-Micro (30 MB)**.
-  - [ ] Combine BM25 keyword search + Dense Vector search using Reciprocal Rank Fusion (RRF).
-- [ ] **SQLite Micro-GraphRAG Engine**
-  - [ ] Construct entity-relation knowledge graphs inside lightweight SQLite tables without external dependencies.
-  - [ ] Multi-hop graph reasoning over thesis documents.
+**Target**: Inferensi local berjalan < 3 detik per respons, di bawah 150 MB.
 
-### ⚡ Fase 3: Dynamic Sliding Context Window & KV-Cache Compression (< 20 MB RAM)
-- [ ] **16K-32K Token Sliding Context Window (RoPE Scaling)**
-  - [ ] Implement YaRN / RoPE position interpolation for 16,000+ token context window.
-- [ ] **Heavy-Hitter Oracle (H2O) KV-Cache Eviction**
-  - [ ] Dynamic KV-cache pruning to keep RAM overhead under 20 MB during long conversations.
-  - [ ] Enable smooth processing of PDF thesis drafts and long context turns.
+- [ ] **1.1 Pilih & Integrasikan Model Inti (`IronEngine`)**
+  - [ ] Evaluasi kandidat model: SmolLM2-135M (~130MB Q4) vs Qwen2.5-0.5B (~140MB Q4) vs BitNet-130M (ternary ~100MB).
+  - [ ] Implementasi loader GGUF/ONNX native di Python (`llama-cpp-python` atau `ctransformers`).
+  - [ ] Pastikan token/detik ≥ 30 t/s pada CPU i5 generasi ke-10.
 
-### 🎭 Fase 4: Micro Mixture-of-Experts (Micro-MoE < 150 MB Total)
-- [ ] **Sparse Micro-MoE Expert Routing**
-  - [ ] **Expert 1 - Thesis & Scientific Writing**: Micro-expert (~35MB).
-  - [ ] **Expert 2 - Code & Logic Engineering**: Micro-expert (~35MB).
-  - [ ] **Expert 3 - Mathematics & Reasoning**: Micro-expert (~35MB).
-  - [ ] **Expert 4 - Natural Conversational Dialogue**: Micro-expert (~35MB).
-  - [ ] Total active memory for all 4 micro-experts combined strictly under 150 MB.
-- [ ] **Micro-Reflexion Self-Correction Loop**
-  - [ ] Candidate verification and self-consistency check before returning answer.
+- [ ] **1.2 Domain LoRA Micro-Adapters (< 5 MB per adapter, Rank-8)**
+  - [ ] Adapter `jaya_skripsi_id`: Struktur BAB I–V, ABSTRAK, sitasi IEEE/APA, kalimat ilmiah formal Indonesia.
+  - [ ] Adapter `jaya_code_kt_py`: Kotlin Android, Python system, debugging reasoning.
+  - [ ] Adapter `jaya_math_logic`: Aljabar simbolik, pembuktian logika, statistik.
+  - [ ] Adapter `jaya_conversation_id`: Dialog natural Indonesia informal & formal, slang mahasiswa.
+  - [ ] Hot-swap adapter berdasarkan intent yang terdeteksi (tanpa restart).
 
-### 🔄 Fase 5: Continuous Micro-Evolution & ArXiv Auto-Patching
-- [ ] **ArXiv Auto-Research Micro-Delta Patches (< 5 MB)**
-  - [ ] Automatically scan daily ArXiv papers and deploy micro-LoRA / delta patches to `JAYA_CORE`.
-- [ ] **Idle Hour Micro-Evolution (Pillar 28 & LiveEvolver)**
-  - [ ] Run micro-evolutionary weight updates during idle PC hours within the sub-200MB boundary.
+- [ ] **1.3 Structured Output & Tool Calling**
+  - [ ] Format JSON-schema output untuk pemanggilan tool lokal (Calculator, RAG, File ops, Smart Home).
+  - [ ] Validasi output dengan Pydantic schema sebelum eksekusi.
 
 ---
 
-## 📊 Benchmarking & Success Metrics (< 200 MB Boundary)
+### 🔍 Fase 2 — Knowledge Core: Micro-GraphRAG + Hybrid Retrieval (< 20 MB)
 
-| Metric | Target Baseline | Ultra-Intelligence Goal (<200MB) |
+**Target**: JAYA mengetahui *apa yang Bos kerjakan*, *dokumen apa yang dimiliki*, dan *fakta apa yang relevan*.
+
+- [ ] **2.1 Compact Vector Embeddings**
+  - [ ] Deploy `all-MiniLM-L6-v2` (23MB) sebagai embedding engine lokal.
+  - [ ] Indexing seluruh dokumen PDF/TXT skripsi Bos ke dalam SQLite vector vault.
+
+- [ ] **2.2 Hybrid Retrieval: BM25 + Dense (Reciprocal Rank Fusion)**
+  - [ ] Implementasi BM25 sparse keyword search di atas SQLite full-text.
+  - [ ] Gabungkan dengan cosine dense search menggunakan RRF scoring.
+  - [ ] Evaluasi cutoff relevance sebelum dimasukkan ke context window (CRAG / Self-RAG).
+
+- [ ] **2.3 SQLite Micro-GraphRAG**
+  - [ ] Bangun tabel Entity–Relation dari dokumen skripsi dan jurnal Bos.
+  - [ ] Multi-hop traversal: "Siapa yang menulis paper tentang X yang direferensi oleh BAB II?"
+  - [ ] ArXiv Daily Knowledge Sync: Tambah fakta baru < 1 MB per hari otomatis.
+
+---
+
+### 🧠 Fase 3 — Memory Architecture: Memori Episodik Lintas Sesi (Setara JARVIS)
+
+**Target**: JAYA *mengingat* Bos lintas hari, lintas sesi, lintas topik — persis JARVIS.
+
+- [ ] **3.1 Episodic Long-Term Memory (Pillar 31)**
+  - [ ] Simpan ringkasan setiap sesi percakapan dalam database memori episodik SQLite.
+  - [ ] Retrieve memori relevan pada awal sesi baru (tanpa perlu Bos mengulang konteks).
+  - [ ] Contoh: *"Bos sudah di BAB III skripsi, deadline 15 Agustus, topik federated learning."*
+
+- [ ] **3.2 Dynamic User Profile Engine (Pillar 32)**
+  - [ ] Bangun profil pengguna dinamis: nama, topik riset, gaya kerja, preferensi bahasa.
+  - [ ] Update profil secara inkremental setiap sesi.
+  - [ ] Gunakan profil untuk personalisasi setiap respons.
+
+- [ ] **3.3 Sliding Context Window (8K-32K Token, < 20 MB RAM)**
+  - [ ] Implementasi YaRN/RoPE untuk 8K–32K token context window.
+  - [ ] H2O Heavy-Hitter KV-Cache pruning: hapus token kurang penting secara dinamis.
+  - [ ] Compression ringkasan otomatis untuk percakapan panjang (Narrative Compression).
+
+---
+
+### 🎭 Fase 4 — Intelligence Routing: Sparse Micro-MoE (< 150 MB Total)
+
+**Target**: Model berbeda diaktifkan per domain — lebih cerdas dari satu model monolitik.
+
+- [ ] **4.1 Sparse Micro-MoE Router**
+  - [ ] Router intent menentukan pakar mana yang diaktifkan berdasarkan topik prompt.
+  - [ ] Hanya 1 pakar aktif per inferensi (sisanya di-disk, tidak di-RAM).
+
+- [ ] **4.2 4 Micro-Expert Modules (@ ~35 MB tiap pakar)**
+  - [ ] `expert_thesis`: Ilmiah — analisis teks akademis, saran BAB, sitasi, revisi kalimat.
+  - [ ] `expert_code`: Engineering — Kotlin, Python, debug, refactor, code review.
+  - [ ] `expert_logic`: Sains & Matematika — perhitungan, proof, reasoning simbolik.
+  - [ ] `expert_dialogue`: Percakapan — cerdas, hangat, natural, proaktif, kontekstual.
+
+- [ ] **4.3 Reflexion Self-Correction Loop**
+  - [ ] Generate 2–3 kandidat jawaban per prompt.
+  - [ ] Self-consistency scoring: pilih jawaban terbaik sebelum dikirim ke Bos.
+  - [ ] Deteksi hallucination dan regenerasi dengan constraint lebih ketat.
+
+---
+
+### 🤖 Fase 5 — Agentic Intelligence: Proaktif & Otonom (Setara JARVIS)
+
+**Target**: JAYA bertindak seperti asisten sejati — bukan hanya reaktif, tapi proaktif.
+
+- [ ] **5.1 Hierarchical Task Planner**
+  - [ ] Pecah tujuan besar ("selesaikan BAB III") menjadi sub-langkah konkret yang dapat dieksekusi.
+  - [ ] Track status dan kemajuan tiap sub-task.
+
+- [ ] **5.2 Proactive Intelligence Engine (Pillar 29)**
+  - [ ] Ingatkan Bos tentang deadline, tugas yang tertunda, atau dokumen yang belum selesai.
+  - [ ] Inisiasi percakapan secara proaktif jika JAYA mendeteksi Bos membutuhkan bantuan.
+
+- [ ] **5.3 Agentic Loop: Bertanya Balik & Konfirmasi**
+  - [ ] Jika instruksi ambigu, JAYA bertanya balik sebelum berasumsi.
+  - [ ] Konfirmasi sebelum tindakan destruktif (hapus, overwrite, kirim).
+
+- [ ] **5.4 ArXiv Micro-Delta Self-Patching (< 5 MB per patch)**
+  - [ ] Scan paper ArXiv kategori AI/LLM terkait topik riset Bos setiap hari.
+  - [ ] Hasilkan micro-delta knowledge patch dan terapkan ke RAG vault secara otomatis.
+
+---
+
+## 📊 Benchmark Target: JAYA vs JARVIS vs Model Besar
+
+| Kemampuan | GPT-4o / LLaMA-3 70B | **JAYA Target (< 200MB)** |
 | :--- | :--- | :--- |
-| **Model Size Footprint** | 53 KB Stub / 12 MB | **< 150 MB (Physical `.jay` Model)** |
-| **Vector DB + Embeddings** | SQLite String Search | **all-MiniLM-L6-v2 (23 MB) + GraphRAG** |
-| **Context Window Memory** | 4,096 Tokens | **16,000+ Tokens (H2O KV-Cache < 20MB)** |
-| **Inference Speed (Host PC)** | > 50 tokens/sec | **> 120 tokens/sec (Pure CPU / NPU)** |
-| **Indonesian Thesis Reasoning** | Template Matching | **Dynamic Neural Generation (<200MB)** |
+| **Ukuran Model** | 40 GB – 140 GB | **< 150 MB (Qwen2.5-0.5B 2-bit)** |
+| **Memori Lintas Sesi** | Tidak ada | **✅ Episodik SQLite (ingat Bos lintas hari)** |
+| **Profil Pengguna Dinamis** | Tidak ada | **✅ User Profile Engine (tahu topik riset Bos)** |
+| **Proaktif / Inisiasi** | Tidak ada | **✅ Proactive Intelligence Engine** |
+| **Context Window** | 128K Token | **8K–32K Token (H2O pruning < 20MB RAM)** |
+| **Kebutuhan Internet** | 100% Cloud | **100% Offline / Sovereign Edge** |
+| **Inferensi di HP Android** | Tidak mungkin | **✅ JayaNanoEngine on-device (Vivo)** |
+| **Bahasa Indonesia Native** | Terbatas | **✅ LoRA Adapter + IndonesianResponder** |
 
 ---
 
-*Document version: 2.1.0 — JAYA_CORE Sub-200MB Sovereign AI Architecture*
+## 🛣️ Urutan Prioritas Implementasi
+
+```
+Minggu 1-2  → Fase 1: Integrasikan model SLM GGUF + LoRA adapters
+Minggu 3-4  → Fase 2: Micro-GraphRAG + Hybrid BM25+Dense retrieval
+Bulan 2     → Fase 3: Memori episodik lintas sesi + sliding context window
+Bulan 3     → Fase 4: Micro-MoE routing + Reflexion loop
+Bulan 4+    → Fase 5: Proactive agentic + ArXiv auto-patching
+```
+
+---
+
+*Document version: 3.0.0 — JAYA_CORE Sovereign Superintelligence: JARVIS-Level in 200 MB*
