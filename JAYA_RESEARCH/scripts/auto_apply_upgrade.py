@@ -57,11 +57,17 @@ def save_applied_hash(paper_hash: str):
 
 def discover_live_paper_and_synthesize() -> ResearchFinding:
     """
-    Connects LIVE to ArXiv API to search real academic research papers dynamically.
+    Connects LIVE to ArXiv API to search real AI/ML/Software Engineering research papers.
     Generates a live research finding on the fly without any hardcoded datasets.
     """
     client = ArxivClient()
-    search_queries = ["cs.AI", "cs.LG", "quantization", "fast attention", "model compression"]
+    # Explicit Computer Science categories: cs.AI (AI), cs.LG (Machine Learning), cs.CL (NLP/LLMs), cs.SE (Software Engineering)
+    search_queries = [
+        "cat:cs.AI AND all:agent",
+        "cat:cs.LG AND all:optimization",
+        "cat:cs.CL AND all:reasoning",
+        "cat:cs.SE AND all:architecture"
+    ]
     
     # Pick query based on current timestamp
     selected_query = search_queries[int(time.time()) % len(search_queries)]
