@@ -7,7 +7,7 @@ for automated self-improvement.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 import os
 import sys
 import time
@@ -82,14 +82,35 @@ class ResearchEcosystemBridge:
         # Evaluate candidate via EvolutionGate
         decision = self.gate.evaluate(candidate, evidence)
         
+        deployed = False
+        target_path = None
+        if decision.accepted:
+            deployed, target_path = self.deploy_patch_to_core(finding)
+
         return {
             "finding_id": finding.finding_id,
             "candidate_id": candidate.candidate_id,
             "gate_passed": decision.accepted,
             "decision_code": decision.code.value,
             "reason": decision.reason,
+            "auto_deployed_by_research": deployed,
+            "target_path": target_path,
             "timestamp": time.time()
         }
+
+    def deploy_patch_to_core(self, finding: ResearchFinding) -> Tuple[bool, Optional[str]]:
+        """JAYA_RESEARCH itself deploys the accepted research patch directly into JAYA_CORE."""
+        try:
+            core_engine_dir = os.path.join(CORE_DIR, "src", "brain_v2", "engine")
+            os.makedirs(core_engine_dir, exist_ok=True)
+            patch_file_path = os.path.join(core_engine_dir, "auto_research_patch.py")
+            
+            with open(patch_file_path, "w", encoding="utf-8") as f:
+                f.write(finding.patch_code)
+                
+            return True, patch_file_path
+        except Exception as err:
+            return False, str(err)
 
     def get_submission_history(self) -> List[ResearchFinding]:
         """Returns history of all research findings submitted to JAYA_CORE."""
