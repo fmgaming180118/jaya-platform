@@ -90,17 +90,20 @@ class QuantizedAttentionSparsityEngine:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Autonomous JAYA_RESEARCH Auto-Upgrade Runner")
-    parser.add_argument("--interval", type=int, default=0, help="Run background daemon loop every N seconds (0 = run once)")
+    parser.add_argument("--interval", type=int, default=60, help="Run background daemon loop every N seconds (default: 60s / 1 min)")
     args = parser.parse_args()
 
     if args.interval > 0:
-        print(f"🔄 JAYA_RESEARCH Autonomous Auto-Upgrade Daemon Active (Interval: {args.interval}s)")
+        print(f"🔄 JAYA_RESEARCH Continuous Auto-Upgrade Active (Scanning every {args.interval} seconds)")
         try:
+            cycle = 1
             while True:
+                print(f"\n⏰ [Cycle {cycle} - {time.strftime('%H:%M:%S')}] Scanning for new research papers and brain updates...")
                 run_autonomous_research_and_update()
-                print(f"\n💤 Sleeping for {args.interval} seconds until next autonomous research cycle...")
+                print(f"\n💤 Cycle {cycle} complete. Waiting {args.interval}s for next continuous scan...")
                 time.sleep(args.interval)
+                cycle += 1
         except KeyboardInterrupt:
-            print("\n🛑 Autonomous daemon stopped by user.")
+            print("\n🛑 Continuous autonomous upgrade loop stopped by user.")
     else:
         run_autonomous_research_and_update()
