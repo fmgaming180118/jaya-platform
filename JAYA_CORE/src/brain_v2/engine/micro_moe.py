@@ -12,18 +12,18 @@ Architecture
 ------------
   Implementasi "Sparse MoE" di sini menggunakan pendekatan yang tepat untuk
   model SLM < 200 MB:
-  
+
   • Setiap "expert" adalah kombinasi:
       - System prompt yang sangat spesifik dan kaya untuk domain tertentu
       - Parameter inferensi yang dioptimalkan (temperature, top_p, repetition_penalty)
       - Few-shot examples kontekstual yang meningkatkan kualitas output
       - Keyword gating untuk aktivasi yang tepat
-  
+
   • Hanya SATU expert yang aktif per inferensi (Sparse = 1-of-4 active).
-  
+
   • ReflexionLoop menghasilkan 2-3 kandidat, lalu memilih terbaik
     berdasarkan: panjang, koherensi, domain alignment, anti-hallucination.
-    
+
   Zero external dependencies — hanya Python stdlib.
 
 Integrasi dengan SLMEngine (Fase 1):
@@ -35,9 +35,7 @@ Integrasi dengan SLMEngine (Fase 1):
 from __future__ import annotations
 
 import logging
-import math
 import re
-import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 

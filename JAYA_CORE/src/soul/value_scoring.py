@@ -5,7 +5,7 @@ Provides a simple scoring function to determine if a user's intent aligns with a
 """
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 

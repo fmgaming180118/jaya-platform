@@ -12,7 +12,6 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, cast
 
-
 LANGUAGE_CORE: Dict[str, Dict[str, str]] = {
     "id": {
         "greeting": (

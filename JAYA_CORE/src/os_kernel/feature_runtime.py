@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
-from dataclasses import dataclass, field, asdict
-from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Set
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
 
 class WidgetEventType(str, Enum):

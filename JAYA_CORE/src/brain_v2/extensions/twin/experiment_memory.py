@@ -6,7 +6,7 @@ previous runs, even across restarts.
 import json
 import os
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from typing import Any, Dict, List
 
 MEM_PATH = os.path.join(os.path.dirname(__file__), "experiments.jsonl")

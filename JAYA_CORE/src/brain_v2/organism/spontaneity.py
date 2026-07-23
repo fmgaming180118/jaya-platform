@@ -95,7 +95,7 @@ class EntropySpark:
 
     def tick(self, twin: Any) -> None:
         """Call each cycle.  Fires a curiosity task when idle long enough."""
-        from src.brain_v2.extensions.twin.task_planner import Task, Priority
+        from src.brain_v2.extensions.twin.task_planner import Priority, Task
 
         now = time.time()
 

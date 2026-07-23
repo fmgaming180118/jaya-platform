@@ -12,7 +12,7 @@ Architecture
 ------------
   Semua data disimpan di satu file SQLite ringan (< 5 MB normal usage).
   Zero external dependencies — hanya stdlib Python + sqlite3.
-  
+
   Flow per sesi:
     START  → load_session_context() → inject ke system prompt SLMEngine
     DURING → update_profile_incremental() on each turn
@@ -24,14 +24,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import math
 import os
 import re
 import sqlite3
 import time
-from dataclasses import dataclass, asdict, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("EpisodicMemory")
 
@@ -595,7 +594,7 @@ class MemoryManager:
     """
     Fase 3 facade: mengelola EpisodicMemory, UserProfileEngine, dan NarrativeCompressor
     dalam satu antarmuka yang mudah digunakan oleh SLMEngine dan server.
-    
+
     Usage:
         mm = MemoryManager()
         mm.start_session()                          # awal sesi

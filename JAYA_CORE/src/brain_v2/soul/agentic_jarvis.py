@@ -14,14 +14,11 @@ Zero external dependencies — SQLite + standard library.
 
 from __future__ import annotations
 
-import json
 import logging
-import math
 import os
-import re
 import sqlite3
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 

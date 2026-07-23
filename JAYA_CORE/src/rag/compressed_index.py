@@ -5,8 +5,8 @@ A simple in-memory index for demonstration. In production, replace with FAISS-IV
 
 import logging
 import math
-from typing import List, Dict, Any, Tuple
 from collections import defaultdict
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 

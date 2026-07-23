@@ -4,15 +4,14 @@ Reads discoveries from JAYA_RESEARCH evolution_memory.json and injects
 them into JAYA_CORE's Agentic RAG database so that research findings
 become part of JAYA's sovereign knowledge base.
 """
+import hashlib
 import json
 import logging
-import os
-import sys
 import sqlite3
-import hashlib
+import sys
 import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 # Add JAYA_CORE root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent

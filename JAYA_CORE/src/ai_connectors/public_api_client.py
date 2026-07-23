@@ -4,9 +4,10 @@ Provides safe access to public internet services (e.g., Wikipedia, DuckDuckGo) w
 """
 
 import logging
+from typing import Any, Dict, Optional
+
 import requests
-from typing import Optional, Dict, Any
-from protection.filters import is_domain_allowed, sanitize_outbound
+from protection.filters import is_domain_allowed
 
 logger = logging.getLogger(__name__)
 

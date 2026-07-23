@@ -1,8 +1,7 @@
 
-import os
-import json
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List
+
 from src.research.enhanced_rag import EnhancedRAGClient
 
 # Try importing LangChain for structured reasoning (or we build a simple loop)
@@ -15,14 +14,14 @@ logger = logging.getLogger("JayaAgenticSearch")
 class AgenticSearchEngine:
     """
     Pillar 25: The Knowledge Graph (Dynamic Access)
-    
+
     Implements a ReAct loop:
     1.  Thought: What do I need to know?
     2.  Action: Search Web / Search Memory / Calculate
     3.  Observation: Read result
     4.  Answer: Synthesize response
     """
-    
+
     def __init__(self, rag_client: EnhancedRAGClient = None):
         self.rag = rag_client or EnhancedRAGClient()
         # Initialize DuckDuckGo manually if RAG doesn't expose it directly suitable for agents
@@ -46,11 +45,11 @@ class AgenticSearchEngine:
         The main thinking loop.
         """
         logger.info(f"[Agentic] Thinking about: {query}")
-        
+
         # 1. Quick Local Memory Check (Fast Path)
         local_context = self.rag.search(query, top_k=2)
         local_score = local_context[0]['score'] if local_context else 0
-        
+
         if local_score > 0.75:
             logger.info("[Agentic] Found high-confidence local memory.")
             return self._synthesize(query, [docx['snippet'] for docx in local_context], source="Memory")
@@ -63,13 +62,13 @@ class AgenticSearchEngine:
                 return self._synthesize(query, web_results, source="Web")
             else:
                  return "Maaf, saya mencoba mencari di internet tetapi tidak menemukan hasil (Cek koneksi/limit)."
-        
+
         return "Maaf, saya tidak memiliki informasi tersebut di database saya."
 
     def _search_web(self, query: str) -> List[str]:
         results = []
         if not self.web_enabled: return []
-        
+
         # 1. Try DuckDuckGo
         try:
             logger.info(f"[Agentic] Searching DDG for: {query}")
@@ -79,13 +78,13 @@ class AgenticSearchEngine:
                 results.append(entry)
         except Exception as e:
             logger.warning(f"[Agentic] DDG Failed: {e}")
-            
+
         # 2. Fallback to Google Search if DDG gave no results
         if not results:
             try:
-                logger.info(f"[Agentic] DDG empty. Falling back to Google Search...")
+                logger.info("[Agentic] DDG empty. Falling back to Google Search...")
                 from googlesearch import search
-                # googlesearch-python returns URLs. We might need to fetch content, 
+                # googlesearch-python returns URLs. We might need to fetch content,
                 # but for now let's just use the URL titles if possible or just the URLs.
                 # Actually googlesearch-python advanced=True returns objects with title/desc
                 google_results = search(query, num_results=3, advanced=True)
@@ -95,7 +94,7 @@ class AgenticSearchEngine:
             except Exception as e:
                 logger.error(f"[Agentic] Google Search Failed: {e}")
                 results.append(f"Error searching web: {e}")
-                
+
         # 3. Failsafe for DEMO (if network scraping is blocked/rate-limited)
         # This ensures the user sees the 'Agentic' flow working even if external tools fail.
         if not results and "presiden" in query.lower() and "indonesia" in query.lower():
@@ -110,15 +109,15 @@ class AgenticSearchEngine:
         """
         if not context:
             return "Maaf, saya tidak menemukan informasi yang relevan."
-            
+
         # Context Cleaning
-        clean_context = "\n".join(context)
-        
+        "\n".join(context)
+
         # In a full production system, we would send this to an LLM:
         # prompt = f"Answer '{query}' based on:\n{clean_context}"
         # return llm.generate(prompt)
-        
+
         # For now (Symbolic Logic Kernel): We return the best snippet with a citation.
-        best_snippet = context[0] 
+        best_snippet = context[0]
         # Extract just the body if possible, or return the whole verified snippet
         return f"Berdasarkan pencarian {source} saya: {best_snippet[:500]}..."

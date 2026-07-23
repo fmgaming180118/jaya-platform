@@ -7,7 +7,12 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Optional, Tuple
 
-from src.brain_v2.engine.jaya_ir import JayaIRGraph, OpCode, ValidationMode, validate_graph
+from src.brain_v2.engine.jaya_ir import (
+    JayaIRGraph,
+    OpCode,
+    ValidationMode,
+    validate_graph,
+)
 from src.brain_v2.engine.jaya_ir_translator import logic_expr_to_ir
 from src.brain_v2.soul.lingua_logica import LogicExpr
 

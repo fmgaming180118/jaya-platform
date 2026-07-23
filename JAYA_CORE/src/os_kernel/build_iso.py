@@ -1,6 +1,6 @@
+import glob
 import os
 import subprocess
-import glob
 
 # WSL gcc cross-compilation pipeline documentation script
 # This script documents how to compile the microkernel.

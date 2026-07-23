@@ -13,24 +13,19 @@ The bridge allows brain_v2 to:
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
 from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
 
-from src.os_kernel.ui_spec import SceneGraph, WidgetSpec, WidgetType, LayoutType
-from src.os_kernel.feature_compiler import FeatureCompiler, compile_scene_to_feature
+from src.os_kernel.feature_compiler import compile_scene_to_feature
 from src.os_kernel.feature_registry import (
-    FeatureRegistry,
-    FeatureManifest,
     FeatureInstance,
     FeatureStatus,
-    FeaturePermission,
     get_feature_registry,
 )
+from src.os_kernel.ui_spec import LayoutType, SceneGraph
 
 
 class BridgeAction(str, Enum):
@@ -377,7 +372,7 @@ class JayaBridge:
 
     def _handle_run_task(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Run a background task."""
-        task_code = payload.get("code", "")
+        payload.get("code", "")
         task_label = payload.get("label", "TASK")
 
         # This would integrate with the twin/task system
@@ -472,8 +467,11 @@ class JayaBridge:
 
     def _create_login_scene(self) -> SceneGraph:
         from src.os_kernel.ui_spec import (
-            create_window, create_panel, create_label, create_text_input, create_button,
-            LayoutType, WidgetType
+            create_button,
+            create_label,
+            create_panel,
+            create_text_input,
+            create_window,
         )
         return SceneGraph(
             name="Login Dialog",
@@ -499,8 +497,11 @@ class JayaBridge:
 
     def _create_dashboard_scene(self) -> SceneGraph:
         from src.os_kernel.ui_spec import (
-            create_window, create_panel, create_label, create_button,
-            LayoutType, WidgetType, WidgetStyle, Dimension, SizeUnit
+            WidgetStyle,
+            create_button,
+            create_label,
+            create_panel,
+            create_window,
         )
         return SceneGraph(
             name="Dashboard",
@@ -590,8 +591,13 @@ class JayaBridge:
 
     def _create_settings_scene(self) -> SceneGraph:
         from src.os_kernel.ui_spec import (
-            create_window, create_panel, create_label, create_text_input, create_button, create_select,
-            LayoutType, WidgetType, WidgetStyle
+            WidgetStyle,
+            create_button,
+            create_label,
+            create_panel,
+            create_select,
+            create_text_input,
+            create_window,
         )
         return SceneGraph(
             name="Settings",
@@ -651,8 +657,12 @@ class JayaBridge:
 
     def _create_chat_scene(self) -> SceneGraph:
         from src.os_kernel.ui_spec import (
-            create_window, create_panel, create_label, create_text_input, create_button,
-            LayoutType, WidgetType, WidgetStyle
+            WidgetStyle,
+            create_button,
+            create_label,
+            create_panel,
+            create_text_input,
+            create_window,
         )
         return SceneGraph(
             name="Chat",
@@ -698,8 +708,11 @@ class JayaBridge:
 
     def _create_file_explorer_scene(self) -> SceneGraph:
         from src.os_kernel.ui_spec import (
-            create_window, create_panel, create_label, create_button, create_tree,
-            LayoutType, WidgetType, WidgetStyle
+            WidgetStyle,
+            create_button,
+            create_label,
+            create_panel,
+            create_window,
         )
         return SceneGraph(
             name="File Explorer",
@@ -751,8 +764,11 @@ class JayaBridge:
 
     def _create_generic_scene(self, intent: str) -> SceneGraph:
         from src.os_kernel.ui_spec import (
-            create_window, create_panel, create_label, create_button,
-            LayoutType, WidgetType, WidgetStyle
+            WidgetStyle,
+            create_button,
+            create_label,
+            create_panel,
+            create_window,
         )
         return SceneGraph(
             name=f"Feature: {intent[:50]}",

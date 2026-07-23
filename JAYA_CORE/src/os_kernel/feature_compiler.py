@@ -12,23 +12,17 @@ The compiler generates:
 
 from __future__ import annotations
 
-import ast
 import json
-import textwrap
-import uuid
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Dict, Set
 
 from src.os_kernel.ui_spec import (
+    LayoutType,
     SceneGraph,
+    StyleTokens,
     WidgetSpec,
     WidgetType,
-    LayoutType,
-    EventHandler,
-    Binding,
-    StyleTokens,
-    JayaActions,
 )
 
 
@@ -379,10 +373,10 @@ def get_token(name: str, default: str = "") -> str:
         builder = [
             f"def build_scene_{scene.id[:8]}() -> WidgetBase:",
             f'    """Build the "{scene.name}" scene graph."""',
-            f"    # Global state",
+            "    # Global state",
             f"    global_state = {json.dumps(scene.global_state, indent=4)}",
             "",
-            f"    # Create root widget",
+            "    # Create root widget",
             f"    root = {self._widget_registry[scene.root.type]}(",
         ]
 
@@ -491,19 +485,19 @@ def get_token(name: str, default: str = "") -> str:
         return f'''# Feature Entry Point
 async def run_feature(jaya_bridge: JayaBridge, config: Dict = None) -> Dict[str, Any]:
     """Main entry point for the feature.
-    
+
     Args:
         jaya_bridge: Bridge to JAYA core for actions/events
         config: Optional configuration dict
-        
+
     Returns:
         Result dict with status and any output data
     """
     config = config or {{}}
-    
+
     # Build scene
     root = build_scene_{feature_id}()
-    
+
     # Initialize runtime
     from src.os_kernel.feature_runtime import FeatureRuntime, EventBus
     event_bus = EventBus()
@@ -514,13 +508,13 @@ async def run_feature(jaya_bridge: JayaBridge, config: Dict = None) -> Dict[str,
         root_widget=root,
         event_bus=event_bus,
     )
-    
+
     # Set global runtime reference for dispatch
     set_runtime(runtime)
-    
+
     # Mount feature
     await runtime.mount(root, config.get("mount_point", "body"))
-    
+
     # Run feature lifecycle
     try:
         await runtime.run()
@@ -539,22 +533,22 @@ def set_runtime(runtime: FeatureRuntime) -> None:
 
 def dispatch(action: str, payload: Dict = None) -> Any:
     """Dispatch an action to the feature's widget tree.
-    
+
     Args:
         action: Action identifier (e.g., "click", "get_children", "set_value")
         payload: Optional payload for the action
-        
+
     Returns:
         Result from the widget that handled the action
     """
     if _runtime is None:
         return {{"error": "Feature not running"}}
-    
+
     return _runtime.dispatch(action, payload or {{}})
 '''
 
     def _generate_jaya_dispatcher(self) -> str:
-        return f'''# JAYA Action Dispatcher
+        return '''# JAYA Action Dispatcher
 _jaya_bridge: Optional[JayaBridge] = None
 
 def set_jaya_bridge(bridge: JayaBridge) -> None:
@@ -565,13 +559,13 @@ def set_jaya_bridge(bridge: JayaBridge) -> None:
 async def jaya_dispatch(action: str, payload: Dict = None) -> Any:
     """Dispatch a JAYA action through the bridge."""
     if _jaya_bridge is None:
-        print(f"Warning: No JAYA bridge set, action {{action}} dropped")
+        print(f"Warning: No JAYA bridge set, action {action} dropped")
         return None
-    
+
     try:
-        return await _jaya_bridge.dispatch(action, payload or {{}})
+        return await _jaya_bridge.dispatch(action, payload or {})
     except Exception as e:
-        print(f"JAYA dispatch error: {{e}}")
+        print(f"JAYA dispatch error: {e}")
         return None
 
 # Standard JAYA Actions
@@ -651,9 +645,16 @@ def compile_scene_to_feature(
 # Example usage and testing
 if __name__ == "__main__":
     from src.os_kernel.ui_spec import (
-        SceneGraph, WidgetSpec, WidgetType, LayoutType,
-        EventHandler, Binding, StyleTokens, create_window, create_button,
-        create_panel, create_label, create_text_input
+        LayoutType,
+        SceneGraph,
+        StyleTokens,
+        WidgetSpec,
+        WidgetType,
+        create_button,
+        create_label,
+        create_panel,
+        create_text_input,
+        create_window,
     )
 
     # Create a sample scene: simple login dialog

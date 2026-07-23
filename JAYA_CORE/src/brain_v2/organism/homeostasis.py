@@ -57,7 +57,7 @@ class HomeostasisAudit:
     # ------------------------------------------------------------------
 
     def _audit(self, twin: Any) -> None:
-        from src.brain_v2.extensions.twin.task_planner import Task, Priority
+        from src.brain_v2.extensions.twin.task_planner import Priority, Task
 
         recent = twin.memory.recent(self.window)
         if not recent:

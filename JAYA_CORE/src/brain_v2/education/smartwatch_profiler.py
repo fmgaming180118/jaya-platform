@@ -12,14 +12,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import time
 import tracemalloc
 from pathlib import Path
 from typing import Any, Dict
-
-import numpy as np
 
 logger = logging.getLogger("SmartwatchProfiler")
 
@@ -49,7 +46,6 @@ class SmartwatchProfiler:
 
     def profile_model(self, model: Any, config_name: str = "INDONESIAN") -> Dict[str, Any]:
         """Ukur RAM dan performance NanoModel secara aktual."""
-        from src.brain_v2.model.nano_inference import INDONESIAN_CONFIG
 
         if not model._initialized:
             model.random_init()
@@ -178,7 +174,7 @@ class SmartwatchProfiler:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
-    from src.brain_v2.model.nano_inference import NanoModel, INDONESIAN_CONFIG
+    from src.brain_v2.model.nano_inference import INDONESIAN_CONFIG, NanoModel
 
     model = NanoModel(config=INDONESIAN_CONFIG)
     model.random_init()

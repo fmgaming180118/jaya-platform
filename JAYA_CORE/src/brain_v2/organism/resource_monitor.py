@@ -10,7 +10,7 @@ Falls back gracefully if ``psutil`` is not installed.
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from src.brain_v2.engine.runtime import IronEngine

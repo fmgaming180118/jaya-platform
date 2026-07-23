@@ -15,7 +15,9 @@ import msgpack
 
 try:
     from cryptography.exceptions import InvalidTag  # type: ignore[import]
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # type: ignore[import]
+    from cryptography.hazmat.primitives.ciphers.aead import (
+        AESGCM,  # type: ignore[import]
+    )
 
     _HAS_AESGCM = True
 except Exception:

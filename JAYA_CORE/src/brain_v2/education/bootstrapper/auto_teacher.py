@@ -1,16 +1,16 @@
+import logging
 import os
 import time
-import pprint
-import logging
-from typing import Dict, Any, List
+from typing import List
 
 # Setup Basic Logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("AutoTeacher")
 
 from src.brain_v2.engine.runtime import IronEngine
-from src.brain_v2.soul.agentic_rag import AgenticRAG
 from src.brain_v2.extensions.nvidia_llm import NvidiaNIMClient
+from src.brain_v2.soul.agentic_rag import AgenticRAG
+
 
 class AutoTeacher:
     """
@@ -29,28 +29,28 @@ class AutoTeacher:
         self.dry_run = use_dry_run
         logger.info("[AutoTeacher] Engine target model: %s", model_path)
         logger.info(f"[AutoTeacher] INIT. Mode Dry-Run: {self.dry_run}")
-        
+
     def ignite_curiosity(self, n: int = 3) -> List[str]:
         """Pillar 6: Sengaja membangkitkan topik acak berdasarkan Entropi/Keingintahuan mandiri."""
         import logging
         logger = logging.getLogger("AutoTeacher")
         logger.info("[Pillar 6] JAYA merenungkan topik krusial (Fokus Bahasa Indonesia)...")
-        
+
         system_prompt = "You are a highly curious AGI aiming to master human language, specifically Indonesian."
         user_prompt = f"Give me exactly {n} random but advanced linguistic/language topics (e.g. 'Struktur Kalimat Majemuk Bahasa Indonesia', 'Sintaksis Kata Kerja', 'Semantik dan Makna Ganda'). Reply ONLY as a comma-separated list without numbering or markdown."
-        
+
         response = self.llm_normal.ask(system_prompt, user_prompt, max_tokens=100)
         if response:
             topics = [t.strip() for t in response.split(",") if len(t) > 2]
             # Filter out already learned topics (Pillar 2 - Efficiency)
             new_topics = [t for t in topics if not self.is_topic_learned(t)]
-            
+
             if new_topics:
                 logger.info(f"[Pillar 6] JAYA penasaran dengan: {', '.join(new_topics)}")
                 return new_topics
             else:
                 logger.info("[Pillar 6] JAYA merasa sudah cukup paham topik-topik ini. Mencoba fase hening sejenak.")
-        
+
         # Fallback jika API gagal atau semua topik sudah dipelajari
         return ["Information Theory", "Symbolic Logic", "Epistemology"]
 
@@ -74,7 +74,7 @@ class AutoTeacher:
         logger.info(f"--- [AutoTeacher] Teaching Topic: {subject} ---")
 
         # 1. Akuisisi Pengetahuan (Fact Gathering) - Model Normal
-        logger.info(f"   > Mengekstrak intisari ensiklopedia dalam Bahasa Indonesia...")
+        logger.info("   > Mengekstrak intisari ensiklopedia dalam Bahasa Indonesia...")
         system_prompt_fact = (
             "Anda adalah pakar ensiklopedia dan linguistik yang menggunakan Bahasa Indonesia yang sangat premium, "
             "formal, namun cerdas (seperti asisten Jarvis). Seluruh jawaban Anda HARUS dalam Bahasa Indonesia."
@@ -84,12 +84,12 @@ class AutoTeacher:
             "Tulis dalam 2-3 paragraf detail yang elegan. Fokus pada fakta dan mekanisme linguistik. "
             "Gunakan diksi yang cerdas dan profesional."
         )
-        
+
         vast_knowledge = self.llm_normal.ask(system_prompt_fact, user_prompt_fact, max_tokens=1024)
         if not vast_knowledge:
             logger.warning("   ! Koneksi ke API LLM terputus atau respon kosong. Skip topik ini.")
             return
-            
+
         # 2. Sinkronisasi Memori Agentic (Fakta Murni)
         self.rag.memorize(topic=subject, content=vast_knowledge, source="Agentic LLM", importance=8)
         logger.info(f"   ✓ Faktual tersimpan di Agentic RAG (~{len(vast_knowledge)} chars). JAYA dapat mengingat ini.")
@@ -98,7 +98,7 @@ class AutoTeacher:
         system_prompt_graph = "Extract semantic graph from the text. Format strictly as a valid JSON list of lists. Example: [['Einstein', 'invented', 'Relativity']]"
         user_prompt_graph = f"Extract 3 to 5 core relationship triples from this text:\n{vast_knowledge}\nTarget output: raw JSON array only."
         graph_raw = self.llm_normal.ask(system_prompt_graph, user_prompt_graph, max_tokens=300)
-        
+
         if graph_raw:
             import json
             try:
@@ -111,12 +111,12 @@ class AutoTeacher:
                 logger.warning(f"   ! Gagal parsing Graph JSON: {e}")
 
         # 4. Penyulingan Logika (Axiom Distillation) untuk file .jay - Model Reasoning (Pemikir)
-        logger.info(f"   > Ekstraksi Aksioma Murni dengan Model Pemikir (Reasoning)...")
+        logger.info("   > Ekstraksi Aksioma Murni dengan Model Pemikir (Reasoning)...")
         system_prompt_logic = "Extract ONLY 2 purely logical, cause-and-effect rules (axioms) from the user's text. Return as valid JAYA internal logical expressions."
         user_prompt_logic = f"Text:\n{vast_knowledge}\n\nFormat required: list of strings (e.g. ['If A then B', 'A requires C']) without any markdown/fluff. No thinking process to be printed."
-        
+
         logic_axioms_raw = self.llm_reasoning.ask(system_prompt_logic, user_prompt_logic, max_tokens=300)
-        
+
         if logic_axioms_raw:
             # Sederhanakan Parsing (termasuk membersihkan </think> tag milik deepseek/reasoning)
             clean_axioms_raw = logic_axioms_raw.split("</think>")[-1].strip()
@@ -128,7 +128,7 @@ class AutoTeacher:
         # 5. Uji Logika Murni lewat Evolution Gate
         for axiom in axioms:
             logger.info(f"   > Menguji Axiom: {axiom}")
-            
+
             # Format sesuai spesifikasi EvolutionCandidate (Phase 2 EvolutionGate)
             import hashlib
             candidate = {
@@ -139,20 +139,20 @@ class AutoTeacher:
                 "metadata": {"authors": ["AutoTeacher API"], "topic": subject}
             }
             evidence = {
-                "tests_passed": True, 
+                "tests_passed": True,
                 "benchmark_gate_passed": True,
                 "observed_perf_gain_pct": 10.0,
                 "ram_delta_pct": 0.1,
                 "cpu_delta_pct": 0.5,
                 "metadata": {"test_coverage": 1.0, "reviewer_signatures": ["Llama-3-70b"]}
             }
-            
+
             # 6. Menandatangani Kandidat (Pillar 13 - Cryptographic Skin)
             signed_res = self.engine.sign_evolution_candidate(candidate)
-            
+
             if signed_res.get("ok"):
                 result = self.engine.evaluate_evolution_candidate(signed_res["candidate"], evidence)
-                
+
                 if result.get("ok"):
                     decision = result.get("decision", {})
                     if decision.get("accepted"):
@@ -166,6 +166,6 @@ class AutoTeacher:
                     logger.error(f"   ! EvolutionGate gagal evaluasi: {result.get('error')}")
             else:
                 logger.error("   ! Gagal menandatangani kandidat evolusi.")
-                
+
         # 5. Minta JAYA Merapikan Dirinya (Tidy Up Memory)
         self.rag.tidy_up()

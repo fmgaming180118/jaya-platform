@@ -20,11 +20,14 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from src.brain_v2.extensions.twin.experiment_memory import ExperimentMemory, ExperimentRecord
-from src.brain_v2.extensions.twin.task_planner import Task, TaskPlanner, Priority
+from src.brain_v2.engine.temporal_weights import best_recent
+from src.brain_v2.extensions.twin.experiment_memory import (
+    ExperimentMemory,
+    ExperimentRecord,
+)
+from src.brain_v2.extensions.twin.task_planner import Priority, Task, TaskPlanner
 from src.brain_v2.organism.homeostasis import HomeostasisAudit
 from src.brain_v2.organism.spontaneity import EntropySpark
-from src.brain_v2.engine.temporal_weights import best_recent
 
 if TYPE_CHECKING:
     from src.brain_v2.engine.runtime import IronEngine

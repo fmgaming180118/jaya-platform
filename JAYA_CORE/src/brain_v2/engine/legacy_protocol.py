@@ -320,8 +320,8 @@ class LegacyProtocol:
     @staticmethod
     def _derive_key(hw_hash: bytes, salt: bytes) -> bytes:
         """Derive a 32-byte AES key from hardware hash + salt using PBKDF2."""
-        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
         from cryptography.hazmat.primitives import hashes as _hashes
+        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
         kdf = PBKDF2HMAC(
             algorithm=_hashes.SHA256(),

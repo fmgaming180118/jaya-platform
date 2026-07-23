@@ -118,7 +118,8 @@ def _generate_via_nim(
 ) -> Iterator[Dict[str, str]]:
     """Gunakan Teacher NIM untuk generate respons tambahan."""
     try:
-        import urllib.request, json as _json
+        import json as _json
+        import urllib.request
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",

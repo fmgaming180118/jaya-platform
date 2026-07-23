@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
     from src.brain_v2.extensions.twin.experiment_memory import (
-        ExperimentRecord,
         ExperimentMemory,
+        ExperimentRecord,
     )
 
 

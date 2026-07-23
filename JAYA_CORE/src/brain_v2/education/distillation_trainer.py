@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import sys
 import time
 from pathlib import Path
@@ -322,10 +321,13 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true",       help="Test 5 sampel saja")
     args = parser.parse_args()
 
-    from src.brain_v2.education.indonesian_corpus    import IndonesianCorpus
-    from src.brain_v2.education.indonesian_tokenizer import IndonesianTokenizer, _train_and_save, VOCAB_FILE
     from src.brain_v2.education.distillation_dataset import DistillationDataset
-    from src.brain_v2.model.nano_inference           import NanoModel, INDONESIAN_CONFIG
+    from src.brain_v2.education.indonesian_corpus import IndonesianCorpus
+    from src.brain_v2.education.indonesian_tokenizer import (
+        IndonesianTokenizer,
+        _train_and_save,
+    )
+    from src.brain_v2.model.nano_inference import INDONESIAN_CONFIG, NanoModel
 
     # 1. Corpus
     print("\n[1/5] Membangun corpus Bahasa Indonesia...")
@@ -361,7 +363,7 @@ if __name__ == "__main__":
     trainer.save_model(model)
     trainer.save_log()
 
-    print(f"\n✅ Training selesai!")
+    print("\n✅ Training selesai!")
     print(f"   Total steps : {summary['total_steps']}")
     print(f"   Final loss  : {summary['final_avg_loss']:.4f}")
     print(f"   Waktu       : {summary['elapsed_seconds']:.0f} detik")

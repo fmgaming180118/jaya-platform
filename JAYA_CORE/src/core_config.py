@@ -4,6 +4,7 @@ All secrets and paths must come from environment variables or .env file.
 """
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 # Load .env from JAYA_CORE root

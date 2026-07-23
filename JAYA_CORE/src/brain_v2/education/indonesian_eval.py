@@ -286,10 +286,12 @@ class IndonesianEvaluator:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
-    from src.brain_v2.model.nano_inference           import NanoModel, INDONESIAN_CONFIG
-    from src.brain_v2.education.indonesian_tokenizer import IndonesianTokenizer
     from src.brain_v2.education.distillation_dataset import DistillationDataset
-    from src.brain_v2.education.distillation_trainer import DistillationTrainer, MODEL_OUT_FILE
+    from src.brain_v2.education.distillation_trainer import (
+        DistillationTrainer,
+    )
+    from src.brain_v2.education.indonesian_tokenizer import IndonesianTokenizer
+    from src.brain_v2.model.nano_inference import INDONESIAN_CONFIG, NanoModel
 
     # Muat model
     model = NanoModel(config=INDONESIAN_CONFIG)

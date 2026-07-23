@@ -7,10 +7,10 @@ Connects IronEngine output to JayaMouth (TTS) and ears (STT).
 V2.0: Speaker recognition gate + Text normalization (informal Indonesian)
 """
 
-import re
 import logging
-from typing import Optional
+import re
 from enum import IntEnum
+from typing import Optional
 
 logger = logging.getLogger("VoiceBridge")
 
@@ -41,7 +41,7 @@ SLANG_MAP = {
     "gede": "besar", "kecil": "kecil", "bagus": "bagus",
     "jelek": "buruk", "susah": "sulit", "gampang": "mudah",
     # Kata penghubung
-    "udah": "sudah", "udah": "sudah", "belom": "belum",
+    "udah": "sudah", "belom": "belum",
     "engga": "tidak", "enggak": "tidak", "nggak": "tidak",
     "gak": "tidak", "ga": "tidak", "ndak": "tidak",
     # Kata konfirmasi / perintah
@@ -119,14 +119,14 @@ class SpeechPriority(IntEnum):
 class VoiceBridge:
     """
     Bridges IronEngine ↔ Voice I/O.
-    
+
     Usage:
         voice = VoiceBridge()
         voice.speak("Selamat pagi, Bos!")
         voice.speak_dissent("Waduh, itu berbahaya!")
         text = voice.listen()  # STT input
     """
-    
+
     def __init__(self, enable_tts: bool = True, enable_stt: bool = False,
                  profile_dir: str = ".", crypto_key: bytes = None):
         self.tts_enabled = enable_tts
@@ -147,7 +147,7 @@ class VoiceBridge:
             self._init_tts()
         if enable_stt:
             self._init_stt()
-    
+
     def _init_tts(self):
         """Initialize JayaMouth (TTS engine)."""
         try:
@@ -161,7 +161,7 @@ class VoiceBridge:
         except Exception as e:
             logger.error(f"[Voice] TTS init failed: {e}")
             self.tts_enabled = False
-    
+
     def _init_stt(self):
         """Initialize speech recognition (STT)."""
         try:
@@ -171,7 +171,7 @@ class VoiceBridge:
         except ImportError:
             logger.warning("[Voice] speech_recognition not available. STT disabled.")
             self.stt_enabled = False
-    
+
     def speak(self, text: str, priority: SpeechPriority = SpeechPriority.NORMAL):
         """
         Speak text via TTS.
@@ -187,22 +187,22 @@ class VoiceBridge:
                 SpeechPriority.URGENT: "[⚠️🗣️]",
             }.get(priority, "[🗣️]")
             print(f"{prefix} {text}")
-    
+
     def speak_dissent(self, dissent: str):
         """
         Speak Socratic dissent with URGENT priority.
         Prefixed with attention tone.
         """
         self.speak(f"Bos, saya perlu ngomong. {dissent}", SpeechPriority.URGENT)
-    
+
     def speak_block(self, reason: str):
         """Announce immune system block."""
         self.speak(f"Aksi diblok. {reason}", SpeechPriority.URGENT)
-    
+
     def speak_status(self, status: str):
         """Low-priority status announcement."""
         self.speak(status, SpeechPriority.LOW)
-    
+
     def enroll_boss(self) -> bool:
         """Enrollment pertama kali — JAYA memandu Bos membaca kalimat."""
         if self.speaker_id is None:
@@ -240,8 +240,8 @@ class VoiceBridge:
             return None
 
         try:
-            import speech_recognition as sr
             import numpy as np
+            import speech_recognition as sr
 
             with sr.Microphone() as source:
                 logger.info("[Voice] Listening...")

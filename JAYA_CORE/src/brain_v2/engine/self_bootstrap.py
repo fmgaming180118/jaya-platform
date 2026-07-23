@@ -160,7 +160,7 @@ class SelfBootstrap:
         self._last_curriculum = time.monotonic()
 
         try:
-            from src.brain_v2.extensions.twin.task_planner import Task, Priority
+            from src.brain_v2.extensions.twin.task_planner import Priority, Task
         except ImportError:
             logger.warning("[SelfBootstrap] Cannot import Task/Priority — skipping.")
             return []

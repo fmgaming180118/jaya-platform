@@ -11,31 +11,21 @@ from __future__ import annotations
 
 import asyncio
 import json
-import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
-from src.os_kernel.ui_spec import (
-    SceneGraph,
-    WidgetSpec,
-    WidgetType,
-    LayoutType,
-    EventHandler,
-    Binding,
-    StyleTokens,
-    Dimension,
-    SizeUnit,
-    Rect,
-    create_window,
-    create_panel,
-    create_label,
-    create_button,
-    create_text_input,
-)
-from src.os_kernel.feature_bridge import JayaBridge, BridgeAction, get_feature_registry
 from src.brain_v2.engine.intent_engine import IntentEngine
+from src.os_kernel.feature_bridge import JayaBridge
+from src.os_kernel.ui_spec import (
+    LayoutType,
+    SceneGraph,
+    create_button,
+    create_label,
+    create_panel,
+    create_text_input,
+    create_window,
+)
 
 
 @dataclass
@@ -60,7 +50,7 @@ class UITemplate:
 
 class IntentToUIPipeline:
     """Pipeline: Natural Language Intent → SceneGraph → Feature."""
-    
+
     def __init__(
         self,
         bridge: JayaBridge,
@@ -71,13 +61,13 @@ class IntentToUIPipeline:
         self.intent_engine = intent_engine or IntentEngine()
         self.templates: Dict[str, UITemplate] = {}
         self._register_builtin_templates()
-        
+
         if templates_dir:
             self._load_custom_templates(templates_dir)
-    
+
     def _register_builtin_templates(self) -> None:
         """Register built-in UI templates for common intents."""
-        
+
         # Login Dialog Template
         self.templates["login_dialog"] = UITemplate(
             name="login_dialog",
@@ -90,7 +80,7 @@ class IntentToUIPipeline:
             optional_params=["width", "height", "show_forgot_password", "remember_me"],
             builder=self._build_login_dialog,
         )
-        
+
         # Dashboard Template
         self.templates["dashboard"] = UITemplate(
             name="dashboard",
@@ -103,7 +93,7 @@ class IntentToUIPipeline:
             optional_params=["metrics", "charts", "quick_actions", "sidebar"],
             builder=self._build_dashboard,
         )
-        
+
         # Settings Dialog Template
         self.templates["settings_dialog"] = UITemplate(
             name="settings_dialog",
@@ -116,7 +106,7 @@ class IntentToUIPipeline:
             optional_params=["sections", "tabs"],
             builder=self._build_settings_dialog,
         )
-        
+
         # File Explorer Template
         self.templates["file_explorer"] = UITemplate(
             name="file_explorer",
@@ -129,7 +119,7 @@ class IntentToUIPipeline:
             optional_params=["show_hidden", "multi_select", "file_filters"],
             builder=self._build_file_explorer,
         )
-        
+
         # Chat Interface Template
         self.templates["chat_interface"] = UITemplate(
             name="chat_interface",
@@ -142,7 +132,7 @@ class IntentToUIPipeline:
             optional_params=["placeholder", "send_button_text", "show_timestamps"],
             builder=self._build_chat_interface,
         )
-        
+
         # Confirmation Dialog Template
         self.templates["confirm_dialog"] = UITemplate(
             name="confirm_dialog",
@@ -155,7 +145,7 @@ class IntentToUIPipeline:
             optional_params=["confirm_text", "cancel_text", "variant"],
             builder=self._build_confirm_dialog,
         )
-        
+
         # Progress Dialog Template
         self.templates["progress_dialog"] = UITemplate(
             name="progress_dialog",
@@ -168,7 +158,7 @@ class IntentToUIPipeline:
             optional_params=["show_percentage", "cancellable", "indeterminate"],
             builder=self._build_progress_dialog,
         )
-        
+
         # List/Table View Template
         self.templates["list_view"] = UITemplate(
             name="list_view",
@@ -181,7 +171,7 @@ class IntentToUIPipeline:
             optional_params=["data", "sortable", "selectable", "actions"],
             builder=self._build_list_view,
         )
-        
+
         # Form Template
         self.templates["form"] = UITemplate(
             name="form",
@@ -194,7 +184,7 @@ class IntentToUIPipeline:
             optional_params=["submit_text", "cancel_text", "validation"],
             builder=self._build_form,
         )
-        
+
         # Generic Dialog Template (fallback)
         self.templates["generic_dialog"] = UITemplate(
             name="generic_dialog",
@@ -206,13 +196,13 @@ class IntentToUIPipeline:
             optional_params=["content", "buttons", "size"],
             builder=self._build_generic_dialog,
         )
-    
+
     def _load_custom_templates(self, templates_dir: Path) -> None:
         """Load custom templates from JSON files."""
         for template_file in templates_dir.glob("*.json"):
             try:
                 with open(template_file, "r", encoding="utf-8") as f:
-                    data = json.load(f)
+                    json.load(f)
                 # Custom template loading would go here
                 # For now, just log
                 print(f"Loaded custom template: {template_file.name}")
@@ -222,11 +212,11 @@ class IntentToUIPipeline:
     def _compact_children(self, children: List[Any]) -> List[Any]:
         """Remove empty child slots from builder lists."""
         return [child for child in children if child is not None]
-    
+
     # ============================================================
     # Template Builders
     # ============================================================
-    
+
     def _build_login_dialog(
         self,
         title: str = "Login",
@@ -276,7 +266,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_dashboard(
         self,
         title: str = "Dashboard",
@@ -295,7 +285,7 @@ class IntentToUIPipeline:
             {"label": "In Progress", "value": "156", "trend": "-3%"},
             {"label": "Overdue", "value": "12", "trend": "+2%"},
         ]
-        
+
         children = [
             # Header
             create_panel(
@@ -310,7 +300,7 @@ class IntentToUIPipeline:
                 ],
             ),
         ]
-        
+
         if sidebar:
             # Sidebar + Main content
             children.append(
@@ -387,7 +377,7 @@ class IntentToUIPipeline:
                     ],
                 ),
             )
-        
+
         return SceneGraph(
             name="Dashboard",
             description="Main dashboard with metrics and quick actions",
@@ -398,7 +388,7 @@ class IntentToUIPipeline:
                 children=children,
             ),
         )
-    
+
     def _build_settings_dialog(
         self,
         title: str = "Settings",
@@ -488,7 +478,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_file_explorer(
         self,
         title: str = "File Explorer",
@@ -548,7 +538,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_chat_interface(
         self,
         title: str = "JAYA Chat",
@@ -601,7 +591,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_confirm_dialog(
         self,
         title: str = "Confirm",
@@ -617,8 +607,8 @@ class IntentToUIPipeline:
             "danger": "#DC3545",
             "info": "#0066CC",
         }
-        color = variant_colors.get(variant, "#FFC107")
-        
+        variant_colors.get(variant, "#FFC107")
+
         return SceneGraph(
             name="Confirm Dialog",
             description="Confirmation dialog",
@@ -645,7 +635,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_progress_dialog(
         self,
         title: str = "Working...",
@@ -678,7 +668,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_list_view(
         self,
         title: str = "List View",
@@ -703,7 +693,7 @@ class IntentToUIPipeline:
             {"name": "Project Beta", "status": "Pending", "date": "2024-01-10", "actions": ["Edit", "Delete"]},
             {"name": "Project Gamma", "status": "Completed", "date": "2024-01-05", "actions": ["View", "Archive"]},
         ]
-        
+
         return SceneGraph(
             name="List View",
             description="Data table with sorting and actions",
@@ -737,7 +727,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_form(
         self,
         title: str = "Form",
@@ -755,7 +745,7 @@ class IntentToUIPipeline:
             {"type": "email", "label": "Email", "placeholder": "Enter your email", "required": True},
             {"type": "textarea", "label": "Message", "placeholder": "Enter your message", "required": False},
         ]
-        
+
         return SceneGraph(
             name="Form",
             description="Data entry form",
@@ -793,7 +783,7 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     def _build_generic_dialog(
         self,
         title: str = "Dialog",
@@ -808,7 +798,7 @@ class IntentToUIPipeline:
             {"label": "Cancel", "variant": "secondary", "action": "jaya:close_dialog"},
             {"label": "OK", "variant": "primary", "action": "jaya:run_task"},
         ]
-        
+
         return SceneGraph(
             name="Generic Dialog",
             description="Generic dialog with custom content",
@@ -838,18 +828,18 @@ class IntentToUIPipeline:
                 ],
             ),
         )
-    
+
     # ============================================================
     # Public API
     # ============================================================
-    
+
     def match_intent(self, user_input: str) -> List[IntentMatch]:
         """Match user input to known intent patterns."""
         matches = []
-        
+
         # Use intent engine for prediction
         predictions = self.intent_engine.predict_intent(user_input, top_k=5)
-        
+
         for predicted_command, confidence in predictions:
             # Match against template patterns
             for template_name, template in self.templates.items():
@@ -861,7 +851,7 @@ class IntentToUIPipeline:
                             parameters={},
                             suggested_ui=template_name,
                         ))
-        
+
         # Also check direct pattern matching
         user_lower = user_input.lower()
         for template_name, template in self.templates.items():
@@ -873,7 +863,7 @@ class IntentToUIPipeline:
                         parameters={},
                         suggested_ui=template_name,
                     ))
-        
+
         # Sort by confidence and deduplicate
         seen = set()
         unique_matches = []
@@ -881,15 +871,15 @@ class IntentToUIPipeline:
             if match.intent_type not in seen:
                 seen.add(match.intent_type)
                 unique_matches.append(match)
-        
+
         return unique_matches[:5]
-    
+
     def extract_parameters(self, user_input: str, template_name: str) -> Dict[str, Any]:
         """Extract parameters from user input for a specific template."""
         template = self.templates.get(template_name)
         if not template:
             return {}
-        
+
         params = {}
         # Simple parameter extraction - in production, use NLP
         # For now, return defaults
@@ -904,57 +894,57 @@ class IntentToUIPipeline:
                 params[param] = [{"type": "text", "label": "Name", "placeholder": "Enter name"}]
             elif param == "root_path":
                 params[param] = "/"
-        
+
         for param in template.optional_params:
             params[param] = None
-        
+
         return params
-    
+
     async def process_intent(self, user_input: str) -> Dict[str, Any]:
         """Process user input through the full pipeline: Intent → UI → Feature."""
         # 1. Match intent
         matches = self.match_intent(user_input)
-        
+
         if not matches:
             return {
                 "success": False,
                 "error": "No matching intent found",
                 "suggestions": ["Try: 'show login dialog', 'create dashboard', 'open settings'"],
             }
-        
+
         best_match = matches[0]
         template_name = best_match.suggested_ui
-        
+
         # 2. Extract parameters
         params = self.extract_parameters(user_input, template_name)
-        
+
         # 3. Build SceneGraph
         template = self.templates.get(template_name)
         if not template:
             return {"success": False, "error": f"Template not found: {template_name}"}
-        
+
         try:
             scene = template.builder(**params)
         except Exception as e:
             return {"success": False, "error": f"Failed to build UI: {e}"}
-        
+
         # 4. Compile to feature
         compile_result = await self.bridge.compile_intent_to_feature(
             intent=user_input,
             feature_name=template.name,
             context={"scene": scene.to_dict()},
         )
-        
+
         if not compile_result.get("success"):
             return {"success": False, "error": f"Compilation failed: {compile_result.get('error')}"}
-        
+
         # 5. Mount feature
         feature_id = compile_result["data"]["feature_id"]
         mount_result = await self.bridge.mount_feature(feature_id, "dialog-root")
-        
+
         if not mount_result.get("success"):
             return {"success": False, "error": f"Mount failed: {mount_result.get('error')}"}
-        
+
         return {
             "success": True,
             "intent": template_name,
@@ -963,7 +953,7 @@ class IntentToUIPipeline:
             "mount_point": "dialog-root",
             "scene": scene.to_dict(),
         }
-    
+
     def list_templates(self) -> List[Dict[str, Any]]:
         """List all available UI templates."""
         return [
@@ -999,5 +989,5 @@ if __name__ == "__main__":
         for t in pipeline.list_templates():
             print(f"  - {t['name']}: {t['description']}")
             print(f"    Patterns: {t['patterns']}")
-    
+
     asyncio.run(demo())

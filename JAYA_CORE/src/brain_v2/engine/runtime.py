@@ -42,7 +42,7 @@ import json
 import logging
 import os
 import time
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, cast
 
@@ -344,8 +344,12 @@ class IronEngine:
                 logger.info("[V18] PACKED_WEIGHTS flag not set — legacy model path")
                 return
 
-            from src.brain_v2.model.nano_inference import NanoModel, NANO_CONFIG, STANDARD_CONFIG
             from src.brain_v2.format.packer import unpack_state_dict
+            from src.brain_v2.model.nano_inference import (
+                NANO_CONFIG,
+                STANDARD_CONFIG,
+                NanoModel,
+            )
             # unpack_state_dict returns dict[str, Any] after our update
             NANO_PROFILE_BIT = 1 << 43
             cfg = NANO_CONFIG if (flags & NANO_PROFILE_BIT) else STANDARD_CONFIG
@@ -386,8 +390,8 @@ class IronEngine:
 
     def _init_twin(self):
         try:
-            from src.brain_v2.extensions.twin.core_twin import CoreTwin
             from src.brain_v2.extensions.twin import omniverse as ov_module
+            from src.brain_v2.extensions.twin.core_twin import CoreTwin
 
             if self.omniverse_requested:
                 ov_module.initialize_sdk()
@@ -475,7 +479,9 @@ class IronEngine:
             logger.warning("DynamicMoERouter unavailable: %s", exc)
 
         try:
-            from src.brain_v2.engine.activation_sparsity import ActivationSparsityController
+            from src.brain_v2.engine.activation_sparsity import (
+                ActivationSparsityController,
+            )
 
             self._activation_sparsity = ActivationSparsityController(
                 default_topk=self.config.topk_ratio,
@@ -560,7 +566,9 @@ class IronEngine:
             logger.warning("MorphicKernel unavailable: %s", exc)
 
         try:
-            from src.brain_v2.engine.auto_research_patch import QuantizedAttentionSparsityEngine
+            from src.brain_v2.engine.auto_research_patch import (
+                QuantizedAttentionSparsityEngine,
+            )
             self._auto_research_patch = QuantizedAttentionSparsityEngine()
             logger.info("[Autonomous Research Patch] QuantizedAttentionSparsityEngine integrated into IronEngine")
         except ImportError as exc:
@@ -1721,7 +1729,10 @@ class IronEngine:
         if not self._evolution_gate:
             return {"ok": False, "error": "evolution_gate_unavailable"}
 
-        from src.brain_v2.engine.evolution_gate import CandidateEvidence, EvolutionCandidate
+        from src.brain_v2.engine.evolution_gate import (
+            CandidateEvidence,
+            EvolutionCandidate,
+        )
 
         cand = EvolutionCandidate.from_dict(candidate)
         ev = CandidateEvidence.from_dict(evidence)
@@ -1763,7 +1774,10 @@ class IronEngine:
             return {"ok": False, "error": "evolution_gate_unavailable"}
 
         from src.brain_v2.engine.evolution_gate import EvolutionCandidate
-        from src.brain_v2.engine.evolution_manifest import build_signed_manifest, save_manifest
+        from src.brain_v2.engine.evolution_manifest import (
+            build_signed_manifest,
+            save_manifest,
+        )
 
         cand = EvolutionCandidate.from_dict(candidate)
         manifest = build_signed_manifest(
@@ -1781,7 +1795,10 @@ class IronEngine:
         if not self._evolution_gate:
             return {"ok": False, "error": "evolution_gate_unavailable"}
 
-        from src.brain_v2.engine.evolution_manifest import load_manifest, verify_manifest
+        from src.brain_v2.engine.evolution_manifest import (
+            load_manifest,
+            verify_manifest,
+        )
 
         manifest = load_manifest(manifest_path)
         valid, reason = verify_manifest(manifest, self._evolution_gate)

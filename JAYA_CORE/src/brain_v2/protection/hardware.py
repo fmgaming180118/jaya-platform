@@ -16,7 +16,6 @@ import uuid
 from pathlib import Path
 from typing import Optional, Tuple
 
-
 _STRICT_ENV = "JAYA_STRICT_HARDWARE_LOCK"
 
 

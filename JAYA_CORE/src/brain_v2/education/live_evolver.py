@@ -236,8 +236,13 @@ def _patch_jay_section(jay_path: str, new_blob: bytes) -> None:
     the target section, and rewrites the full file.  Safe for <100 MB files.
     """
     import struct
+
     from src.brain_v2.format.schema import (
-        JayaHeader, JayaFooter, SectionHeader, SectionType, JayaFlags
+        JayaFlags,
+        JayaFooter,
+        JayaHeader,
+        SectionHeader,
+        SectionType,
     )
 
     with open(jay_path, "rb") as f:
@@ -287,9 +292,8 @@ def _patch_jay_section(jay_path: str, new_blob: bytes) -> None:
 def _rebuild_jay(path: str, header: Any, sections: list[tuple]) -> None:
     """Rebuild a .jay file from parts."""
     import zlib
-    from src.brain_v2.format.schema import (
-        JayaFooter, SectionHeader, ALIGNMENT
-    )
+
+    from src.brain_v2.format.schema import ALIGNMENT, JayaFooter, SectionHeader
 
     # Section headers area: 24 bytes × n_sections, then 4KB aligned
     sec_hdr_area = 24 * len(sections)
@@ -332,7 +336,6 @@ def _rebuild_jay(path: str, header: Any, sections: list[tuple]) -> None:
     raw.extend(payload_bytes)
 
     # Footer
-    import hashlib
     total_size = len(raw) + 32
     gcrc = zlib.crc32(bytes(raw)) & 0xFFFFFFFF
     hsha = hashlib.sha256(header.pack()).digest()[:11]

@@ -19,8 +19,8 @@ Example
     decode(("ACTION", "GREET", "user"))  →  "greet user"
 """
 
-import re
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 logger = logging.getLogger("LinguaLogica")

@@ -1,8 +1,8 @@
-import os
 import json
 import logging
+import os
 import urllib.request
-from typing import Dict, Any, Optional
+from typing import Optional
 
 logger = logging.getLogger("NvidiaLLM")
 
@@ -14,14 +14,14 @@ class NvidiaNIMClient:
     """
     def __init__(self, api_key: Optional[str] = None, is_reasoning: bool = False):
         # Auto-fetch from Env if not provided
-        self.api_key = api_key or os.getenv("NVIDIA_API_KEY") 
-        
+        self.api_key = api_key or os.getenv("NVIDIA_API_KEY")
+
         # Dukungan model dari .env agar dinamis (Normal / Thinking)
         if is_reasoning:
             self.model = os.getenv("NVIDIA_MODEL_REASONING", "deepseek-ai/deepseek-r1")
         else:
             self.model = os.getenv("NVIDIA_MODEL", "meta/llama3-70b-instruct")
-            
+
         self.endpoint = "https://integrate.api.nvidia.com/v1/chat/completions"
 
     def ask(self, system_prompt: str, user_prompt: str, max_tokens: int = 512) -> Optional[str]:
@@ -44,21 +44,21 @@ class NvidiaNIMClient:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        
+
         payload = {
             "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature
         }
-        
+
         req = urllib.request.Request(
-            self.endpoint, 
+            self.endpoint,
             data=json.dumps(payload).encode('utf-8'),
             headers=headers,
             method="POST"
         )
-        
+
         try:
             # Meningkatkan timeout ke 90 detik untuk model reasoning yang lambat
             with urllib.request.urlopen(req, timeout=90) as response:

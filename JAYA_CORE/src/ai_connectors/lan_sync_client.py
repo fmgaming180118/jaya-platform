@@ -4,13 +4,11 @@ Handles discovery and synchronization with a peer device (e.g., laptop) over the
 Uses mDNS (zer) to discover services, then uses gRPC or a simple socket-based knowledge store (e.g., laptop) over LAN.
 """
 
+import json
 import logging
 import socket
-import json
-import socket
 import struct
-import time
-from typing import Optional, Dict, Any, List
+from typing import Any, Dict, List, Optional
 
 try:
     import protobuf  # placeholder; we assume protobuf is available

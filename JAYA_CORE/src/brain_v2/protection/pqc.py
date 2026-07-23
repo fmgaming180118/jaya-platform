@@ -38,9 +38,12 @@ except ImportError:
 
 if not _oqs_available:
     try:
-        from cryptography.hazmat.primitives.asymmetric import ec  # type: ignore[import]
-        from cryptography.hazmat.primitives import hashes, serialization  # type: ignore[import]
         from cryptography.hazmat.backends import default_backend  # type: ignore[import]
+        from cryptography.hazmat.primitives import (  # type: ignore[import]
+            hashes,
+            serialization,
+        )
+        from cryptography.hazmat.primitives.asymmetric import ec  # type: ignore[import]
         _ecdsa_available = True
         _backend = "ECDSA_P256"
     except ImportError:
@@ -78,8 +81,8 @@ class PQCWrapper:
             self._oqs_sig = _oqs_lib.Signature("Dilithium3")  # type: ignore[union-attr]
             self._public_key = self._oqs_sig.generate_keypair()  # type: ignore[union-attr]
         elif _ecdsa_available:
-            from cryptography.hazmat.primitives.asymmetric import ec as _ec
             from cryptography.hazmat.backends import default_backend as _be
+            from cryptography.hazmat.primitives.asymmetric import ec as _ec
             self._private_key = _ec.generate_private_key(
                 _ec.SECP256R1(), _be()
             )
@@ -106,9 +109,9 @@ class PQCWrapper:
             if _oqs_available and self._oqs_sig:
                 return bool(self._oqs_sig.verify(data, signature, self._public_key))
             if _ecdsa_available and self._public_key:
+                from cryptography.exceptions import InvalidSignature
                 from cryptography.hazmat.primitives import hashes as _h
                 from cryptography.hazmat.primitives.asymmetric import ec as _ec
-                from cryptography.exceptions import InvalidSignature
                 try:
                     self._public_key.verify(
                         signature, data, _ec.ECDSA(_h.SHA256())

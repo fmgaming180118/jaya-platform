@@ -22,7 +22,7 @@ Architecture
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from src.brain_v2.extensions.twin.core_twin import CoreTwin

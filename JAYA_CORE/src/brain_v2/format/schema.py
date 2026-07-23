@@ -1,14 +1,6 @@
 import struct
-
-import hashlib
-
-from enum import IntFlag, auto
-
 from dataclasses import dataclass
-
-from typing import Optional
-
-
+from enum import IntFlag, auto
 
 # -- CONSTANTS --
 
@@ -58,7 +50,7 @@ class JayaFlags(IntFlag):
 
     AFFECTIVE_METABOLISM = auto()  # Pillar 10
 
-    
+
 
     # II. Sovereign Armor
 
@@ -82,7 +74,7 @@ class JayaFlags(IntFlag):
 
     SOVEREIGN_PRIVACY = auto()     # Pillar 20
 
-    
+
 
     # III. Iron Engine
 
@@ -104,7 +96,7 @@ class JayaFlags(IntFlag):
 
     BINARY_CORTEX = auto()         # Pillar 29
 
-    
+
 
     # IV. Transcendental
 
@@ -124,7 +116,7 @@ class JayaFlags(IntFlag):
 
     HYBRID_CONSCIOUSNESS = auto()  # Pillar 37
 
-    
+
 
     # V16.0 Semi-AGI Pillars
 
@@ -134,7 +126,7 @@ class JayaFlags(IntFlag):
 
     INTENT_EXTRAPOLATION = auto()  # Pillar 40
 
-    
+
 
     # V18 NANO + Self-Evolution Flags
     PACKED_WEIGHTS = 1 << 42       # 2-bit packed IRON_BODY section present
@@ -161,7 +153,7 @@ class JayaHeader:
 
     Jaya V16.0 Header Design (Fixed + Dynamic)
 
-    
+
 
     Fixed Part (128 bytes):
 
@@ -185,7 +177,7 @@ class JayaHeader:
 
     """
 
-    
+
 
     magic: bytes = MAGIC
 
@@ -207,7 +199,7 @@ class JayaHeader:
 
     reserved: bytes = b'\x00' * 9
 
-    
+
 
     def pack(self) -> bytes:
 
@@ -300,7 +292,7 @@ class SectionHeader:
 
     checksum_crc32: int
 
-    
+
 
     def pack(self) -> bytes:
 
@@ -332,7 +324,7 @@ class JayaFooter:
 
     header_sha256_prefix: bytes = b'\x00' * 11  # 11 bytes (first 11B of SHA-256)
 
-    
+
 
     def pack(self) -> bytes:
 
@@ -340,7 +332,7 @@ class JayaFooter:
 
         return struct.pack(fmt, self.magic, self.file_size, self.global_crc32, self.header_sha256_prefix)
 
-    
+
 
     @classmethod
 
@@ -362,7 +354,7 @@ class JayaFooter:
 
         )
 
-    
+
 
     @staticmethod
 

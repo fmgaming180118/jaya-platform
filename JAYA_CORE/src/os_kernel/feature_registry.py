@@ -15,10 +15,10 @@ import shutil
 import sys
 import threading
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
-from enum import Enum
 
 
 class FeatureStatus(str, Enum):
@@ -274,13 +274,13 @@ class FeatureRegistry:
             # The run_feature function will create its own FeatureRuntime and set up dispatch
             try:
                 import asyncio
-                
+
                 async def init_feature():
                     try:
                         await entry_point(jaya_bridge, config or {})
                     except Exception as e:
                         print(f"Feature initialization error: {e}")
-                
+
                 # Schedule the feature to run
                 try:
                     loop = asyncio.get_event_loop()
@@ -406,13 +406,13 @@ class FeatureRegistry:
         }
 
         # Add safe modules
+        import base64
+        import datetime
+        import hashlib
+        import json
         import math
         import random
-        import datetime
-        import json
         import re
-        import hashlib
-        import base64
         import urllib.parse
 
         safe_modules = {

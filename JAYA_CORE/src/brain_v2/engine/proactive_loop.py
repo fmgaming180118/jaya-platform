@@ -10,15 +10,15 @@ Orchestrates all Phase 4 proactive engine components:
 - IntentEngine (Pillar 40)
 """
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
-import time
 
-from src.brain_v2.engine.spontaneity import SpontaneityEngine, SpontaneousHypothesis
-from src.brain_v2.engine.speculative import SpeculativeEngine
 from src.brain_v2.engine.collective_pulse import CollectivePulse
-from src.brain_v2.engine.narrative_continuity import NarrativeContinuity
 from src.brain_v2.engine.meta_cognitive import MetaCognitivePlanner
+from src.brain_v2.engine.narrative_continuity import NarrativeContinuity
+from src.brain_v2.engine.speculative import SpeculativeEngine
+from src.brain_v2.engine.spontaneity import SpontaneityEngine, SpontaneousHypothesis
 
 
 @dataclass

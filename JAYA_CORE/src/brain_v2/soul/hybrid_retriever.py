@@ -11,7 +11,7 @@ Architecture
                         stored as float32 blobs in SQLite.
   HybridRetriever     — Reciprocal Rank Fusion (RRF) gabungan BM25 + Dense.
   MicroGraphRAG       — SQLite entity-relation knowledge graph dengan multi-hop traversal.
-  
+
 Hard Constraint: embedding model < 25 MB, total db < 30 MB.
 """
 
@@ -24,9 +24,8 @@ import os
 import re
 import sqlite3
 import struct
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("HybridRetriever")
 
@@ -145,7 +144,7 @@ class DenseVectorIndex:
     """
     Dense vector index using all-MiniLM-L6-v2 (23 MB).
     Embeddings stored as float32 blobs in SQLite — no external vector DB needed.
-    
+
     Cosine similarity computed in pure Python (suitable for < 10K chunks).
     For larger corpora, can be swapped to faiss-cpu without interface changes.
     """
@@ -252,10 +251,10 @@ class DenseVectorIndex:
 class MicroGraphRAG:
     """
     SQLite Micro-GraphRAG — Entity-Relation knowledge graph dengan multi-hop traversal.
-    
+
     Digunakan untuk menjawab pertanyaan seperti:
       "Siapa yang menulis paper tentang federated learning yang direferensi BAB II?"
-    
+
     100% SQLite, zero external dependencies.
     """
 

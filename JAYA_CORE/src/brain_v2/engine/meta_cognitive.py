@@ -261,7 +261,7 @@ class MetaCognitivePlanner:
                             int(self.watch_window))
 
                 try:
-                    from src.brain_v2.extensions.twin.task_planner import Task, Priority
+                    from src.brain_v2.extensions.twin.task_planner import Priority, Task
                     twin.planner.push(Task(
                         priority=int(Priority.LOW),
                         label="META_PATCH",
@@ -344,7 +344,7 @@ class MetaCognitivePlanner:
     def _inject_evolver_task(self, twin: Any, reason: str) -> None:
         """Inject a LiveEvolver task into the planner."""
         try:
-            from src.brain_v2.extensions.twin.task_planner import Task, Priority
+            from src.brain_v2.extensions.twin.task_planner import Priority, Task
             twin.planner.push(Task(
                 priority=int(Priority.LOW),
                 label="EVOLVE",

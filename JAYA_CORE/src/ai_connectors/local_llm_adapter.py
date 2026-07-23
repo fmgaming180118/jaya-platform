@@ -4,9 +4,9 @@ Uses a lightweight quantized model (GGML/ONNX) for offline inference.
 Falls back to a rule-based responder if the model cannot be loaded.
 """
 
-import os
 import logging
-from typing import Optional, Dict, Any
+import os
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 

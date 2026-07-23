@@ -4,22 +4,26 @@ Implements hierarchy: Local -> LAN -> Internet (with fallback)
 """
 
 import logging
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
-from .local_llm_adapter import LocalLLMAdapter
-from .lan_sync_client import LANSyncClient
-from .public_api_client import PublicAPIClient
-from protection.filters import sanitize_outbound, filter_inbound
+from protection.filters import filter_inbound, sanitize_outbound
 from soul.value_scoring import evaluate_intent_value
+
+from .lan_sync_client import LANSyncClient
+from .local_llm_adapter import LocalLLMAdapter
+from .public_api_client import PublicAPIClient
 
 logger = logging.getLogger(__name__)
 
+
 class ConnectionManager:
-    def __init__(self, 
-                 local_model_path: str = "models/local_llm.gguf",
-                 lan_server_addr: Optional[str] = None,
-                 internet_allowed: bool = True,
-                 value_threshold: float = 0.5):
+    def __init__(
+        self,
+        local_model_path: str = "models/local_llm.gguf",
+        lan_server_addr: Optional[str] = None,
+        internet_allowed: bool = True,
+        value_threshold: float = 0.5,
+    ):
         """
         Initialize connection manager.
         :param local_model_path: Path to the local GGML/ONNX model.
@@ -28,11 +32,15 @@ class ConnectionManager:
         :param value_threshold: Minimum soul value score to allow internet usage.
         """
         self.local_adapter = LocalLLMAdapter(model_path=local_model_path)
-        self.lan_client = LANSyncClient(server_addr=lan_server_addr) if lan_server_addr else None
+        self.lan_client = (
+            LANSyncClient(server_addr=lan_server_addr) if lan_server_addr else None
+        )
         self.internet_client = PublicAPIClient() if internet_allowed else None
         self.value_threshold = value_threshold
 
-    def get_response(self, user_intent: str, context: Optional[Dict[str, Any]] = None) -> str:
+    def get_response(
+        self, user_intent: str, context: Optional[Dict[str, Any]] = None
+    ) -> str:
         """
         Get a response for the user intent using the best available connection.
         :param user_intent: The user's expressed intent (natural language).
@@ -43,7 +51,9 @@ class ConnectionManager:
         # 1. Evaluate intent value to see if we are allowed to use external resources
         value_score = evaluate_intent_value(user_intent, ctx)
         allow_internet = value_score >= self.value_threshold
-        logger.info(f"Intent value score: {value_score:.2f}, allow_internet: {allow_internet}")
+        logger.info(
+            f"Intent value score: {value_score:.2f}, allow_internet: {allow_internet}"
+        )
 
         # 2. Try local first (always allowed)
         try:

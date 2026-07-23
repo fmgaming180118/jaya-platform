@@ -16,11 +16,11 @@ import ast
 import logging
 import time
 import types
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
-    from src.brain_v2.soul.ethical_heart import EthicalHeart
     from src.brain_v2.extensions.twin.experiment_memory import ExperimentMemory
+    from src.brain_v2.soul.ethical_heart import EthicalHeart
 
 logger = logging.getLogger("MorphicKernel")
 

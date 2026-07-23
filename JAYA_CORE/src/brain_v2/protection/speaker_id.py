@@ -14,15 +14,14 @@ Alur:
   VERIFY  → Bandwidth similarity ≥ THRESHOLD → Bos ✓ / Asing ✗
 """
 
-import os
-import json
-import time
-import logging
 import hashlib
-import numpy as np
-from pathlib import Path
+import json
+import logging
 from datetime import datetime
-from typing import Optional, List, Tuple, Dict
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
+import numpy as np
 
 logger = logging.getLogger("SpeakerID")
 

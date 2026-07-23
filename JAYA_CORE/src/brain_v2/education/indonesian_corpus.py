@@ -13,9 +13,7 @@ Output: JAYA_CORE/data/corpus/id_sentences.txt
 from __future__ import annotations
 
 import gzip
-import json
 import logging
-import os
 import re
 import sys
 import urllib.request

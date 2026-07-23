@@ -1,11 +1,11 @@
-import os
-import time
 import json
-import sqlite3
 import logging
 import math
+import os
 import re
-from typing import List, Dict, Any, Optional
+import sqlite3
+import time
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("AgenticRAG")
 
@@ -27,9 +27,9 @@ class AgenticRAG:
             # FTS5 for fast text search without heavy vector DBs
             conn.execute('''
                 CREATE VIRTUAL TABLE IF NOT EXISTS rag_memory USING fts5(
-                    topic, 
-                    content, 
-                    source, 
+                    topic,
+                    content,
+                    source,
                     timestamp UNINDEXED,
                     importance UNINDEXED
                 )
@@ -645,7 +645,7 @@ class AgenticRAG:
                 clean_query = re.sub(r'[^a-zA-Z0-9\s]', ' ', str(query))
                 # Simple prefix search for every word
                 fts_query = " OR ".join([f"{w}*" for w in clean_query.split() if len(w) > 2])
-                
+
                 if not fts_query:
                     return results
 
@@ -662,18 +662,18 @@ class AgenticRAG:
                     })
         except Exception as e:
             logger.warning(f"[Agentic RAG] Recall failed for query '{query}': {e}")
-            
+
         return results
 
     def recall_with_graph(self, query: str, limit: int = 3, graph_hop: int = 1) -> Dict[str, Any]:
         """Mengambil teks (FTS5) sekalian dengan Graph Traversal (Hop) otonom."""
         results = {"facts": self.recall(query, limit), "graph_context": []}
-        
+
         # Ekstraksi kata penting dari query untuk graph search
         query_terms = [w.lower() for w in query.replace('"', '').replace("'", "").split() if len(w) > 2]
         if not query_terms:
             return results
-            
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # 1. Cari Node Entry Pertama
@@ -681,21 +681,21 @@ class AgenticRAG:
                 params = []
                 for term in query_terms:
                     params.extend([f"%{term}%", f"%{term}%"])
-                
+
                 cursor = conn.execute(f'''
-                    SELECT source_node, relation, target_node 
-                    FROM semantic_graph 
-                    WHERE {placeholders} 
+                    SELECT source_node, relation, target_node
+                    FROM semantic_graph
+                    WHERE {placeholders}
                     LIMIT 20
                 ''', params)
-                
+
                 edges = cursor.fetchall()
                 for s, p, o in edges:
                     results["graph_context"].append(f"{s} --[{p}]--> {o}")
-                    
+
         except Exception as e:
             logger.warning(f"[Agentic RAG] Graph recall failed: {e}")
-            
+
         return results
 
     def add_graph_edges(self, triples: List[List[str]]) -> int:
@@ -707,7 +707,7 @@ class AgenticRAG:
                     if len(triple) == 3:
                         s, p, o = triple
                         conn.execute('''
-                            INSERT OR IGNORE INTO semantic_graph (source_node, relation, target_node) 
+                            INSERT OR IGNORE INTO semantic_graph (source_node, relation, target_node)
                             VALUES (?, ?, ?)
                         ''', (s.lower().strip(), p.lower().strip(), o.lower().strip()))
                         added += 1
@@ -1379,9 +1379,9 @@ class AgenticRAG:
             conn.execute("INSERT INTO rag_memory(rag_memory) VALUES('optimize')")
             # 2. Vacuum to reclaim space (Lightweight OS principle)
             conn.execute("VACUUM")
-            
+
             # (Di masa depan, JAYA bisa membaca isi RAG, merangkumnya lewat API, dan menuliskannya kembali)
-        
+
         duration = time.time() - start_time
         logger.info(f"[Agentic RAG] Tidy up complete in {duration:.2f}s.")
         return {

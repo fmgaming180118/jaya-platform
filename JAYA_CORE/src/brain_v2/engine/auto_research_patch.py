@@ -6,7 +6,8 @@ Timestamp   : 2026-07-22 23:46:14
 """
 
 import time
-from typing import List, Dict, Any
+from typing import Any, Dict, List
+
 
 class SynthesizedResearchModule:
     """

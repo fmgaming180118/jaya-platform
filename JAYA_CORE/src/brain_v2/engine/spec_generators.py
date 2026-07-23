@@ -17,10 +17,10 @@ Implements brain-side spec generators:
 - SpecGeneratorRouter: Central router dispatching intents to appropriate spec generators.
 """
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
-import time
+from typing import Any, Dict, List, Optional
 
 
 @dataclass

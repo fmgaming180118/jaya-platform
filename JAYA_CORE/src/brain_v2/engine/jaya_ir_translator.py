@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Dict, Tuple
 
 from src.brain_v2.engine.jaya_ir import IRInstruction, JayaIRGraph, OpCode
-from src.brain_v2.soul.lingua_logica import LogicExpr, LinguaLogica
+from src.brain_v2.soul.lingua_logica import LinguaLogica, LogicExpr
 
 _ACTION_TO_OPCODE: Dict[str, OpCode] = {
     "OPEN": OpCode.ACTION_OPEN,

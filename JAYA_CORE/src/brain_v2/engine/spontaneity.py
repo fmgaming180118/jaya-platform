@@ -6,10 +6,10 @@ Implements proactive spontaneity and idle-time hypothesis generation:
 - SpontaneityEngine: Generates background curiosity prompts, hypothesis simulations, and spontaneous actions.
 """
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 import random
 import time
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -52,7 +52,7 @@ class SpontaneityEngine:
         """Generates a spontaneous research or optimization hypothesis."""
         target_topic = topic or random.choice(self.CURIOSITY_TOPICS)
         hypo_id = f"hypo-{target_topic}-{int(time.time())}"
-        
+
         hypo_text = f"Hypothesis on {target_topic}: Idle-time optimization may increase throughput by {random.randint(5, 15)}%."
         confidence = round(random.uniform(0.75, 0.98), 3)
         suggested_action = f"run_simulation({target_topic})"
