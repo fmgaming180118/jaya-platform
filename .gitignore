@@ -71,6 +71,29 @@ JAYA_CORE/blueprint/
 *.log
 *.tmp
 
+# JAYA Sensitive Data (Never commit)
+JAYA_CORE/rag_vault.db
+JAYA_CORE/data/distilled/
+JAYA_CORE/features/
+JAYA_CORE/test_features/
+test_features/
+JAYA_CORE/test_ipc*.py
+JAYA_CORE/test_scene.py
+JAYA_CORE/test_ipc_debug*.py
+JAYA_CORE/test_ipc_debug.py
+JAYA_CORE/test_ipc_debug2.py
+JAYA_CORE/test_ipc_debug3.py
+
+# JAYA_RESEARCH Sensitive
+JAYA_RESEARCH/JAYA_RESEARCH_MODE.bat
+JAYA_RESEARCH/.venv312/
+
+# JAYA_CORE Test Artifacts
+JAYA_CORE/test_features/
+JAYA_CORE/test_ipc*.py
+JAYA_CORE/test_scene.py
+JAYA_CORE/test_ipc_debug*.py
+
 # UI Development
 JAYA_RESEARCH/ui/node_modules/
 JAYA_RESEARCH/ui/dist/
@@ -98,6 +121,33 @@ file-uji-coba/
 /test_*.txt
 /verify_*.txt
 /tmp_*.py
+
+# Archives and backups
+docs/archive/
+blueprint/
+file-uji-coba/
+
+# Ensure JAYA.bat and launchers are tracked
+!*.bat
+
+# Model files (large binary files)
+*.gguf
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Training data
+data-training/
+distilled_*.json
+distilled_*.jsonl
+test_*.jsonl
 
 # JAYA Sensitive Data (Never commit)
 JAYA_CORE/rag_vault.db
