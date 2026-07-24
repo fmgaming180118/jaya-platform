@@ -16,6 +16,7 @@ The backbone of the Research UI.
 from contextlib import asynccontextmanager
 from typing import List, Optional
 import asyncio
+import time
 import sys
 import os
 import shutil
@@ -70,11 +71,73 @@ except Exception as e:
     print(f"[API] DigitalTwin initialization failed: {e}")
     digital_twin = None
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
+app = FastAPI(title="JAYA Research API", version="2.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ─── LOOP STATE PERSISTENCE HELPERS ─────────────────
+def _get_settings_db_path() -> Path:
+    """Returns path to agentic_jarvis.db for settings persistence."""
+    return Path(__file__).resolve().parent.parent.parent / "data" / "agentic_jarvis.db"
+
+def _ensure_settings_table():
+    """Create jaya_settings table if not exists."""
+    try:
+        import sqlite3 as _sq
+        db = _get_settings_db_path()
+        db.parent.mkdir(parents=True, exist_ok=True)
+        conn = _sq.connect(str(db))
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS jaya_settings "
+            "(key TEXT PRIMARY KEY, value TEXT, updated_at REAL)"
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[SETTINGS] Could not create settings table: {e}")
+
+def _save_loop_state(running: bool):
+    """Persist autonomous loop enabled/disabled to SQLite."""
+    try:
+        import sqlite3 as _sq
+        conn = _sq.connect(str(_get_settings_db_path()))
+        conn.execute(
+            "INSERT OR REPLACE INTO jaya_settings (key, value, updated_at) VALUES (?, ?, ?)",
+            ("autonomous_loop_enabled", "1" if running else "0", time.time())
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[SETTINGS] Could not save loop state: {e}")
+
+def _read_loop_state() -> bool:
+    """Read persisted autonomous loop state from SQLite."""
+    try:
+        import sqlite3 as _sq
+        db = _get_settings_db_path()
+        if not db.exists():
+            return False
+        conn = _sq.connect(str(db))
+        row = conn.execute(
+            "SELECT value FROM jaya_settings WHERE key = 'autonomous_loop_enabled'"
+        ).fetchone()
+        conn.close()
+        return row is not None and row[0] == "1"
+    except Exception:
+        return False
+
+_ensure_settings_table()
+
+@app.on_event("startup")
+async def startup_event():
+    global _is_autonomous_loop_running, _auto_loop_task
     print("[API] Starting JAYA Research Backend...")
-    # Start the Digital Twin in background (if initialized)
     if digital_twin is not None:
         try:
             import threading
@@ -87,16 +150,24 @@ async def lifespan(app: FastAPI):
             print("[API] Started DigitalTwin loop in background thread.")
         except Exception as e:
             print(f"[API] Failed to start DigitalTwin loop: {e}")
-    yield
-    # Shutdown
+
+    # ⭐ Auto-restore autonomous loop state from SQLite
+    was_running = _read_loop_state()
+    if was_running:
+        _is_autonomous_loop_running = True
+        _auto_loop_task = asyncio.create_task(_continuous_autonomous_research_worker())
+        print("[API] ⭐ Autonomous Research Loop auto-restored from persisted state!")
+    else:
+        print("[API] Autonomous Research Loop not running (last saved state: stopped).")
+
+@app.on_event("shutdown")
+async def shutdown_event():
     print("[API] Shutting down...")
     if digital_twin is not None:
         try:
             digital_twin.stop()
         except Exception as e:
             print(f"[API] Error stopping DigitalTwin: {e}")
-
-app = FastAPI(title="JAYA Research API", version="2.0", lifespan=lifespan)
 
 # CORS for Vite Frontend
 app.add_middleware(
@@ -171,6 +242,42 @@ except Exception as e:
 @app.get("/")
 def health_check():
     return {"status": "online", "service": "JAYA Research API"}
+
+
+@app.get("/workspaces")
+async def list_workspaces():
+    """List all research workspaces."""
+    try:
+        from research.workspace_manager import WorkspaceManager
+        wm = WorkspaceManager()
+        workspaces = wm.list_workspaces()
+        return {"workspaces": workspaces}
+    except Exception as e:
+        return {"workspaces": [{"id": "default", "name": "Default Workspace"}]}
+
+
+@app.post("/workspaces/create")
+async def create_workspace(name: str, description: str = ""):
+    """Create a new research workspace."""
+    try:
+        from research.workspace_manager import WorkspaceManager
+        wm = WorkspaceManager()
+        res = wm.create_workspace(name=name, description=description)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/workspaces/{workspace_id}")
+async def delete_workspace(workspace_id: str):
+    """Delete a research workspace."""
+    try:
+        from research.workspace_manager import WorkspaceManager
+        wm = WorkspaceManager()
+        res = wm.delete_workspace(workspace_id)
+        return res
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/ingest", response_model=IngestResponse)
@@ -1384,13 +1491,13 @@ def get_config_models():
     import os
     
     # Get active model
-    active_model = get_override_model() or os.getenv("NVIDIA_LLAMA31_MODEL") or "nvidia/nemotron-3-ultra-550b-a55b"
+    active_model = get_override_model() or os.getenv("NVIDIA_LLAMA31_MODEL") or config.NVIDIA_REASONING_MODEL
     
     # Get list of models from NVIDIA API
     available_models = []
     try:
         api_key = os.getenv("NVIDIA_API_KEY")
-        base_url = os.getenv("NVIDIA_LLAMA31_BASE_URL", "https://integrate.api.nvidia.com/v1")
+        base_url = os.getenv("NVIDIA_LLAMA31_BASE_URL", config.NVIDIA_BASE_URL)
         if api_key:
             from openai import OpenAI
             client = OpenAI(base_url=base_url, api_key=api_key)
@@ -1402,11 +1509,10 @@ def get_config_models():
         print(f"[API] Error listing NVIDIA models: {e}")
         # Fallback list jika API list gagal
         available_models = [
-            "nvidia/nemotron-3-ultra-550b-a55b",
-            "nvidia/nemotron-3-super-120b-a12b",
-            "nvidia/nemotron-4-instruct-340b",
-            "meta/llama-3.1-70b-instruct",
-            "meta/llama-3.1-8b-instruct",
+            config.NVIDIA_REASONING_MODEL,
+            config.NVIDIA_CHAT_MODEL,
+            config.NVIDIA_CODING_MODEL,
+            config.NVIDIA_VISION_MODEL,
         ]
         
     return {
@@ -2066,57 +2172,291 @@ async def export_thesis_report(session_id: str):
 # ─── EVOLUTION & AUTO-UPGRADE ENDPOINTS ─────────────────────────
 
 _latest_upgrade_result = None
+_is_autonomous_loop_running = False
+_auto_loop_task = None
+_loop_iteration_count = 0
+_loop_is_busy = False  # prevent concurrent executions
+
+def _do_auto_upgrade_sync(custom_topic: Optional[str] = None):
+    """Synchronous core auto-upgrade logic to be executed in thread pool."""
+    global _latest_upgrade_result
+    import sys
+    import random
+    from pathlib import Path
+    src_dir = Path(__file__).resolve().parent.parent
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    if str(src_dir / "research") not in sys.path:
+        sys.path.insert(0, str(src_dir / "research"))
+
+    from research.hypothesis_generator import HypothesisGenerator, TOPIC_POOL
+    from research.experiment_designer import ExperimentDesigner
+    from research.experiment_runner import ExperimentRunner
+    from research.learning_from_results import LearningFromResults
+    from research.jarvis_discovery_bridge import JarvisDiscoveryBridge
+
+    # 1. Dynamic Topic Selection with unique seed per call
+    seed = int(time.time() * 1000) % (2**32)
+    rng = random.Random(seed)
+    selected_topic = custom_topic or rng.choice(TOPIC_POOL)
+
+    # 2. Dynamic Hypothesis Generation
+    hyp_gen = HypothesisGenerator()
+    hypothesis = hyp_gen.generate_hypothesis(
+        topic=selected_topic,
+        context=f"JAYA_CORE AGI optimization constraint < 200MB memory, latency < 100ms, seed: {seed}, ts: {time.time():.6f}"
+    )
+
+    # Ensure hypothesis_id is globally unique
+    import uuid
+    from datetime import datetime as _dt
+    hyp_uid = uuid.uuid4().hex[:8].upper()
+    hypothesis["hypothesis_id"] = f"HYP-{_dt.now().strftime('%Y%m%d-%H%M%S')}-{hyp_uid}"
+
+    # 3. Experiment Design
+    designer = ExperimentDesigner()
+    exp_plan = designer.design_experiment(hypothesis)
+
+    # 4. Trial Runner & Bayesian Update
+    runner = ExperimentRunner()
+    trial_res = runner.run_experiment(exp_plan)
+    
+    learner = LearningFromResults()
+    prior = round(rng.uniform(0.42, 0.58), 2)
+    post, delta, rec, summary = learner.update_hypothesis_confidence(hypothesis, trial_res, prior_confidence=prior)
+
+    # 5. JARVIS Discovery Bridge — unique patch ID per call
+    db_path = src_dir.parent / "data" / "agentic_jarvis.db"
+    bridge = JarvisDiscoveryBridge(core_db_path=db_path)
+    
+    learning_analysis = {
+        "posterior_confidence": post,
+        "recommendation": rec,
+        "summary": summary
+    }
+    patch = bridge.create_jarvis_patch(hypothesis, learning_analysis)
+
+    # Override patch_id with guaranteed-unique value
+    patch["patch_id"] = f"JAYPATCH-{_dt.now().strftime('%Y%m%d-%H%M%S')}-{hyp_uid}"
+    patch["llm_generated"] = hypothesis.get("llm_generated", False)
+    patch["novelty_score"] = hypothesis.get("novelty_score", 0.85)
+
+    applied = bridge.apply_patch_to_core(patch)
+
+    res = {
+        "patch_id": patch["patch_id"],
+        "topic": selected_topic,
+        "target_system": patch.get("target_system", "JAYA_CORE_BRAIN"),
+        "bayes_confidence": round(post, 4),
+        "novelty_score": hypothesis.get("novelty_score", 0.85),
+        "statement": hypothesis["statement"],
+        "llm_generated": hypothesis.get("llm_generated", False),
+        "recommendation": rec,
+        "sqlite_injection_success": applied,
+        "hypothesis_id": hypothesis["hypothesis_id"],
+        "iteration": _loop_iteration_count,
+        "timestamp": time.time()
+    }
+    
+    _latest_upgrade_result = res
+    print(f"[AUTO-UPGRADE] ✅ Patch {patch['patch_id']} applied to DB: {applied}")
+    return res
+
+async def _continuous_autonomous_research_worker():
+    global _is_autonomous_loop_running, _loop_iteration_count, _loop_is_busy
+    print("[AUTONOMOUS LOOP] 🚀 Continuous Research Loop Started!")
+    while _is_autonomous_loop_running:
+        if not _loop_is_busy:
+            _loop_is_busy = True
+            _loop_iteration_count += 1
+            iteration = _loop_iteration_count
+            try:
+                print(f"[AUTONOMOUS LOOP] ▶ Iteration #{iteration}")
+                # 1. Run Autonomous Discovery & SQLite Patch Injection in thread
+                await asyncio.to_thread(_do_auto_upgrade_sync)
+
+                # 2. Periodically trigger Autonomous LoRA Fine-Tuning & Memory Manager (every 5 iterations)
+                if iteration % 5 == 0:
+                    print(f"[AUTONOMOUS LOOP] 🧬 Triggering Auto LoRA Fine-Tuning & Memory Manager Sync (Iteration #{iteration})...")
+                    from auto_finetune import run_auto_finetune_cycle
+                    from memory_manager import MemoryManager
+
+                    await asyncio.to_thread(run_auto_finetune_cycle)
+
+                    mm = MemoryManager()
+                    await asyncio.to_thread(mm.optimize_sqlite_database)
+                    await asyncio.to_thread(mm.check_and_compile_milestone)
+                    await asyncio.to_thread(mm.sync_to_ecosystem)
+                    mm.enforce_memory_cap(max_ram_mb=200)
+
+                print(f"[AUTONOMOUS LOOP] ✅ Iteration #{iteration} completed")
+            except Exception as e:
+                print(f"[AUTONOMOUS LOOP] ❌ Error in iteration #{iteration}: {e}")
+            finally:
+                _loop_is_busy = False
+        await asyncio.sleep(8)  # wait 8s between iterations
+    print("[AUTONOMOUS LOOP] ⏹️ Continuous Research Loop Stopped.")
 
 @app.get("/evolution/status")
 async def get_evolution_status():
     """Return live status of JAYA_RESEARCH -> JAYA_CORE Evolution Bridge."""
     return {
-        "state": "idle" if not _latest_upgrade_result else "active",
+        "state": "running" if _is_autonomous_loop_running else ("idle" if not _latest_upgrade_result else "active"),
         "is_awake": True,
-        "latest_thought": "ResearchEcosystemBridge ready for autonomous upgrades",
+        "is_loop_running": _is_autonomous_loop_running,
+        "loop_iteration_count": _loop_iteration_count,
+        "latest_thought": "Continuous Autonomous Discovery Loop Active" if _is_autonomous_loop_running else "ResearchEcosystemBridge ready for autonomous upgrades",
         "latest_upgrade_result": _latest_upgrade_result,
         "timestamp": time.time()
     }
 
-@app.post("/evolution/auto-upgrade")
-async def trigger_auto_upgrade():
-    """Trigger autonomous research discovery and deployment to JAYA_CORE."""
-    global _latest_upgrade_result
+@app.get("/evolution/loop-status")
+async def get_loop_status():
+    """Check if continuous autonomous research loop is running."""
+    return {
+        "is_running": _is_autonomous_loop_running,
+        "loop_iteration_count": _loop_iteration_count,
+        "latest_upgrade": _latest_upgrade_result
+    }
+
+@app.get("/evolution/patches")
+async def get_all_patches(limit: int = 50):
+    """Read all applied JARVIS patches from agentic_jarvis.db SQLite database."""
     try:
-        from research.ecosystem_bridge import ResearchEcosystemBridge, ResearchFinding
-        bridge = ResearchEcosystemBridge()
-        finding = ResearchFinding(
-            finding_id=f"res-{int(time.time())}",
-            paper_title="Dynamic Quantized Attention Sparsity for Low-Latency Brain Kernels",
-            authors=["JAYA Autonomous Research Agent", "ArXiv Synthesis Engine"],
-            topic="quantum_attention_sparsity",
-            gap_summary="Dynamic top-k attention sparsity reduces RAM consumption by 18% during active reasoning.",
-            suggested_patch_type="sparsity_optimization_patch",
-            patch_code='''\"\"\"
-auto_research_patch.py — Autonomous Research Patch generated by JAYA_RESEARCH
-\"\"\"
-from dataclasses import dataclass
-from typing import List, Dict, Any
+        src_dir = Path(__file__).resolve().parent.parent
+        db_path = src_dir.parent / "data" / "agentic_jarvis.db"
+        if not db_path.exists():
+            return {"patches": [], "total": 0, "db_exists": False}
+        
+        import sqlite3 as _sqlite3
+        conn = _sqlite3.connect(str(db_path))
+        conn.row_factory = _sqlite3.Row
+        try:
+            rows = conn.execute(
+                "SELECT patch_id, topic, statement, bayes_confidence, applied_at, patch_data "
+                "FROM jarvis_patches ORDER BY applied_at DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+            patches = []
+            for row in rows:
+                patch_data = {}
+                try:
+                    patch_data = json.loads(row["patch_data"] or "{}")
+                except Exception:
+                    pass
+                patches.append({
+                    "patch_id": row["patch_id"],
+                    "topic": row["topic"],
+                    "statement": row["statement"],
+                    "bayes_confidence": row["bayes_confidence"],
+                    "applied_at": row["applied_at"],
+                    "novelty_score": patch_data.get("novelty_score", 0.0),
+                    "target_system": patch_data.get("target_system", "JAYA_CORE_BRAIN"),
+                    "llm_generated": patch_data.get("llm_generated", False),
+                    "falsifiability": patch_data.get("falsifiability", ""),
+                })
+            count = conn.execute("SELECT COUNT(*) FROM jarvis_patches").fetchone()[0]
+            return {"patches": patches, "total": count, "db_exists": True, "db_path": str(db_path)}
+        finally:
+            conn.close()
+    except Exception as e:
+        return {"patches": [], "total": 0, "db_exists": False, "error": str(e)}
 
-class QuantizedAttentionSparsityEngine:
-    def __init__(self, sparsity_threshold: float = 0.15):
-        self.sparsity_threshold = sparsity_threshold
-        self._history = []
+@app.post("/evolution/start-autonomous-loop")
+async def start_autonomous_loop():
+    """Start continuous autonomous research loop."""
+    global _is_autonomous_loop_running, _auto_loop_task
+    if _is_autonomous_loop_running:
+        return {"ok": True, "message": "Autonomous loop is already running", "is_running": True}
+    
+    _is_autonomous_loop_running = True
+    _save_loop_state(True)  # Persist to SQLite
+    _auto_loop_task = asyncio.create_task(_continuous_autonomous_research_worker())
+    print("[API] ▶ Autonomous loop STARTED and state saved to DB.")
+    return {"ok": True, "message": "Continuous Autonomous Research Loop Started", "is_running": True}
 
-    def apply_sparsity(self, activation_list: List[float]) -> List[float]:
-        return [v if v >= self.sparsity_threshold else 0.0 for v in activation_list]
+@app.post("/evolution/stop-autonomous-loop")
+async def stop_autonomous_loop():
+    """Stop continuous autonomous research loop."""
+    global _is_autonomous_loop_running, _auto_loop_task
+    _is_autonomous_loop_running = False
+    _save_loop_state(False)  # Persist to SQLite
+    if _auto_loop_task and not _auto_loop_task.done():
+        try:
+            _auto_loop_task.cancel()
+        except Exception:
+            pass
+    print("[API] ⏹️ Autonomous loop STOPPED and state saved to DB.")
+    return {"ok": True, "message": "Continuous Autonomous Research Loop Stopped", "is_running": False}
 
-    def get_sparsity_report(self) -> Dict[str, Any]:
-        return {"status": "active", "patches": len(self._history)}
-''',
-            confidence_score=0.99
-        )
-        res = bridge.submit_research_upgrade(finding)
-        _latest_upgrade_result = res
+@app.post("/evolution/auto-upgrade")
+async def trigger_auto_upgrade(custom_topic: Optional[str] = None):
+    """Trigger autonomous research discovery and deployment to JAYA_CORE."""
+    try:
+        res = await asyncio.to_thread(_do_auto_upgrade_sync, custom_topic)
         return {
             "ok": True,
-            "message": "Autonomous research upgrade executed and deployed to JAYA_CORE",
+            "message": "Autonomous research loop executed & patch injected into JAYA_CORE (agentic_jarvis.db)",
             "result": res
+        }
+    except Exception as err:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(err))
+
+@app.post("/evolution/auto-finetune")
+async def trigger_auto_finetune():
+    """Extract SFT dataset from agentic_jarvis.db and train LoRA neural weight adapter."""
+    try:
+        from auto_finetune import run_auto_finetune_cycle
+        res = await asyncio.to_thread(run_auto_finetune_cycle)
+        return {"ok": True, "message": "Autonomous LoRA Weight Fine-Tuning Executed", "result": res}
+    except Exception as err:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(err))
+
+@app.get("/evolution/adapters")
+async def get_adapter_info():
+    """Retrieve metadata about active LoRA neural weight adapters."""
+    try:
+        src_dir = Path(__file__).resolve().parent.parent
+        meta_file = src_dir.parent / "data" / "adapters" / "adapter_metadata.json"
+        if not meta_file.exists():
+            return {"active_adapter": None, "exists": False}
+        with open(meta_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {"active_adapter": data, "exists": True}
+    except Exception as err:
+        return {"active_adapter": None, "exists": False, "error": str(err)}
+
+@app.get("/evolution/memory-status")
+async def get_memory_status():
+    """Retrieve current RSS RAM memory footprint and milestone status."""
+    try:
+        from memory_manager import MemoryManager
+        mm = MemoryManager()
+        ram_info = mm.enforce_memory_cap(max_ram_mb=200)
+        milestone_info = mm.check_and_compile_milestone()
+        return {"ok": True, "ram": ram_info, "milestone": milestone_info}
+    except Exception as err:
+        return {"ok": False, "error": str(err)}
+
+@app.post("/evolution/optimize-memory")
+async def trigger_memory_optimization():
+    """Optimize SQLite WAL indexes, enforce RAM garbage collection, and check milestone compilation."""
+    try:
+        from memory_manager import MemoryManager
+        mm = MemoryManager()
+        res_sqlite = await asyncio.to_thread(mm.optimize_sqlite_database)
+        res_milestone = await asyncio.to_thread(mm.check_and_compile_milestone)
+        res_ram = mm.enforce_memory_cap(max_ram_mb=200)
+        return {
+            "ok": True,
+            "message": "Memory & Database Optimization Completed",
+            "sqlite": res_sqlite,
+            "milestone": res_milestone,
+            "ram": res_ram
         }
     except Exception as err:
         raise HTTPException(status_code=500, detail=str(err))

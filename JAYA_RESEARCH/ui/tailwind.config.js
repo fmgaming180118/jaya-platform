@@ -7,33 +7,30 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Inter', 'sans-serif'],
+                sans: ['Plus Jakarta Sans', 'Inter', 'sans-serif'],
+                display: ['Plus Jakarta Sans', 'sans-serif'],
                 mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
             },
             colors: {
-                // Google Notebook LLM Dark Theme Inspiration
                 notebook: {
-                    bg: '#0f1014',     // Very dark background
-                    sidebar: '#181a1f', // Slightly lighter sidebar
-                    card: '#1e2025',    // Card background
-                    hover: '#2a2d35',   // Hover state
-                    border: '#2e3138',  // Subtle borders
+                    bg: '#0b0c10',        // Deep Charcoal Black
+                    sidebar: '#0e1017',   // Sidebar surface
+                    card: '#12141d',      // Card surface
+                    hover: '#181b27',     // Hover state
+                    border: 'rgba(255, 255, 255, 0.08)',
                     text: {
-                        primary: '#e3e3e3',
-                        secondary: '#a8a8a8',
-                        accent: '#8ab4f8', // Google Blue-ish accent
-                        success: '#81c995',
-                        warning: '#fdd663',
-                        error: '#f28b82',
+                        primary: '#f8fafc',
+                        secondary: '#94a3b8',
+                        accent: '#38bdf8',
+                        success: '#34d399',
+                        warning: '#fbbf24',
+                        error: '#f87171',
                     }
                 }
             },
             boxShadow: {
-                'glow': '0 0 20px rgba(138, 180, 248, 0.15)',
-                'card': '0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.15)',
-            },
-            animation: {
-                'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                'subtle': '0 4px 20px 0 rgba(0, 0, 0, 0.35)',
+                'linear': '0 10px 30px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08)',
             }
         },
     },

@@ -4,19 +4,21 @@ import os
 import traceback
 from safeguard import Safeguard
 from integrity import run_integrity_suite
+from sandbox import Sandbox
 
 class ImmuneSystem:
     def __init__(self, watch_dir="src", backup_dir="backups"):
         self.safeguard = Safeguard(watch_dir, backup_dir)
+        self.sandbox = Sandbox()
         self.current_backup = None
         self.passed = False
 
     def __enter__(self):
         """
         Start of the danger zone.
-        Create a backup immediately.
+        Create a backup immediately and initialize Native OS Sandbox.
         """
-        print("\n[IMMUNE SYSTEM] 🛡️ Activating Defense Shields...")
+        print("\n[IMMUNE SYSTEM] [DEFENSE SHIELDS] Activating Native OS Isolation Sandbox...")
         self.current_backup = self.safeguard.create_backup(label="auto_guard")
         return self
 
@@ -24,33 +26,57 @@ class ImmuneSystem:
         """
         End of the danger zone.
         1. Check for crashes (Exceptions).
-        2. Check for brain damage (Integrity Tests).
+        2. Check for brain damage (Integrity Tests in Sandbox).
         3. Rollback if necessary.
+        4. Auto-clean sandbox artifacts.
         """
         if exc_type:
-            print(f"\n[IMMUNE SYSTEM] 🚨 CRASH DETECTED: {exc_val}")
-            print("[IMMUNE SYSTEM] 🔄 Initiating Emergency Rollback...")
+            print(f"\n[IMMUNE SYSTEM] [CRASH DETECTED] {exc_val}")
+            print("[IMMUNE SYSTEM] [ROLLBACK] Initiating Emergency Rollback...")
             self.safeguard.restore_backup(self.current_backup)
+            self.sandbox.cleanup_workspace()
             self.passed = False
             return True # Suppress exception after rollback
         
-        # No crash, but is the brain still working?
-        print("[IMMUNE SYSTEM] 🧠 Checking Cognitive Integrity...")
+        # Check cognitive integrity inside isolated subprocess sandbox
+        print("[IMMUNE SYSTEM] [INTEGRITY] Checking Cognitive Integrity in Native Sandbox...")
         try:
-            self.passed = run_integrity_suite()
+            # Run integrity test via isolated sandbox process
+            watch_abs = os.path.abspath(self.safeguard.watch_dir)
+            test_script = (
+                "import sys, os\n"
+                f"sys.path.insert(0, r'{watch_abs}')\n"
+                "from integrity import run_integrity_suite\n"
+                "res = run_integrity_suite()\n"
+                "sys.exit(0 if res else 1)\n"
+            )
+            sandbox_env = {
+                "OPENBLAS_NUM_THREADS": "1",
+                "MKL_NUM_THREADS": "1",
+                "NUMEXPR_NUM_THREADS": "1",
+                "OMP_NUM_THREADS": "1"
+            }
+            res = self.sandbox.run_isolated_python(
+                test_script, memory_limit_mb=256, timeout_sec=5.0, env_vars=sandbox_env
+            )
+            self.passed = res.get("success", False)
+            if res.get("output"):
+                print(f"[IMMUNE SYSTEM] Sandbox Test Log:\n{res['output']}")
+            if res.get("error"):
+                print(f"[IMMUNE SYSTEM] Sandbox Error Log:\n{res['error']}")
         except Exception as e:
-            print(f"[IMMUNE SYSTEM] 🚨 Integrity Test Crashed: {e}")
+            print(f"[IMMUNE SYSTEM] Integrity Test Crashed: {e}")
             self.passed = False
 
         if not self.passed:
-            print("[IMMUNE SYSTEM] ❌ Integrity Check FAILED. Mutation rejected.")
-            print("[IMMUNE SYSTEM] 🔄 Initiating Emergency Rollback...")
+            print("[IMMUNE SYSTEM] [REJECTED] Integrity Check FAILED. Mutation rejected.")
+            print("[IMMUNE SYSTEM] [ROLLBACK] Initiating Emergency Rollback...")
             self.safeguard.restore_backup(self.current_backup)
         else:
-            print("[IMMUNE SYSTEM] ✅ System Stable. Mutation Accepted.")
-            # Optional: Delete backup if successful to save space? 
-            # adhering to "Persisten & Adaptif", maybe keep history?
-            pass
+            print("[IMMUNE SYSTEM] [PASSED] System Stable. Mutation Accepted.")
+
+        # Cleanup sandbox temp artifacts
+        self.sandbox.cleanup_workspace()
 
 if __name__ == "__main__":
     # Self-Test of the Immune System

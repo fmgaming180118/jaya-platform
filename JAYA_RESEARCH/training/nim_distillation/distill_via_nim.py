@@ -30,10 +30,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
-from dotenv import load_dotenv
-
-# Load .env from JAYA_RESEARCH root
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 
 
 @dataclass(frozen=True)
@@ -279,7 +275,7 @@ def run_distillation(prompts: List[str], config: DistillationConfig) -> Distilla
             print(f"  !! {error_message}", file=sys.stderr)
             failures.append({"prompt": prompt, "error": error_message})
 
-    metadata = {
+    metadata: Dict[str, Any] = {
         "api_url": config.api_url,
         "model": config.model,
         "max_tokens": config.max_tokens,

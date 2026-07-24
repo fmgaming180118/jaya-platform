@@ -20,7 +20,7 @@ def generate_knowledge_synthesis(all_reports_content):
     print("\n[SYNTHESIS] Generating Consolidated Knowledge Artifact...")
     
     api_key = os.getenv("NVIDIA_API_KEY")
-    model = os.getenv("NVIDIA_LLAMA31_MODEL") or os.getenv("NVIDIA_LLAMA3.1_MODEL") or "nvidia/nemotron-3-ultra-550b-a55b"
+    model = os.getenv("NVIDIA_LLAMA31_MODEL") or os.getenv("NVIDIA_LLAMA3.1_MODEL") or config.NVIDIA_REASONING_MODEL
     invoke_url = (os.getenv("NVIDIA_LLAMA31_BASE_URL") or os.getenv("NVIDIA_LLAMA3.1_BASE_URL") or config.NVIDIA_BASE_URL) + "/chat/completions"
     
     prompt = f"""

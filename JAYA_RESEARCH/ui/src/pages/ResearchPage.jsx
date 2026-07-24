@@ -1,342 +1,501 @@
-import { useState, useEffect, useRef } from 'react';
-import { Play, RotateCw, CheckCircle2, FileText, FlaskConical, Layout, AlertCircle } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+    Play, RotateCw, CheckCircle2, FileText, FlaskConical,
+    AlertCircle, Sparkles, Zap, Database, Square, Activity,
+    Brain, ChevronRight, Clock, BarChart2, Shield, Cpu, RefreshCw
+} from 'lucide-react';
 import clsx from 'clsx';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import api from '../services/api';
 
-const MOCK_REPORTS = {
-    1: `# Neural JIT Compilation
+const API_BASE = 'http://localhost:8000';
 
-## Executive Summary
-Initial analysis suggests that neural compilation techniques can be optimized using a ternary-weight approach, reducing memory bandwidth by 60% while maintaining accuracy within 1% of the baseline FP32 models.
+// Format unix timestamp to relative time
+function formatRelTime(ts) {
+    if (!ts) return '—';
+    const diff = Math.floor(Date.now() / 1000 - ts);
+    if (diff < 5)  return 'baru saja';
+    if (diff < 60) return `${diff}d lalu`;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m lalu`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}j lalu`;
+    return new Date(ts * 1000).toLocaleDateString('id-ID');
+}
 
-## Key Findings
-- **Architecture search** revealed 3 potential candidates for JIT optimization.
-- **Memory footprint** reduced by a significant factor using sparse gating.
-- **Latency** improved by 15ms on average inference calls.
+function ConfidencePill({ value }) {
+    const pct = Math.round((value || 0) * 100);
+    const color = pct >= 70 ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
+        : pct >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30'
+        : 'text-red-400 bg-red-500/15 border-red-500/30';
+    return (
+        <span className={clsx('text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border', color)}>
+            {pct}%
+        </span>
+    );
+}
 
-## Methodology
-We employ a JIT compiler sandbox using a custom mutator. This sandbox compiles the active subnetworks on-the-fly and caches their execution paths.`,
-    2: `# Self-Modifying Architectures
-
-## Executive Summary
-Exploration of self-modifying neural topologies has demonstrated that dynamic edge rewriting during the forward pass is viable. This reduces the parameters required for context switching by up to 40%.
-
-## Key Findings
-- **Adaptive Routing:** Gating functions can dynamically rewrite pathway weights based on input class.
-- **Hardware Efficiency:** Direct mapping of ternary weights to binary kernels shows a 2.3x speedup on edge CPUs.
-- **Memory Optimization:** Pruning inactive paths on-demand prevents RAM bloating.
-
-## Future Outlook
-Hardware acceleration targeting AVX-512 and ARM Neon registers will yield the highest gains.`
-};
-
-export default function ResearchPage({ workspaceId }) {
-    const [topic, setTopic] = useState('');
-    const [status, setStatus] = useState('idle');
-    const [activeReport, setActiveReport] = useState(1);
-    const pollingRef = useRef(null);
-
-    // Initializer to load tasks from localStorage
-    const getInitialTasks = () => {
-        const saved = localStorage.getItem(`jaya_tasks_${workspaceId}`);
-        if (saved) {
-            try {
-                return JSON.parse(saved);
-            } catch (e) {
-                console.error("Failed to parse saved tasks:", e);
-            }
-        }
-        return [
-            { id: 1, topic: "Neural JIT Compilation", status: "completed", progress: 100, date: '2h ago', report: MOCK_REPORTS[1] },
-            { id: 2, topic: "Self-Modifying Architectures", status: "running", progress: 45, date: 'Just now', report: null },
-        ];
-    };
-
-    const [tasks, setTasks] = useState(getInitialTasks);
-
-    // Persist tasks to localStorage whenever they change
-    useEffect(() => {
-        localStorage.setItem(`jaya_tasks_${workspaceId}`, JSON.stringify(tasks));
-    }, [tasks, workspaceId]);
-
-    // Time ago formatter helper
-    const formatTime = (ts) => {
-        const diff = Math.floor(Date.now() / 1000 - ts);
-        if (diff < 10) return "Just now";
-        if (diff < 60) return `${diff}s ago`;
-        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-        return new Date(ts * 1000).toLocaleDateString();
-    };
-
-    // Fetch reports history from backend
-    const fetchHistory = async () => {
-        try {
-            const history = await api.getHistory();
-            if (Array.isArray(history)) {
-                // Map database entries to task format
-                const dbTasks = history.map(entry => ({
-                    id: entry.timestamp,
-                    topic: entry.metadata?.topic || "Unknown Research",
-                    status: "completed",
-                    progress: 100,
-                    date: formatTime(entry.timestamp),
-                    report: entry.code
-                }));
-
-                setTasks(prev => {
-                    // Update any existing tasks matching by topic if found in history
-                    const updated = prev.map(task => {
-                        const dbMatch = dbTasks.find(db => db.topic.toLowerCase() === task.topic.toLowerCase());
-                        if (dbMatch) {
-                            return {
-                                ...task,
-                                status: "completed",
-                                progress: 100,
-                                report: dbMatch.report,
-                                date: dbMatch.date
-                            };
-                        }
-                        return task;
-                    });
-
-                    // Add new database reports not currently in the task list
-                    const newDbTasks = dbTasks.filter(db => 
-                        !updated.some(task => task.topic.toLowerCase() === db.topic.toLowerCase())
-                    );
-
-                    return [...newDbTasks, ...updated];
-                });
-            }
-        } catch (err) {
-            console.error("Failed to fetch history:", err);
-        }
-    };
-
-    // Load history on mount and start polling
-    useEffect(() => {
-        fetchHistory();
-        pollingRef.current = setInterval(fetchHistory, 4000);
-        
-        return () => {
-            if (pollingRef.current) clearInterval(pollingRef.current);
-        };
-    }, [workspaceId]);
-
-    // Simulate progress of running tasks in UI
-    useEffect(() => {
-        const progressInterval = setInterval(() => {
-            setTasks(prev => 
-                prev.map(task => {
-                    if (task.status === 'running') {
-                        const increment = Math.floor(Math.random() * 4) + 1;
-                        const nextProgress = Math.min(task.progress + increment, 98);
-                        
-                        // If it is the mock running task (ID 2), auto-complete it around 95%
-                        if (task.id === 2 && nextProgress >= 90) {
-                            return { 
-                                ...task, 
-                                progress: 100, 
-                                status: 'completed', 
-                                report: MOCK_REPORTS[2], 
-                                date: 'Just now' 
-                            };
-                        }
-                        
-                        return { ...task, progress: nextProgress };
-                    }
-                    return task;
-                })
-            );
-        }, 2000);
-
-        return () => clearInterval(progressInterval);
-    }, []);
-
-    const startResearch = async () => {
-        if (!topic.trim()) return;
-        setStatus('running');
-        const newTaskId = Date.now();
-        const currentTopic = topic;
-        
-        try {
-            // Add task to running list
-            setTasks(prev => [
-                { id: newTaskId, topic: currentTopic, status: 'running', progress: 0, date: 'Just now', report: null },
-                ...prev
-            ]);
-            setActiveReport(newTaskId);
-            setTopic('');
-
-            await api.startResearch(currentTopic, "", workspaceId);
-            setStatus('idle');
-        } catch (err) {
-            console.error(err);
-            setStatus('error');
-            setTasks(prev => 
-                prev.map(t => t.id === newTaskId ? { ...t, status: 'error', progress: 0 } : t)
-            );
-        }
-    };
-
-    const activeTask = tasks.find(t => t.id === activeReport);
+function PatchDetail({ patch, onClose }) {
+    if (!patch) return null;
+    const confidence = Math.round((patch.bayes_confidence || 0) * 100);
+    const novelty = Math.round((patch.novelty_score || 0) * 100);
 
     return (
-        <div className="p-8 h-full overflow-y-auto bg-notebook-bg text-notebook-text-primary">
-            <header className="mb-10 flex justify-between items-center">
-                <div>
-                    <h1 className="text-3xl font-semibold mb-2 flex items-center gap-3">
-                        <span className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
-                            <FlaskConical size={24} />
-                        </span>
-                        Deep Research
-                    </h1>
-                    <p className="text-notebook-text-secondary text-sm ml-1">Autonomous multi-step research agent</p>
+        <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            className="h-full overflow-y-auto space-y-4 pr-1"
+        >
+            {/* Header */}
+            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.08]">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
+                            <Brain size={16} />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-mono text-slate-500">PATCH ID</p>
+                            <p className="text-xs font-bold text-emerald-300 font-mono">{patch.patch_id}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-slate-500 hover:text-white text-[11px] transition-colors">✕ Tutup</button>
                 </div>
-                <div className="flex gap-3 bg-notebook-card p-1.5 rounded-xl border border-notebook-border shadow-sm">
-                    <input
-                        value={topic}
-                        onChange={(e) => setTopic(e.target.value)}
-                        placeholder="Enter research topic..."
-                        className="bg-transparent text-notebook-text-primary px-4 py-2 w-64 focus:outline-none placeholder:text-notebook-text-secondary/50"
-                        onKeyDown={(e) => e.key === 'Enter' && startResearch()}
-                    />
+                <h3 className="text-sm font-bold text-slate-100 mb-1">{patch.topic}</h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed">{patch.statement}</p>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                    <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1"><BarChart2 size={10} /> Bayesian Confidence</p>
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div
+                                className={clsx('h-full rounded-full transition-all', confidence >= 70 ? 'bg-emerald-500' : confidence >= 50 ? 'bg-amber-500' : 'bg-red-500')}
+                                style={{ width: `${confidence}%` }}
+                            />
+                        </div>
+                        <span className="text-xs font-bold text-slate-200">{confidence}%</span>
+                    </div>
+                </div>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
+                    <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1"><Sparkles size={10} /> Novelty Score</p>
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${novelty}%` }} />
+                        </div>
+                        <span className="text-xs font-bold text-slate-200">{novelty}%</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Meta */}
+            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-2">
+                <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 flex items-center gap-1"><Cpu size={10} /> Target System</span>
+                    <span className="text-slate-200 font-mono">{patch.target_system || 'JAYA_CORE_BRAIN'}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 flex items-center gap-1"><Database size={10} /> SQLite Status</span>
+                    <span className="text-emerald-400 font-bold">✓ APPLIED</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 flex items-center gap-1"><Zap size={10} /> LLM Generated</span>
+                    <span className={patch.llm_generated ? 'text-sky-400' : 'text-slate-400'}>
+                        {patch.llm_generated ? '✓ Ya (NVIDIA NIM)' : 'Template Synthesis'}
+                    </span>
+                </div>
+                <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 flex items-center gap-1"><Clock size={10} /> Diterapkan</span>
+                    <span className="text-slate-300">{formatRelTime(patch.applied_at)}</span>
+                </div>
+            </div>
+
+            {/* Falsifiability */}
+            {patch.falsifiability && (
+                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                    <p className="text-[10px] font-bold text-amber-400 mb-1 flex items-center gap-1">
+                        <Shield size={10} /> Kriteria Falsifiabilitas
+                    </p>
+                    <p className="text-[11px] text-slate-300 leading-relaxed">{patch.falsifiability}</p>
+                </div>
+            )}
+
+            {/* Full Markdown report */}
+            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] prose prose-invert max-w-none text-xs leading-relaxed">
+                <ReactMarkdown>
+                    {`# Laporan Penemuan Ilmiah\n\n**Patch ID**: \`${patch.patch_id}\`\n\n**Topik**: ${patch.topic}\n\n## Hipotesis\n\n${patch.statement}\n\n## Analisis\n\n- **Kepercayaan Bayesian**: ${confidence}% — ${confidence >= 70 ? 'Hipotesis diterima dengan keyakinan tinggi' : confidence >= 50 ? 'Hipotesis perlu validasi lanjutan' : 'Keyakinan rendah, butuh eksperimen ulang'}\n- **Skor Novelty**: ${novelty}% — ${novelty >= 80 ? 'Penemuan sangat baru, belum ada di literatur sebelumnya' : 'Penemuan baru dengan basis riset yang ada'}\n\n## Dampak ke JAYA_CORE\n\nPatch ini diinjeksi langsung ke database \`agentic_jarvis.db\` tabel \`jarvis_patches\` dan \`proactive_directives\`, memungkinkan JAYA merespons secara proaktif berdasarkan penemuan ini.`}
+                </ReactMarkdown>
+            </div>
+        </motion.div>
+    );
+}
+
+export default function ResearchPage({ workspaceId }) {
+    const [patches, setPatches] = useState([]);
+    const [totalPatches, setTotalPatches] = useState(0);
+    const [selectedPatch, setSelectedPatch] = useState(null);
+    // null = belum tahu (sedang sync dengan backend), true/false = sudah tahu
+    const [isLoopRunning, setIsLoopRunning] = useState(null);
+    const [isTogglingLoop, setIsTogglingLoop] = useState(false);
+    const [loopIteration, setLoopIteration] = useState(0);
+    const [latestResult, setLatestResult] = useState(null);
+    const [dbExists, setDbExists] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [topic, setTopic] = useState('');
+    const [isRunningManual, setIsRunningManual] = useState(false);
+    // true saat pertama kali sync backend (UI baru dibuka/reload)
+    const [isInitialSync, setIsInitialSync] = useState(true);
+
+    const loopPollRef = useRef(null);
+    const patchesPollRef = useRef(null);
+
+    // Fetch patches from SQLite via API
+    const fetchPatches = useCallback(async (showRefresh = false) => {
+        if (showRefresh) setIsRefreshing(true);
+        try {
+            const res = await fetch(`${API_BASE}/evolution/patches?limit=100`);
+            const data = await res.json();
+            if (data.patches) {
+                setPatches(data.patches);
+                setTotalPatches(data.total || data.patches.length);
+                setDbExists(data.db_exists || false);
+            }
+        } catch (e) {
+            console.error('[ResearchPage] Failed to fetch patches:', e);
+        } finally {
+            if (showRefresh) setIsRefreshing(false);
+        }
+    }, []);
+
+    // Fetch loop status — on first call, mark sync done
+    const fetchLoopStatus = useCallback(async (isFirst = false) => {
+        try {
+            const res = await fetch(`${API_BASE}/evolution/loop-status`);
+            const data = await res.json();
+            setIsLoopRunning(data.is_running || false);
+            setLoopIteration(data.loop_iteration_count || 0);
+            if (data.latest_upgrade) setLatestResult(data.latest_upgrade);
+        } catch (e) {
+            console.error('[ResearchPage] Loop status error:', e);
+            // Jika backend tidak bisa dijangkau, anggap tidak running
+            if (isFirst) setIsLoopRunning(false);
+        } finally {
+            if (isFirst) setIsInitialSync(false);
+        }
+    }, []);
+
+    // Initial sync dengan backend — inilah yang membuat UI tahu status real
+    useEffect(() => {
+        fetchPatches();
+        fetchLoopStatus(true);  // isFirst=true, akan set isInitialSync=false saat selesai
+    }, []);
+
+    // Polling: patches every 5s, loop status every 3s
+    useEffect(() => {
+        patchesPollRef.current = setInterval(() => fetchPatches(), 5000);
+        loopPollRef.current = setInterval(() => fetchLoopStatus(false), 3000);
+        return () => {
+            clearInterval(patchesPollRef.current);
+            clearInterval(loopPollRef.current);
+        };
+    }, []);
+
+    // Toggle loop
+    const toggleLoop = async () => {
+        setIsTogglingLoop(true);
+        try {
+            const endpoint = isLoopRunning
+                ? `${API_BASE}/evolution/stop-autonomous-loop`
+                : `${API_BASE}/evolution/start-autonomous-loop`;
+            const res = await fetch(endpoint, { method: 'POST' });
+            const data = await res.json();
+            setIsLoopRunning(data.is_running || false);
+        } catch (e) {
+            console.error('[ResearchPage] Toggle loop error:', e);
+        } finally {
+            setIsTogglingLoop(false);
+        }
+    };
+
+    // Manual single research trigger
+    const runManualUpgrade = async () => {
+        setIsRunningManual(true);
+        try {
+            const url = topic.trim()
+                ? `${API_BASE}/evolution/auto-upgrade?custom_topic=${encodeURIComponent(topic.trim())}`
+                : `${API_BASE}/evolution/auto-upgrade`;
+            const res = await fetch(url, { method: 'POST' });
+            const data = await res.json();
+            if (data.result) {
+                setLatestResult(data.result);
+                setTopic('');
+                // Immediately refresh patches
+                setTimeout(() => fetchPatches(), 1000);
+            }
+        } catch (e) {
+            console.error('[ResearchPage] Manual upgrade error:', e);
+        } finally {
+            setIsRunningManual(false);
+        }
+    };
+
+    return (
+        <div className="p-6 h-full overflow-y-auto bg-[#0b0c10] text-slate-100 font-sans flex flex-col gap-6">
+            {/* ─── Header ─── */}
+            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 border-b border-white/[0.06]">
+                <div>
+                    <h1 className="text-xl font-bold mb-1 flex items-center gap-3">
+                        <span className="p-2 bg-white/[0.05] border border-white/[0.08] rounded-xl text-slate-200">
+                            <FlaskConical size={20} />
+                        </span>
+                        Autonomous Discovery Engine
+                    </h1>
+                    <p className="text-slate-400 text-[11px] ml-1">
+                        Riset otonom JAYA — setiap penemuan diinjeksi langsung ke <code className="text-slate-300">agentic_jarvis.db</code>
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap">
+                    {/* DB Status Badge */}
+                    <div className={clsx(
+                        'px-3 py-1.5 rounded-lg text-[10px] font-bold border flex items-center gap-1.5',
+                        dbExists
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-red-500/10 border-red-500/30 text-red-400'
+                    )}>
+                        <Database size={10} />
+                        <span>{dbExists ? `DB Aktif · ${totalPatches} patch` : 'DB belum dibuat'}</span>
+                    </div>
+
+                    {/* Refresh */}
                     <button
-                        onClick={startResearch}
-                        disabled={status === 'running'}
-                        className="bg-notebook-text-primary hover:bg-white text-notebook-bg px-6 py-2 rounded-lg flex items-center gap-2 font-medium transition-colors disabled:opacity-50"
+                        onClick={() => fetchPatches(true)}
+                        disabled={isRefreshing}
+                        className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all"
+                        title="Refresh daftar penemuan"
                     >
-                        {status === 'running' ? <RotateCw size={16} className="animate-spin" /> : <Play size={16} fill="currentColor" />}
-                        <span>Start</span>
+                        <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
                     </button>
+
+                    {/* START / STOP — disabled & shows spinner saat initial sync */}
+                    <button
+                        onClick={toggleLoop}
+                        disabled={isTogglingLoop || isInitialSync || isLoopRunning === null}
+                        className={clsx(
+                            'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 border disabled:opacity-50 disabled:cursor-not-allowed',
+                            isInitialSync || isLoopRunning === null
+                                ? 'bg-white/[0.05] border-white/[0.1] text-slate-400'
+                                : isLoopRunning
+                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300'
+                                    : 'bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-500/40 text-emerald-300'
+                        )}
+                        title={
+                            isInitialSync ? 'Menyinkronkan status dengan backend...'
+                            : isLoopRunning ? 'Klik untuk menghentikan loop'
+                            : 'Klik untuk memulai loop otonom'
+                        }
+                    >
+                        {/* Loading saat sync awal */}
+                        {(isInitialSync || isLoopRunning === null) ? (
+                            <><RotateCw size={13} className="animate-spin" /><span>Menyinkronkan...</span></>
+                        ) : isTogglingLoop ? (
+                            <><RotateCw size={13} className="animate-spin" /><span>Memproses...</span></>
+                        ) : isLoopRunning ? (
+                            <><Square size={12} className="fill-amber-400 text-amber-400" /><span>Hentikan Loop</span></>
+                        ) : (
+                            <><Play size={12} className="fill-emerald-400 text-emerald-400" /><span>Mulai Loop Otonom</span></>
+                        )}
+                        {isLoopRunning && !isInitialSync && (
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                        )}
+                    </button>
+
+                    {/* Manual topic */}
+                    <div className="flex gap-1.5 bg-white/[0.03] p-1 rounded-xl border border-white/[0.07]">
+                        <input
+                            value={topic}
+                            onChange={e => setTopic(e.target.value)}
+                            placeholder="Topik spesifik (opsional)..."
+                            className="bg-transparent text-slate-100 px-3 py-1 text-[11px] w-44 focus:outline-none placeholder:text-slate-600"
+                            onKeyDown={e => e.key === 'Enter' && runManualUpgrade()}
+                        />
+                        <button
+                            onClick={runManualUpgrade}
+                            disabled={isRunningManual}
+                            className="bg-slate-200 hover:bg-white text-slate-900 px-3 py-1 rounded-lg flex items-center gap-1 text-[11px] font-bold transition-all disabled:opacity-50"
+                        >
+                            {isRunningManual
+                                ? <RotateCw size={12} className="animate-spin" />
+                                : <Zap size={12} />
+                            }
+                            <span>Run</span>
+                        </button>
+                    </div>
                 </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Task List */}
-                <div className="lg:col-span-4 space-y-6">
+            {/* ─── Initial Sync Banner ─── */}
+            <AnimatePresence>
+                {isInitialSync && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        className="px-4 py-3 rounded-xl bg-slate-500/8 border border-slate-500/20 flex items-center gap-3"
+                    >
+                        <RotateCw size={14} className="text-slate-400 animate-spin shrink-0" />
+                        <p className="text-[11px] text-slate-400">
+                            Menyinkronkan status dengan backend… tombol akan aktif setelah koneksi terkonfirmasi.
+                        </p>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ─── Loop Active Banner ─── */}
+            <AnimatePresence>
+                {isLoopRunning && !isInitialSync && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        className="px-4 py-3 rounded-xl bg-emerald-500/8 border border-emerald-500/25 flex items-center justify-between gap-4"
+                    >
+                        <div className="flex items-center gap-3">
+                            <Activity size={16} className="text-emerald-400 animate-pulse shrink-0" />
+                            <div>
+                                <p className="text-xs font-bold text-emerald-300">Loop Riset Otonom Aktif</p>
+                                <p className="text-[10px] text-slate-400">
+                                    Iterasi #{loopIteration} · State disimpan ke SQLite — aman meski UI di-reload atau backend restart
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={toggleLoop}
+                            className="px-3 py-1 bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold rounded-lg transition-all shrink-0"
+                        >
+                            Stop
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+
+            {/* ─── Latest Discovery Toast ─── */}
+            <AnimatePresence>
+                {latestResult && (
+                    <motion.div
+                        key={latestResult.patch_id}
+                        initial={{ opacity: 0, y: -8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="px-4 py-3 rounded-xl bg-sky-500/8 border border-sky-500/20 flex items-start justify-between gap-4"
+                    >
+                        <div className="flex items-start gap-3">
+                            <CheckCircle2 size={16} className="text-sky-400 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-bold text-sky-300 flex items-center gap-2 flex-wrap">
+                                    <span>Penemuan Baru Berhasil Diinjeksi ke JAYA_CORE!</span>
+                                    <code className="bg-sky-500/15 px-1.5 py-0.5 rounded font-mono text-sky-200">{latestResult.patch_id}</code>
+                                </p>
+                                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{latestResult.statement}</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setLatestResult(null)} className="text-slate-500 hover:text-white text-[10px] shrink-0">✕</button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* ─── Main Content: List + Detail ─── */}
+            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+                {/* ─ Patch List ─ */}
+                <div className="lg:col-span-4 flex flex-col gap-3 min-h-0">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-semibold text-notebook-text-secondary uppercase tracking-wider">Research Operations</h3>
-                        <span className="text-xs bg-notebook-card px-2 py-1 rounded text-notebook-text-secondary border border-notebook-border">
-                            {tasks.length} Total
+                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                            <Brain size={11} /> Daftar Penemuan &amp; Patch
+                        </h3>
+                        <span className="text-[10px] font-bold text-slate-400 bg-white/[0.05] px-2 py-0.5 rounded-full">
+                            {totalPatches}
                         </span>
                     </div>
 
-                    <div className="space-y-3">
-                        {tasks.map(task => (
-                            <motion.div
-                                key={task.id}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className={clsx(
-                                    "group bg-notebook-card border border-notebook-border rounded-xl p-5 cursor-pointer transition-all hover:shadow-md",
-                                    activeReport === task.id ? "border-notebook-text-accent ring-1 ring-notebook-text-accent/20" : "hover:border-notebook-text-secondary/30"
-                                )}
-                                onClick={() => setActiveReport(task.id)}
-                            >
-                                <div className="flex justify-between items-start mb-3">
-                                    <h4 className="font-medium text-notebook-text-primary group-hover:text-notebook-text-accent transition-colors line-clamp-1">
-                                        {task.topic}
-                                    </h4>
-                                    {task.status === 'running' ? (
-                                        <div className="flex items-center gap-2 text-xs text-notebook-text-accent bg-notebook-text-accent/10 px-2 py-1 rounded-full">
-                                            <RotateCw size={12} className="animate-spin" />
-                                            RUNNING
+                    <div className="flex-1 overflow-y-auto space-y-2 pr-1">
+                        <AnimatePresence initial={false}>
+                            {patches.length === 0 ? (
+                                <div className="h-48 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-slate-600 gap-2">
+                                    <Database size={24} />
+                                    <p className="text-xs text-center">
+                                        {dbExists
+                                            ? 'Belum ada patch. Mulai Loop Otonom!'
+                                            : 'Database belum ada. Mulai Loop Otonom untuk membuatnya.'}
+                                    </p>
+                                </div>
+                            ) : patches.map((patch, idx) => (
+                                <motion.div
+                                    key={patch.patch_id}
+                                    initial={{ opacity: 0, y: -8 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ delay: idx * 0.02 }}
+                                    onClick={() => setSelectedPatch(patch)}
+                                    className={clsx(
+                                        'p-3.5 rounded-xl border cursor-pointer transition-all group relative overflow-hidden',
+                                        selectedPatch?.patch_id === patch.patch_id
+                                            ? 'bg-white/[0.06] border-white/20 shadow-md'
+                                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] hover:border-white/[0.12]'
+                                    )}
+                                >
+                                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                                        <h4 className="text-[11px] font-bold text-slate-200 line-clamp-1 flex-1">{patch.topic}</h4>
+                                        <ConfidencePill value={patch.bayes_confidence} />
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 line-clamp-2 mb-2 leading-relaxed">{patch.statement}</p>
+                                    <div className="flex items-center justify-between text-[10px] text-slate-600">
+                                        <span className="font-mono">{patch.patch_id?.slice(-14)}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-emerald-600 flex items-center gap-0.5"><CheckCircle2 size={9} /> Applied</span>
+                                            <span>{formatRelTime(patch.applied_at)}</span>
                                         </div>
-                                    ) : task.status === 'error' ? (
-                                        <div className="flex items-center gap-2 text-xs text-red-400 bg-red-400/10 px-2 py-1 rounded-full">
-                                            <AlertCircle size={12} />
-                                            ERROR
-                                        </div>
-                                    ) : (
-                                        <div className="flex items-center gap-2 text-xs text-notebook-text-success bg-notebook-text-success/10 px-2 py-1 rounded-full">
-                                            <CheckCircle2 size={12} />
-                                            DONE
+                                    </div>
+                                    {selectedPatch?.patch_id === patch.patch_id && (
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                                            <ChevronRight size={14} />
                                         </div>
                                     )}
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-xs text-notebook-text-secondary">
-                                        <span>Progress</span>
-                                        <span>{task.progress}%</span>
-                                    </div>
-                                    <div className="w-full bg-black/40 h-1.5 rounded-full overflow-hidden">
-                                        <div
-                                            className={clsx(
-                                                "h-full rounded-full transition-all duration-500", 
-                                                task.status === 'completed' ? "bg-notebook-text-success" : 
-                                                task.status === 'error' ? "bg-red-400" : "bg-notebook-text-accent"
-                                            )}
-                                            style={{ width: `${task.progress}%` }}
-                                        />
-                                    </div>
-                                </div>
-                                <div className="mt-4 pt-3 border-t border-notebook-border/50 flex justify-between items-center text-xs text-notebook-text-secondary">
-                                    <span>{task.date}</span>
-                                    <span className="flex items-center gap-1 group-hover:text-notebook-text-primary transition-colors">
-                                        {task.status === 'completed' ? "View Report" : "Checking Status"} <FileText size={12} />
-                                    </span>
-                                </div>
-                            </motion.div>
-                        ))}
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
                     </div>
                 </div>
 
-                {/* Report Viewer */}
-                <div className="lg:col-span-8 bg-notebook-card border border-notebook-border rounded-2xl min-h-[600px] p-8 relative shadow-sm">
-                    {activeTask ? (
-                        <div className="prose prose-invert prose-p:text-notebook-text-secondary prose-headings:text-notebook-text-primary max-w-none">
-                            <div className="flex items-center gap-3 mb-6">
-                                <span className="p-3 bg-blue-500/10 rounded-xl text-blue-400">
-                                    <Layout size={24} />
-                                </span>
-                                <div>
-                                    <h2 className="text-2xl font-bold m-0">{activeTask.topic}</h2>
-                                    <p className="text-sm text-notebook-text-secondary m-0 mt-1">Generated Report • {workspaceId}</p>
-                                </div>
-                            </div>
-
-                            {activeTask.status === 'completed' && activeTask.report ? (
-                                <div className="markdown-content">
-                                    <ReactMarkdown>{activeTask.report}</ReactMarkdown>
-                                </div>
-                            ) : activeTask.status === 'running' ? (
-                                <div className="flex flex-col items-center justify-center py-20 text-notebook-text-secondary">
-                                    <RotateCw size={48} className="animate-spin mb-4 text-notebook-text-accent" />
-                                    <h3 className="text-lg font-medium text-notebook-text-primary mb-2">Researching: {activeTask.topic}</h3>
-                                    <p className="max-w-md text-center text-sm mb-4">
-                                        JAYA is scraping relevant papers, analyzing research graphs, and drafting the final scientific report in the background.
-                                    </p>
-                                    <div className="w-64 bg-black/40 h-2 rounded-full overflow-hidden mb-2">
-                                        <div 
-                                            className="h-full bg-notebook-text-accent rounded-full transition-all duration-300" 
-                                            style={{ width: `${activeTask.progress}%` }} 
-                                        />
-                                    </div>
-                                    <span className="text-xs">{activeTask.progress}% Complete</span>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center justify-center py-20 text-red-400">
-                                    <AlertCircle size={48} className="mb-4" />
-                                    <h3 className="text-lg font-medium mb-2">Research Failed</h3>
-                                    <p className="max-w-md text-center text-sm">
-                                        An error occurred while compiling findings. Please check the backend logs for details.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-notebook-text-secondary">
-                            <div className="w-20 h-20 bg-notebook-bg rounded-full flex items-center justify-center mb-6 border border-notebook-border shadow-inner">
-                                <FileText size={32} className="opacity-50" />
-                            </div>
-                            <h3 className="text-lg font-medium text-notebook-text-primary mb-2">No Report Selected</h3>
-                            <p className="max-w-md text-center">Select a research task from the sidebar to view its detailed analysis, findings, and generated artifacts.</p>
-                        </div>
-                    )}
+                {/* ─ Detail Viewer ─ */}
+                <div className="lg:col-span-8 min-h-0">
+                    <AnimatePresence mode="wait">
+                        {selectedPatch ? (
+                            <PatchDetail
+                                key={selectedPatch.patch_id}
+                                patch={selectedPatch}
+                                onClose={() => setSelectedPatch(null)}
+                            />
+                        ) : (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                className="h-full min-h-64 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center text-slate-600 gap-3"
+                            >
+                                <FileText size={32} className="opacity-30" />
+                                <p className="text-xs">Pilih penemuan untuk melihat laporan lengkap</p>
+                                {!isLoopRunning && patches.length === 0 && (
+                                    <button
+                                        onClick={toggleLoop}
+                                        className="mt-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
+                                    >
+                                        <Play size={12} className="fill-emerald-400" />
+                                        Mulai Loop Otonom Sekarang
+                                    </button>
+                                )}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
             </div>
         </div>

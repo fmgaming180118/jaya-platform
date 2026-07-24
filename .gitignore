@@ -1,198 +1,135 @@
-# === JAYA V14.0 ROOT GITIGNORE ===
+# === JAYA RESEARCH AGENTIC ECOSYSTEM - GITIGNORE ===
+# Clean production gitignore. Protects sensitive user data & omits internal blueprints/AI docs.
 
-# Python Artifacts
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+# ─── DOKUMENTASI & BLUEPRINT (Ignored to prevent AI-generated doc footprint) ─
+docs/
+**/docs/
+blueprint/
+blueprints/
+blueprint-*/
+*.md
+*.markdown
+.agents/
 
-# Compiled Core Extensions (Keep .pyd but ignore intermediates)
-# For now, we allow .pyd but ignore compiled object/library files
-*.o
-*.obj
-*.exp
-*.lib
-*.pdb
-
-# Environment & Secrets
+# ─── ENVIRONMENT & SECRETS (JANGAN PERNAH COMMIT) ───────────────────────────
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-JAYA_RESEARCH/.env
-JAYA_RESEARCH/ui/.env
+.env.*
+*.env
+*.key
 *.jay.key
+secrets.yaml
+configs/local_*.yaml
+nvidia_nim_config.yaml
 
-# Virtual Environments
+# ─── VIRTUAL ENVIRONMENTS & DEPENDENCIES ─────────────────────────────────────
 .venv/
 venv/
 ENV/
 .venv*/
 **/.venv*/
 **/venv*/
-JAYA_RESEARCH/.venv312/
+node_modules/
+**/node_modules/
 
-# IDEs
-.idea/
-.vscode/
-*.swp
-*.swo
+# ─── PYTHON & BUILD ARTIFACTS ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.o
+*.obj
+*.exp
+*.lib
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+htmlcov/
+.coverage
+.pytest_cache/
 
-# JAYA Data & Logs (Ignored to keep repo clean)
-/data/
-/src/
-JAYA_CORE/data/
-JAYA_CORE/src/os_kernel/*.bin
-JAYA_CORE/src/os_kernel/isodir/
-JAYA_RESEARCH/data/
-JAYA_RESEARCH/backups/
-JAYA_RESEARCH/reports/
-JAYA_RESEARCH/logs/
-JAYA_CORE/backup/
-JAYA_CORE/blueprint/
+# ─── DATA PRIBADI, RUNTIME & DATABASE (Data User & Vector Store) ────────────
+data/
+**/data/
+workspaces/
+**/workspaces/
+logs/
+**/logs/
+backups/
+**/backups/
+reports/
+**/reports/
+experiments/
+**/experiments/
+sandbox_env/
+**/sandbox_env/
+evolution/
+**/evolution/
+jurnal_pdf/
+**/jurnal_pdf/
+data-training/
+file-uji-coba/
+scratch/
+**/scratch/
+features/
+**/features/
+
+# Database files & patches
+*.db
+*.sqlite
+*.sqlite3
+*.jaypatch
+*.jay
+*.pdf
+
+# ─── LARGE MODEL BINARIES & WEIGHT ADAPTERS ──────────────────────────────────
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+*.gguf
+adapters/
+**/adapters/
+
+# ─── TEST SCRIPTS & TEST ARTIFACTS ───────────────────────────────────────────
+tests/
+**/tests/
+test_*.py
+**/test_*.py
+check_duplicates.py
+cleanup_duplicates.py
+
+# ─── UI & FRONTEND BUILD ─────────────────────────────────────────────────────
+ui/dist/
+ui/.vite/
+ui/build/
+ui/dist-electron/
+ui/.output/
+dist-electron/
+
+# ─── TEMP FILES, LOGS & SCRATCH SCRIPTS ──────────────────────────────────────
 *.log
 *.tmp
-
-# JAYA Sensitive Data (Never commit)
-JAYA_CORE/rag_vault.db
-JAYA_CORE/data/distilled/
-JAYA_CORE/features/
-JAYA_CORE/test_features/
-test_features/
-JAYA_CORE/test_ipc*.py
-JAYA_CORE/test_scene.py
-JAYA_CORE/test_ipc_debug*.py
-JAYA_CORE/test_ipc_debug.py
-JAYA_CORE/test_ipc_debug2.py
-JAYA_CORE/test_ipc_debug3.py
-
-# JAYA_RESEARCH Sensitive
-JAYA_RESEARCH/JAYA_RESEARCH_MODE.bat
-JAYA_RESEARCH/.venv312/
-
-# JAYA_CORE Test Artifacts
-JAYA_CORE/test_features/
-JAYA_CORE/test_ipc*.py
-JAYA_CORE/test_scene.py
-JAYA_CORE/test_ipc_debug*.py
-
-# UI Development
-JAYA_RESEARCH/ui/node_modules/
-JAYA_RESEARCH/ui/dist/
-JAYA_RESEARCH/ui/dist-electron/
-JAYA_RESEARCH/ui/.output/
-
-# OS Specific
+*.bak
+*.orig
+*.swp
+*.swo
+.DS_Store
 Thumbs.db
-Desktop.ini
+desktop.ini
+.idea/
+.vscode/
 
-# Ensure JAYA.bat and launchers are tracked
-!*.bat
-
-blueprint/
-file-uji-coba/
-
-# Root hygiene (prevent accidental root clutter)
-/tests/
-/approved_log*.txt
-/final_*.txt
-/jaya_data_list.txt
-/pip_install_log.txt
-/run_*.txt
-/sample_run.txt
-/test_*.txt
-/verify_*.txt
-/tmp_*.py
-
-# Archives and backups
-docs/archive/
-blueprint/
-file-uji-coba/
-
-# Ensure JAYA.bat and launchers are tracked
-!*.bat
-
-# Model files (large binary files)
-*.gguf
-*.bin
-*.pt
-*.pth
-*.onnx
-*.safetensors
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Training data
-data-training/
-distilled_*.json
-distilled_*.jsonl
-test_*.jsonl
-
-# JAYA Sensitive Data (Never commit)
-JAYA_CORE/rag_vault.db
-JAYA_CORE/data/distilled/
-JAYA_CORE/features/
-JAYA_CORE/test_features/
-test_features/
-JAYA_CORE/test_ipc*.py
-JAYA_CORE/test_scene.py
-JAYA_CORE/test_ipc_debug*.py
-JAYA_CORE/test_ipc_debug.py
-JAYA_CORE/test_ipc_debug2.py
-JAYA_CORE/test_ipc_debug3.py
-
-# JAYA_RESEARCH Sensitive
-JAYA_RESEARCH/JAYA_RESEARCH_MODE.bat
-JAYA_RESEARCH/.venv312/
-
-# JAYA_CORE Test Artifacts
-JAYA_CORE/test_features/
-JAYA_CORE/test_ipc*.py
-JAYA_CORE/test_scene.py
-JAYA_CORE/test_ipc_debug*.py
-
-# Archives and backups
-docs/archive/
-blueprint/
-file-uji-coba/
-
-# Model files (large binary files)
-*.gguf
-*.bin
-*.pt
-*.pth
-*.onnx
-*.safetensors
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Training data & documents
-data-training/
-*.pdf
-distilled_*.json
-distilled_*.jsonl
-test_*.jsonl
+# Ignore temporary root test logs
+approved_log*.txt
+final_*.txt
+jaya_data_list.txt
+pip_install_log.txt
+run_*.txt
+sample_run.txt
+verify_*.txt
+tmp_*.py

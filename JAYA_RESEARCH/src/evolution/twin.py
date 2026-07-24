@@ -368,12 +368,26 @@ class DigitalTwin:
             "goal": goal
         }
 
+    async def experiment(self, code: str):
+        """Executes experiment code in the sandbox"""
+        self.state = TwinState.TESTING
+        self.memory.log_thought("Executing plan experiment in sandbox...", mood="focused")
+        try:
+            res = await asyncio.to_thread(self.sandbox.run_code, code)
+            if res.get("success", False):
+                self.memory.log_thought("Plan experiment succeeded!", mood="proud")
+            else:
+                self.memory.log_thought(f"Plan experiment failed: {res.get('error')}", mood="frustrated")
+        except Exception as e:
+            self.memory.log_thought(f"Plan experiment error: {e}", mood="frustrated")
+        self.state = TwinState.IDLE
+
     async def execute_plan(self):
         """Executes the current task"""
         if not self.current_task: return
         
         task = self.current_task
-        if task["ty"] == "experiment":
+        if task.get("ty") == "experiment":
              await self.experiment(task["code"])
         
         self.current_task = None

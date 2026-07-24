@@ -1,4 +1,26 @@
-# Python
+# === JAYA_RESEARCH MODULE GITIGNORE ===
+
+# ─── DOKUMENTASI & BLUEPRINT ─────────────────────────────────────────────────
+docs/
+**/docs/
+blueprint/
+blueprints/
+*.md
+*.markdown
+
+# ─── ENVIRONMENT & SECRETS ───────────────────────────────────────────────────
+.env
+.env.*
+*.env
+secrets.yaml
+
+# ─── VIRTUAL ENVIRONMENTS ────────────────────────────────────────────────────
+.venv*/
+venv*/
+env*/
+ENV/
+
+# ─── PYTHON ARTIFACTS ────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,21 +32,7 @@ dist/
 build/
 .eggs/
 
-# Virtual Environments
-.venv*/
-venv*/
-env*/
-ENV/
-
-# Environment / Secrets — JANGAN PERNAH commit file ini
-.env
-.env.local
-.env.*.local
-secrets.yaml
-
-# ─── DATA PRIBADI JAYA (Vector Store, Memory, Uploads) ───────────────────────
-# Semua folder ini berisi data runtime pribadi: embedding dokumen TA,
-# memori percakapan JAYA, dan file upload pengguna. TIDAK boleh di-push.
+# ─── DATA PRIBADI RUNTIME & USER UPLOADS ──────────────────────────────────────
 data/
 workspaces/
 logs/
@@ -34,15 +42,23 @@ experiments/
 sandbox_env/
 evolution/
 jurnal_pdf/
-
-# Thesis uploads (PDF yang diupload pengguna)
-data/thesis_uploads/
-
-# ─── SCRATCH / DEBUG ─────────────────────────────────────────────────────────
-# Script-script debug sementara, tidak relevan untuk publik
 scratch/
 
-# ─── UI / Node ───────────────────────────────────────────────────────────────
+# Database & Large Model Binaries
+*.db
+*.sqlite
+*.sqlite3
+*.jaypatch
+*.jay
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+*.gguf
+adapters/
+
+# ─── UI & FRONTEND ───────────────────────────────────────────────────────────
 ui/node_modules/
 ui/dist/
 ui/.vite/
@@ -50,25 +66,20 @@ ui/build/
 ui/.env
 ui/.env.local
 
-# ─── OS & Editor ─────────────────────────────────────────────────────────────
+# ─── OS & EDITOR ─────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
 *.swp
 *.swo
 .idea/
-.vscode/settings.json
-*.sublime-project
-*.sublime-workspace
+.vscode/
 
-# ─── Coverage / Testing ──────────────────────────────────────────────────────
+# ─── LOGS & TEMP ─────────────────────────────────────────────────────────────
 .coverage
 htmlcov/
 .pytest_cache/
 *.log
-
-# ─── Misc ────────────────────────────────────────────────────────────────────
-*.bak
 *.tmp
+*.bak
 *.orig
-configs/local_*.yaml

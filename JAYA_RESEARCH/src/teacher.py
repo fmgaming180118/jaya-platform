@@ -31,26 +31,24 @@ class Teacher:
         if _override_model:
             self.model = _override_model
         else:
-            # Find a suitable reasoning model as global fallback
             reasoning_fallback = os.getenv("RESEARCH_REASONING_MODEL") or \
                                  os.getenv("NVIDIA_LLAMA3.1_MODEL") or \
-                                 os.getenv("NVIDIA_LLAMA31_MODEL")
+                                 os.getenv("NVIDIA_LLAMA31_MODEL") or \
+                                 config.NVIDIA_REASONING_MODEL
             
             if model_type == "reasoning":
                 self.model = reasoning_fallback
             elif model_type == "chat":
-                self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
+                self.model = os.getenv("NVIDIA_CHAT_MODEL") or config.NVIDIA_CHAT_MODEL
             elif model_type == "coding":
-                self.model = os.getenv("NVIDIA_CODING_MODEL") or reasoning_fallback
+                self.model = os.getenv("NVIDIA_CODING_MODEL") or config.NVIDIA_CODING_MODEL
             elif model_type == "vision":
-                 self.model = os.getenv("VIDEO_VLM_MODEL") or reasoning_fallback
+                self.model = os.getenv("VIDEO_VLM_MODEL") or config.NVIDIA_VISION_MODEL
             else:
-                # Default fallback
-                self.model = os.getenv("NVIDIA_CHAT_MODEL") or reasoning_fallback
+                self.model = os.getenv("NVIDIA_CHAT_MODEL") or config.NVIDIA_CHAT_MODEL
 
         if not self.model:
-             # Critical Error if env var is missing
-             raise ValueError(f"Model configuration for '{model_type}' is missing in .env! Check your .env file.")
+             self.model = config.NVIDIA_REASONING_MODEL
 
         self.api_base = os.getenv("NVIDIA_LLAMA31_BASE_URL", config.NVIDIA_BASE_URL)
 
@@ -72,7 +70,7 @@ class Teacher:
                 return yaml.safe_load(f) or {}
         return {"system": {"name": "JAYA_RESEARCH"}}
 
-    def ask(self, prompt, max_tokens=None, system_instruction="You are a helpful AI assistant."):
+    def ask(self, prompt, max_tokens=None, system_instruction="You are a helpful AI assistant.", stream=False):
         """
         Sends a prompt to the Teacher (NVIDIA NIM) and returns the response with retries.
         """
@@ -88,27 +86,42 @@ class Teacher:
                 if os.getenv("NVIDIA_LLAMA3.1_THINKING_MODE", "false").lower() == "true":
                     extra_body["thinking_mode"] = True
 
-                completion = self.client.chat.completions.create(
-                    model=self.model,
-                    messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.6,
-                    top_p=0.95,
-                    max_tokens=tokens_to_use,
-                    extra_body=extra_body,
-                    stream=True
-                )
-                
-                full_response = ""
-                print(f"[TEACHER] Receiving stream (attempt {attempt+1}/{max_retries})...", end="", flush=True)
-                for chunk in completion:
-                    if chunk.choices[0].delta.content is not None:
-                        content = chunk.choices[0].delta.content
-                        full_response += content
-                print(" Done.")
-                return full_response
+                if not stream:
+                    completion = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.6,
+                        top_p=0.95,
+                        max_tokens=tokens_to_use,
+                        extra_body=extra_body,
+                        stream=False
+                    )
+                    return completion.choices[0].message.content or ""
+                else:
+                    completion = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[
+                            {"role": "system", "content": system_instruction},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.6,
+                        top_p=0.95,
+                        max_tokens=tokens_to_use,
+                        extra_body=extra_body,
+                        stream=True
+                    )
+                    
+                    full_response = ""
+                    print(f"[TEACHER] Receiving stream (attempt {attempt+1}/{max_retries})...", end="", flush=True)
+                    for chunk in completion:
+                        if chunk.choices[0].delta.content is not None:
+                            content = chunk.choices[0].delta.content
+                            full_response += content
+                    print(" Done.")
+                    return full_response
 
             except Exception as e:
                 print(f"\n[TEACHER] Attempt {attempt+1} failed: {e}")
@@ -144,7 +157,7 @@ class Teacher:
         CODE:
         {code_snippet}
         """
-        response = self.ask(prompt, system_instruction="You are a code optimizer. output only raw code.")
+        response = self.ask(prompt, max_tokens=2048, system_instruction="You are a code optimizer. output only raw code.", stream=False)
         
         # Strip markdown if model disobeys
         if response.startswith("```python"):
