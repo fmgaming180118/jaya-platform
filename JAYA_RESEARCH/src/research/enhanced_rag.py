@@ -106,6 +106,7 @@ class NVIDIAEmbeddings:
         self.api_key = api_key or os.getenv("NVIDIA_API_KEY")
         self.base_url = base_url or os.getenv("NVIDIA_BASE_URL", "https://integrate.api.nvidia.com/v1")
         self.model = os.getenv("NVIDIA_EMBEDDING_MODEL", "nvidia/nv-embed-v1")
+        self.dimension = 1024
 
     def embed_documents(self, texts: List[str]) -> np.ndarray:
         """Embed list of document texts."""

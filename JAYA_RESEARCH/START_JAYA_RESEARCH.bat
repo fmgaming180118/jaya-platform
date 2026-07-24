@@ -8,7 +8,13 @@ echo.
 set MODULE_DIR=%~dp0
 cd /d "%MODULE_DIR%"
 
-rem Python executable detection
+rem 1. Check if Port 8000 is already in use and free it
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":8000" ^| findstr "LISTENING"') do (
+    echo [*] Clearing stale process on Port 8000 (PID: %%a)...
+    taskkill /F /PID %%a >nul 2>&1
+)
+
+rem 2. Python executable detection
 set PYTHON_EXE=python
 if exist "%MODULE_DIR%.venv312\Scripts\python.exe" (
     set PYTHON_EXE="%MODULE_DIR%.venv312\Scripts\python.exe"

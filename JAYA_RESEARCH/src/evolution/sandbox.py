@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+import time
 from pathlib import Path
 from typing import Dict, Any, Tuple
 
@@ -24,6 +25,24 @@ class EvolutionSandbox:
         with open(target_path, 'w', encoding='utf-8') as f:
             f.write(code)
         return target_path
+
+    def run_code(self, code: str, timeout=10) -> Dict[str, Any]:
+        """
+        Writes and executes Python code in the sandbox environment.
+        """
+        temp_name = f"temp_exp_{int(time.time() * 1000)}.py"
+        try:
+            target = self.write_experiment(temp_name, code)
+            success, output = self.run_experiment(temp_name, timeout=timeout)
+            return {
+                "success": success,
+                "output": output,
+                "error": "" if success else output
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "output": str(e)}
+        finally:
+            self.cleanup(temp_name)
 
     def run_experiment(self, filename: str, timeout=10) -> Tuple[bool, str]:
         """
