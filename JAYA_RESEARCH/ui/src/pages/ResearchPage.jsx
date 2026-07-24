@@ -185,21 +185,49 @@ export default function ResearchPage({ workspaceId }) {
         }
     }, []);
 
+    const [logs, setLogs] = useState([]);
+    const [autoScroll, setAutoScroll] = useState(true);
+    const logContainerRef = useRef(null);
+    const logsPollRef = useRef(null);
+
+    // Fetch live terminal execution logs from API
+    const fetchLogs = useCallback(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/evolution/logs?limit=50`);
+            const data = await res.json();
+            if (data.logs) {
+                setLogs(data.logs);
+            }
+        } catch (e) {
+            // Silently ignore log fetch notice
+        }
+    }, []);
+
     // Initial sync dengan backend — inilah yang membuat UI tahu status real
     useEffect(() => {
         fetchPatches();
-        fetchLoopStatus(true);  // isFirst=true, akan set isInitialSync=false saat selesai
+        fetchLoopStatus(true);
+        fetchLogs();
     }, []);
 
-    // Polling: patches every 5s, loop status every 3s
+    // Polling: patches every 5s, loop status every 3s, logs every 2s
     useEffect(() => {
         patchesPollRef.current = setInterval(() => fetchPatches(), 5000);
         loopPollRef.current = setInterval(() => fetchLoopStatus(false), 3000);
+        logsPollRef.current = setInterval(() => fetchLogs(), 2000);
         return () => {
             clearInterval(patchesPollRef.current);
             clearInterval(loopPollRef.current);
+            clearInterval(logsPollRef.current);
         };
     }, []);
+
+    // Auto-scroll logs to bottom
+    useEffect(() => {
+        if (autoScroll && logContainerRef.current) {
+            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+        }
+    }, [logs, autoScroll]);
 
     // Toggle loop
     const toggleLoop = async () => {
@@ -380,6 +408,64 @@ export default function ResearchPage({ workspaceId }) {
                 )}
             </AnimatePresence>
 
+            {/* ─── Live Execution Terminal Console ─── */}
+            <div className="rounded-2xl bg-[#050608] border border-white/[0.08] p-4 flex flex-col gap-2 font-mono shadow-2xl">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] text-xs">
+                    <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="font-bold text-slate-300 tracking-wider text-[11px]">LIVE EXECUTION STREAM</span>
+                        {isLoopRunning && (
+                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-sans">
+                                Siklus Otonom Running
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-3 text-[10px] text-slate-400 font-sans">
+                        <button
+                            onClick={() => setAutoScroll(!autoScroll)}
+                            className={clsx(
+                                "px-2 py-0.5 rounded transition-all border",
+                                autoScroll ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300" : "bg-white/5 border-white/10 text-slate-500"
+                            )}
+                        >
+                            {autoScroll ? "Auto-scroll ON" : "Auto-scroll OFF"}
+                        </button>
+                        <button
+                            onClick={() => setLogs([])}
+                            className="hover:text-white transition-colors"
+                        >
+                            Bersihkan Log
+                        </button>
+                    </div>
+                </div>
+
+                <div
+                    ref={logContainerRef}
+                    className="h-36 overflow-y-auto space-y-1.5 text-[11px] pr-2 scrollbar-thin scrollbar-thumb-white/10"
+                >
+                    {logs.length === 0 ? (
+                        <p className="text-slate-600 italic text-[10px]">Menunggu log eksekusi riset otonom...</p>
+                    ) : (
+                        logs.map((log, idx) => {
+                            const msg = log.message || '';
+                            let colorClass = 'text-slate-300';
+                            if (msg.includes('[AUTONOMOUS LOOP]')) colorClass = 'text-emerald-400 font-bold';
+                            else if (msg.includes('[LoRA TRAINER]')) colorClass = 'text-sky-400 font-bold';
+                            else if (msg.includes('[MEMORY MANAGER]') || msg.includes('[MILESTONE]')) colorClass = 'text-amber-400 font-bold';
+                            else if (msg.includes('[UNIVERSAL SYNC]')) colorClass = 'text-purple-400 font-bold';
+                            else if (msg.includes('[AUTO-UPGRADE]')) colorClass = 'text-cyan-300 font-bold';
+                            else if (msg.includes('❌') || msg.includes('Error')) colorClass = 'text-red-400 font-bold';
+
+                            return (
+                                <div key={idx} className="flex items-start gap-2 leading-relaxed hover:bg-white/[0.02] px-1 rounded transition-colors">
+                                    <span className="text-slate-600 text-[10px] shrink-0 select-none">[{log.timestamp}]</span>
+                                    <span className={clsx('break-all', colorClass)}>{msg}</span>
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            </div>
 
             {/* ─── Latest Discovery Toast ─── */}
             <AnimatePresence>

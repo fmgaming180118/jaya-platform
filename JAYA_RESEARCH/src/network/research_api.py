@@ -2262,8 +2262,22 @@ def _do_auto_upgrade_sync(custom_topic: Optional[str] = None):
     print(f"[AUTO-UPGRADE] ✅ Patch {patch['patch_id']} applied to DB: {applied}")
     return res
 
+_live_execution_logs = []
+
+def _add_live_log(msg: str):
+    """Appends live execution log line to buffer for UI terminal stream."""
+    global _live_execution_logs
+    ts = time.strftime("%H:%M:%S")
+    entry = {"timestamp": ts, "message": msg, "time": time.time()}
+    _live_execution_logs.append(entry)
+    if len(_live_execution_logs) > 300:
+        _live_execution_logs.pop(0)
+
+_add_live_log("[SYSTEM] JAYA Research Backend API Engine initialized.")
+
 async def _continuous_autonomous_research_worker():
     global _is_autonomous_loop_running, _loop_iteration_count, _loop_is_busy
+    _add_live_log("[AUTONOMOUS LOOP] 🚀 Continuous Autonomous Research Loop Started.")
     print("[AUTONOMOUS LOOP] 🚀 Continuous Research Loop Started!")
     while _is_autonomous_loop_running:
         if not _loop_is_busy:
@@ -2271,31 +2285,52 @@ async def _continuous_autonomous_research_worker():
             _loop_iteration_count += 1
             iteration = _loop_iteration_count
             try:
+                _add_live_log(f"[AUTONOMOUS LOOP] ▶ Iteration #{iteration}: Formulating new hypothesis & testing in Native Sandbox...")
                 print(f"[AUTONOMOUS LOOP] ▶ Iteration #{iteration}")
                 # 1. Run Autonomous Discovery & SQLite Patch Injection in thread
-                await asyncio.to_thread(_do_auto_upgrade_sync)
+                res = await asyncio.to_thread(_do_auto_upgrade_sync)
+                if res:
+                    _add_live_log(f"[AUTONOMOUS LOOP] 💡 Discovery Verified: {res.get('topic')} (Confidence: {res.get('bayes_confidence')*100:.1f}%)")
+                    _add_live_log(f"[AUTO-UPGRADE] ✅ Patch {res.get('patch_id')} injected into agentic_jarvis.db")
 
                 # 2. Periodically trigger Autonomous LoRA Fine-Tuning & Memory Manager (every 5 iterations)
                 if iteration % 5 == 0:
+                    _add_live_log(f"[AUTONOMOUS LOOP] 🧬 Triggering Auto LoRA Fine-Tuning & Memory Manager Sync (Iteration #{iteration})...")
                     print(f"[AUTONOMOUS LOOP] 🧬 Triggering Auto LoRA Fine-Tuning & Memory Manager Sync (Iteration #{iteration})...")
                     from auto_finetune import run_auto_finetune_cycle
                     from memory_manager import MemoryManager
 
-                    await asyncio.to_thread(run_auto_finetune_cycle)
+                    ft_res = await asyncio.to_thread(run_auto_finetune_cycle)
+                    if ft_res.get("success"):
+                        adapter_info = ft_res.get("training_result", {})
+                        _add_live_log(f"[LoRA TRAINER] 🧬 Adapter {adapter_info.get('adapter_id')} trained ({adapter_info.get('adapter_size_kb')} KB, Loss: {adapter_info.get('final_loss')})")
 
                     mm = MemoryManager()
                     await asyncio.to_thread(mm.optimize_sqlite_database)
-                    await asyncio.to_thread(mm.check_and_compile_milestone)
-                    await asyncio.to_thread(mm.sync_to_ecosystem)
-                    mm.enforce_memory_cap(max_ram_mb=200)
+                    ms_res = await asyncio.to_thread(mm.check_and_compile_milestone)
+                    if ms_res.get("compiled"):
+                        _add_live_log(f"[MILESTONE COMPILER] 📦 Compiled new .jay package: {ms_res.get('package_name')}")
+                    
+                    sync_res = await asyncio.to_thread(mm.sync_to_ecosystem)
+                    _add_live_log(f"[UNIVERSAL SYNC] 🔄 Synced patches & adapters across {sync_res.get('targets_synced')} ecosystem targets.")
+                    
+                    ram_info = mm.enforce_memory_cap(max_ram_mb=200)
+                    _add_live_log(f"[MEMORY MANAGER] ⚡ Garbage collected. Current RAM RSS: {ram_info.get('current_rss_mb')} MB (Cap: 200 MB)")
 
                 print(f"[AUTONOMOUS LOOP] ✅ Iteration #{iteration} completed")
             except Exception as e:
+                _add_live_log(f"[AUTONOMOUS LOOP] ❌ Error in iteration #{iteration}: {e}")
                 print(f"[AUTONOMOUS LOOP] ❌ Error in iteration #{iteration}: {e}")
             finally:
                 _loop_is_busy = False
         await asyncio.sleep(8)  # wait 8s between iterations
+    _add_live_log("[AUTONOMOUS LOOP] ⏹️ Continuous Research Loop Stopped.")
     print("[AUTONOMOUS LOOP] ⏹️ Continuous Research Loop Stopped.")
+
+@app.get("/evolution/logs")
+async def get_live_logs(limit: int = 50):
+    """Retrieve live execution log stream for UI display."""
+    return {"ok": True, "logs": _live_execution_logs[-limit:]}
 
 @app.get("/evolution/status")
 async def get_evolution_status():

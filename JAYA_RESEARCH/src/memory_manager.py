@@ -9,6 +9,7 @@ import sys
 import gc
 import json
 import time
+import shutil
 import sqlite3
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
