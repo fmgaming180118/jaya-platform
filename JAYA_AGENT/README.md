@@ -210,6 +210,13 @@ memory:
 
 ---
 
+## 📚 Documentation & Building Guides
+
+- 📘 **[Building Guide: Beating Hermes 3](docs/01-building-guide-hermes-competitor.md)** — Comprehensive architectural comparison and design principles.
+- 📋 **[JAYA_AGENT Evolution Checklist](docs/02-jaya-agent-evolution-checklist.md)** — Step-by-step 5-phase roadmap and verification benchmarks.
+
+---
+
 ## 🔗 Related
 
 - [JAYA_CORE](../JAYA_CORE/README.md) — The Brain (cognitive core)
