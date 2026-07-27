@@ -1,108 +1,65 @@
+"""Candidate-only native/JIT optimization proposals."""
 
-import os
-import sys
-import time
-import random
-from numba import jit
-from optimizer import Optimizer
-from immune_system import ImmuneSystem
-from memory import DiscoveryMemory
+from __future__ import annotations
+
+import hashlib
+from typing import Any
+
+from optimizer import CandidateProposalError, Optimizer
+
 
 class NativeDiscovery(Optimizer):
-    def __init__(self, target_file="engine.py"):
-        super().__init__(target_file)
-        self.discovery_dir = os.path.join("data", "discoveries_native")
-        os.makedirs(self.discovery_dir, exist_ok=True)
-        # Point to data/native_memory.json
-        self.memory = DiscoveryMemory(os.path.join("data", "native_memory.json"))
+    """Export native optimization candidates without compiling or applying them."""
 
-    def suggest_native_optimization(self, code_snippet):
-        """
-        Asks specifically for NUMBA / LLVM Compatible Python code.
-        """
-        prompt = f"""
-        You are the Compiler for the AI-Native Language.
-        Translate the following Abstract Logic (Python) into the **AI-Native Language** (Numba/LLVM Machine Code).
-        
-        GOAL: Create a binary-compatible function that runs at C++ speeds.
-        
-        RULES:
-        1. Import `from numba import jit, float64, int64`.
-        2. Decorate core computational functions with `@jit(nopython=True)`.
-        3. **Strict Typing**: The AI-Native language uses C-types (float, int), no dynamic Python objects.
-        4. **CPU Awareness**: Optimize for **Instruction Level Parallelism (ILP)** and **CPU Cycles**. saturate the pipeline.
-        5. **Micro-Arch Tune**:
-            - **Loop Unrolling**: Manually unroll small loops.
-            - **Register Pressure**: Use local variables wisely to stay in registers.
-            - **SIMD**: Hints to help LLVM auto-vectorize.
-        6. **Memory Efficiency**: Use static arrays or simple loops. Avoid Python list allocations.
-        7. Keep the class structure, but move heavy logic into standalone JIT functions.
-        
-        CODE TO TRANSLATE:
-        {code_snippet}
-        
-        Return ONLY the Raw Python Code.
-        """
-        seed = f"# Native Seed: {random.randint(0, 100000)}"
-        return self.teacher.suggest_optimization(code_snippet + "\n" + seed, focus="AI-Native Compilation")
+    def __init__(self, target_file: str = "engine.py", **kwargs: Any) -> None:
+        super().__init__(target_file, **kwargs)
 
-    def run_ascension(self, max_epochs=10):
-        print(f"\n[ASCENSION] 🚀 Starting JIT Optimization Loop (Max Epochs: {max_epochs})...")
-        
+    def suggest_native_optimization(
+        self,
+        code_snippet: str,
+        *,
+        epoch: int = 1,
+    ) -> str:
+        if self.teacher is None:
+            raise CandidateProposalError("Teacher dependency is not configured")
+        proposal_id = hashlib.sha256(
+            f"native\x00{epoch}\x00{code_snippet}".encode("utf-8")
+        ).hexdigest()[:16]
+        prompt = (
+            "Propose a complete optional Numba/LLVM-compatible candidate while "
+            "preserving a pure-Python fallback. Do not claim measured speed, "
+            "correctness, or hardware compatibility.\n"
+            f"Proposal id: {proposal_id}\nSource:\n{code_snippet}"
+        )
+        return self.teacher.suggest_optimization(
+            prompt,
+            focus="review-only native optimization",
+        )
+
+    def run_ascension(self, max_epochs: int = 1) -> list[dict[str, Any]]:
+        if not 1 <= max_epochs <= 20:
+            raise CandidateProposalError("max_epochs must be between 1 and 20")
+        target, original_code = self.read_target()
+        receipts = []
         for epoch in range(1, max_epochs + 1):
-            print(f"\n--- Epoch {epoch}/{max_epochs} ---")
-            
-            # 1. Introspection
-            original_code = self.intro.read_module_source(self.target_file)
-            
-            # 2. Native Mutation
-            print("[ASCENSION] ⚡ Compiling to new language (LLVM via Numba)...")
-            mutation = self.suggest_native_optimization(original_code)
-            
-            if not mutation or len(mutation) < 100:
-                print("[ASCENSION] ⚠️  Empty mutation. Skipping.")
-                continue
+            proposal = self.suggest_native_optimization(
+                original_code,
+                epoch=epoch,
+            )
+            receipts.append(
+                self.propose_candidate(
+                    original_code=original_code,
+                    proposed_code=proposal,
+                    target_name=target.name,
+                    focus="native optimization proposal",
+                    extra_payload={"epoch": epoch},
+                )
+            )
+        return receipts
 
-            if self.memory.seen_before(mutation):
-                print("[ASCENSION] 🧠 Memory: Tried this before. Skipping.")
-                continue
-
-            # 3. Apply & Test
-            target_path = os.path.join("src", self.target_file)
-            
-            # We intentionally overwrite for testing, protected by Immune System
-            with ImmuneSystem() as immune:
-                with open(target_path, "w", encoding="utf-8") as f:
-                    f.write(mutation)
-                
-                # Verify it survives Integrity Check
-                pass
-            
-            # Check if accepted
-            with open(target_path, "r", encoding="utf-8") as f:
-                current_content = f.read()
-                
-            if current_content == mutation:
-                print("[ASCENSION] ✅ Native Code survived Integrity Check!")
-                
-                self.memory.add_experience(mutation, "SUCCESS_NATIVE", score=0.0) 
-            
-                timestamp = int(time.time())
-                filename = f"engine_jit_v{epoch}_{timestamp}.py"
-                save_path = os.path.join(self.discovery_dir, filename)
-                
-                with open(save_path, "w", encoding="utf-8") as f:
-                    f.write(mutation)
-                    
-                print(f"[ASCENSION] 🏆 NATIVE DISCOVERY SAVED: {save_path}")
-            else:
-                print("[ASCENSION] ❌ Native Code failed Integrity/Compilation.")
-                self.memory.add_experience(mutation, "FAIL_NATIVE")
 
 if __name__ == "__main__":
-    lab = NativeDiscovery()
-    if len(sys.argv) > 1 and sys.argv[1] == "--forever":
-         while True:
-             lab.run_ascension(max_epochs=1)
-    else:
-        lab.run_ascension(max_epochs=5)
+    raise SystemExit(
+        "Direct JIT mutation is disabled. Export a review candidate with an "
+        "explicitly injected provider."
+    )

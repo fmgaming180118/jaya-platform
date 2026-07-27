@@ -1,10 +1,10 @@
 {
   "version": "0.1",
-  "id": "57235f88-aa4a-48a7-9a03-c62f0ed3ba30",
+  "id": "e3265329-a218-41ca-a626-a994042bc0f5",
   "name": "Test Dialog",
   "description": "Test dialog for compiler",
   "root": {
-    "id": "6a397187-da8b-43b1-8ce1-3bd19408b859",
+    "id": "2377312f-d846-47b9-8066-7b722c00fe73",
     "type": "window",
     "label": "Test",
     "placeholder": "",
@@ -12,7 +12,7 @@
     "options": [],
     "children": [
       {
-        "id": "c4532791-f813-4775-8222-ed452190abe8",
+        "id": "073e9943-ebc2-475e-95d9-3803ce667c7b",
         "type": "panel",
         "label": "",
         "placeholder": "",
@@ -20,7 +20,7 @@
         "options": [],
         "children": [
           {
-            "id": "2c281ec3-2921-4b62-ae8a-6cad9d802642",
+            "id": "8e5a45d6-51b6-48cb-a2a7-413d16ed87f8",
             "type": "label",
             "label": "Hello World",
             "placeholder": "",
@@ -37,7 +37,7 @@
             "metadata": {}
           },
           {
-            "id": "0fd5ff86-94db-4187-b7a1-bf30c00a3ddc",
+            "id": "5cbd5710-0dd3-4553-b3eb-8437ce5ddcf3",
             "type": "button",
             "label": "Click Me",
             "placeholder": "",

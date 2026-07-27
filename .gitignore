@@ -1,14 +1,19 @@
 # === JAYA RESEARCH AGENTIC ECOSYSTEM - GITIGNORE ===
 # Clean production gitignore. Protects sensitive user data & omits internal blueprints/AI docs.
 
-# ─── DOKUMENTASI & BLUEPRINT (Ignored to prevent AI-generated doc footprint) ─
-docs/
-**/docs/
+# ─── DOKUMENTASI & BLUEPRINT ────────────────────────────────────────────────
+# Dokumentasi aktif di /docs dilacak. Arsip dan referensi besar tetap lokal.
+docs/references/
+docs/archive/*
+!docs/archive/README.md
+JAYA_CORE/docs/
+JAYA_RESEARCH/docs/
+JAYA_AGENT/docs/
+JAYA_OS/docs/
+JAYA_ANDROID/docs/
 blueprint/
 blueprints/
 blueprint-*/
-*.md
-*.markdown
 .agents/
 
 # ─── ENVIRONMENT & SECRETS (JANGAN PERNAH COMMIT) ───────────────────────────
@@ -62,20 +67,14 @@ backups/
 **/backups/
 reports/
 **/reports/
-experiments/
-**/experiments/
 sandbox_env/
 **/sandbox_env/
-evolution/
-**/evolution/
 jurnal_pdf/
 **/jurnal_pdf/
 data-training/
 file-uji-coba/
 scratch/
 **/scratch/
-features/
-**/features/
 
 # Database files & patches
 *.db
@@ -96,10 +95,6 @@ adapters/
 **/adapters/
 
 # ─── TEST SCRIPTS & TEST ARTIFACTS ───────────────────────────────────────────
-tests/
-**/tests/
-test_*.py
-**/test_*.py
 check_duplicates.py
 cleanup_duplicates.py
 

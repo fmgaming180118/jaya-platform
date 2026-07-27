@@ -7,9 +7,19 @@ import sys
 BASE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, BASE)
 
-from src.brain_v2.extensions.twin.core_twin import CoreTwin, _compute_score
-from src.brain_v2.extensions.twin.task_planner import Task, TaskPlanner, Priority
-from src.brain_v2.extensions.twin.experiment_memory import ExperimentMemory
+from src.brain_v2.extensions.twin.core_twin import (  # noqa: E402
+    CoreTwin,
+    _compute_score,
+)
+from src.brain_v2.extensions.twin.experiment_memory import (  # noqa: E402
+    ExperimentMemory,
+)
+from src.brain_v2.extensions.twin.task_planner import (  # noqa: E402
+    Priority,
+    Task,
+    TaskPlanner,
+)
+
 
 # Convenience factory for tests that need a fresh, isolated memory
 def _fresh_mem() -> ExperimentMemory:
@@ -21,7 +31,7 @@ def _fresh_mem() -> ExperimentMemory:
 # ---------------------------------------------------------------------------
 
 def test_score_clean_run():
-    assert _compute_score({"x": 1}) == 1.0
+    assert _compute_score({"x": 1}) == 0.0
 
 def test_score_error():
     assert _compute_score({"__error__": "oops"}) == 0.0

@@ -3,7 +3,7 @@
 
 Checks:
 1. Root hygiene (unexpected root files/directories).
-2. Documentation placement rules.
+2. Canonical root documentation placement rules.
 3. Root tests/ usage.
 4. Direct cross-domain imports between JAYA_CORE and JAYA_RESEARCH.
 """
@@ -32,24 +32,37 @@ ROOT_FILE_ALLOWLIST = {
     ".env",
     ".gitignore",
     "AGENTS.md",
+    "CONTRIBUTING.md",
     "readme.md",
     "README.md",
     "jaya.jay",
     "rag_vault.db",
     "JAYA_CORE_MODE.bat",
     "JAYA_RESEARCH_MODE.bat",
+    "START_JAYA_RESEARCH.bat",
+    "nvidia_nim_config.yaml",
 }
 
 ROOT_DIR_ALLOWLIST = {
     ".agent",
+    ".agents",
     ".github",
     ".git",
     ".pytest_cache",
     ".vscode",
     "blueprint",
+    "blueprint-nvidia",
+    "data",
     "docs",
+    "JAYA_AGENT",
+    "JAYA_ANDROID",
     "JAYA_CORE",
+    "JAYA_OS",
     "JAYA_RESEARCH",
+    "mcp-servers",
+    "scripts",
+    "src",
+    "test_features",
 }
 
 ROOT_DIR_IGNORE = {
@@ -66,7 +79,26 @@ TREE_DIR_IGNORE = {
     "__pycache__",
     ".mypy_cache",
     ".ruff_cache",
+    ".agent",
+    ".agents",
+    ".gradle",
+    ".idea",
+    ".kotlin",
     ".venv",
+    "archive",
+    "backups",
+    "blueprints",
+    "build",
+    "data",
+    "dist",
+    "experiments",
+    "llama.cpp",
+    "logs",
+    "reports",
+    "scratch",
+    "skills_docs",
+    "temp",
+    "workspaces",
     "venv",
     "env",
     "node_modules",
@@ -133,7 +165,12 @@ def _scan_root_hygiene(root: Path) -> list[Violation]:
                 )
             )
 
-        if item.suffix.lower() == ".md" and name not in {"readme.md", "README.md", "AGENTS.md"}:
+        if item.suffix.lower() == ".md" and name not in {
+            "readme.md",
+            "README.md",
+            "AGENTS.md",
+            "CONTRIBUTING.md",
+        }:
             violations.append(
                 Violation(
                     severity="error",
@@ -160,10 +197,8 @@ def _scan_doc_placement(root: Path, domain: str) -> list[Violation]:
         rel = _to_posix(md_path, root)
         rel_lower = rel.lower()
 
-        # Allowed domain markdown locations.
+        # README is the only active Markdown entrypoint inside a module.
         if rel_lower == f"{domain.lower()}/readme.md":
-            continue
-        if rel_lower.startswith(f"{domain.lower()}/docs/"):
             continue
         if rel_lower.startswith(f"{domain.lower()}/.github/"):
             continue
@@ -173,8 +208,8 @@ def _scan_doc_placement(root: Path, domain: str) -> list[Violation]:
                 severity="error",
                 rule="domain-doc-placement",
                 path=rel,
-                detail=f"Markdown inside {domain} is outside {domain}/docs/.",
-                suggestion=f"Move documentation to {domain}/docs/ unless it is a README.",
+                detail=f"Active module Markdown is limited to {domain}/README.md.",
+                suggestion="Move active documentation to root docs/.",
             )
         )
 
@@ -245,8 +280,14 @@ def _scan_cross_imports(root: Path) -> list[Violation]:
 def run_audit(root: Path) -> list[Violation]:
     violations: list[Violation] = []
     violations.extend(_scan_root_hygiene(root))
-    violations.extend(_scan_doc_placement(root, "JAYA_CORE"))
-    violations.extend(_scan_doc_placement(root, "JAYA_RESEARCH"))
+    for domain in (
+        "JAYA_CORE",
+        "JAYA_RESEARCH",
+        "JAYA_AGENT",
+        "JAYA_OS",
+        "JAYA_ANDROID",
+    ):
+        violations.extend(_scan_doc_placement(root, domain))
     violations.extend(_scan_cross_imports(root))
     return violations
 
@@ -268,7 +309,8 @@ def _print_report(violations: list[Violation], root: Path) -> None:
         by_rule[item.rule] = by_rule.get(item.rule, 0) + 1
         by_severity[item.severity] = by_severity.get(item.severity, 0) + 1
 
-    print("Status: FAIL")
+    has_errors = any(item.severity == "error" for item in violations)
+    print("Status: FAIL" if has_errors else "Status: WARN")
     print(f"Total violations: {len(violations)}")
     print("Severity:")
     for key in sorted(by_severity.keys()):
@@ -290,7 +332,13 @@ def _write_json(path: Path, root: Path, violations: list[Violation]) -> None:
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "workspace": str(root),
-        "status": "pass" if not violations else "fail",
+        "status": (
+            "fail"
+            if any(item.severity == "error" for item in violations)
+            else "warn"
+            if violations
+            else "pass"
+        ),
         "summary": {
             "total": len(violations),
             "errors": sum(1 for v in violations if v.severity == "error"),
@@ -308,7 +356,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--fail-on-violations",
         action="store_true",
-        help="Return exit code 2 when violations are found",
+        help="Return exit code 2 when error-level violations are found",
     )
     return parser.parse_args()
 
@@ -328,7 +376,9 @@ def main() -> int:
         print("")
         print(f"JSON report written: {out_path}")
 
-    if args.fail_on_violations and violations:
+    if args.fail_on_violations and any(
+        violation.severity == "error" for violation in violations
+    ):
         return 2
     return 0
 

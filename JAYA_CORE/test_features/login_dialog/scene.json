@@ -1,10 +1,10 @@
 {
   "version": "0.1",
-  "id": "f33bfd7e-0066-4403-b98a-1e7a76c58024",
+  "id": "72e70854-51a3-4551-b74f-bed3661f0882",
   "name": "Login Dialog",
   "description": "User authentication dialog",
   "root": {
-    "id": "90f01e9d-9558-4ae2-a436-eb73e91e4421",
+    "id": "abbc069b-4b5f-458a-ba86-9a1fb90511b8",
     "type": "window",
     "label": "Untitled",
     "placeholder": "",
@@ -12,7 +12,7 @@
     "options": [],
     "children": [
       {
-        "id": "13af2c45-4d05-4072-a68d-92d3c4bd2600",
+        "id": "558e301e-d6c3-49c0-bf91-7b4bb6fa3984",
         "type": "panel",
         "label": "",
         "placeholder": "",
@@ -20,7 +20,7 @@
         "options": [],
         "children": [
           {
-            "id": "de04df66-84b3-478f-9ad6-48f782bddab0",
+            "id": "0358cb85-11b4-40cb-b888-961192d26f53",
             "type": "label",
             "label": "Welcome to JAYA",
             "placeholder": "",
@@ -37,7 +37,7 @@
             "metadata": {}
           },
           {
-            "id": "813fc7c3-83c2-4296-a3e0-2e0ce87e785a",
+            "id": "51457cf4-8254-4f44-a67b-af42c8f0a96a",
             "type": "text_input",
             "label": "",
             "placeholder": "Username or Email",
@@ -62,7 +62,7 @@
             "metadata": {}
           },
           {
-            "id": "6bb8a878-065c-447b-8bf1-2e69787c257f",
+            "id": "6c36da52-c398-4e47-a9ef-732affb37006",
             "type": "text_input",
             "label": "",
             "placeholder": "Password",
@@ -87,7 +87,7 @@
             "metadata": {}
           },
           {
-            "id": "a2fbaae1-a552-462c-b037-725f17a06a52",
+            "id": "f78a4fd9-8d44-40cf-a910-7c894eea5e97",
             "type": "button",
             "label": "Sign In",
             "placeholder": "",

@@ -178,6 +178,9 @@ class IronEngine:
         Whether to start the digital twin background process.
     omniverse_requested:
         Whether the user wants to attempt Omniverse SDK init.
+    evolution_test_mode:
+        Explicitly allow direct, unverified evolution evidence in unit tests.
+        This mode cannot be enabled when the runtime environment is production.
     """
 
     def __init__(self,
@@ -185,12 +188,14 @@ class IronEngine:
                  password: str,
                  enable_voice: bool = False,
                  enable_twin: bool = False,
-                 omniverse_requested: bool = False):
+                 omniverse_requested: bool = False,
+                 evolution_test_mode: bool = False):
         self.model_path          = model_path
         self.password            = password
         self.enable_voice        = enable_voice
         self.enable_twin         = enable_twin
         self.omniverse_requested = omniverse_requested
+        self.evolution_test_mode = bool(evolution_test_mode)
 
         self.is_awake = False
         self.twin: Optional[Any] = None
@@ -575,14 +580,25 @@ class IronEngine:
             logger.warning("Auto Research Patch unavailable: %s", exc)
 
         try:
-            from src.brain_v2.engine.evolution_gate import EvolutionGate
-            self._evolution_gate = EvolutionGate(
-                ethical_heart=self._ethical_heart,
-                zero_trust=self._zero_trust,
+            from src.brain_v2.engine.evolution_gate import (
+                EvolutionGate,
+                EvolutionGateConfigurationError,
             )
-            logger.info("[Phase 2] EvolutionGate ready")
         except ImportError as exc:
             logger.warning("EvolutionGate unavailable: %s", exc)
+        else:
+            try:
+                self._evolution_gate = EvolutionGate(
+                    ethical_heart=self._ethical_heart,
+                    zero_trust=self._zero_trust,
+                    test_mode=self.evolution_test_mode,
+                )
+                logger.info("[Phase 2] EvolutionGate ready")
+            except EvolutionGateConfigurationError as exc:
+                self._startup_issues.append(
+                    f"evolution_gate_configuration_error: {exc}"
+                )
+                logger.error("EvolutionGate disabled (fail-closed): %s", exc)
 
         # V18: MetaCognitivePlanner (Pillar 38)
         try:
@@ -993,19 +1009,6 @@ class IronEngine:
             "blockers": blockers,
             "health": health,
         }
-
-        try:
-            snap = self._narrative.snapshot(limit=limit, max_chars=max_chars)
-            snap["ok"] = True
-            return snap
-        except Exception as exc:
-            return {
-                "ok": False,
-                "error": f"narrative_context_failed:{exc}",
-                "summary": "",
-                "recent": [],
-                "context": "",
-            }
 
     # ------------------------------------------------------------------
     # Pillar 33 — Agentic RAG
@@ -1721,6 +1724,39 @@ class IronEngine:
         self._evolution_gate.register_stable_snapshot(label, snapshot)
         return {"ok": True, "label": label}
 
+    def verify_evolution_evidence_reports(
+        self,
+        candidate: Dict[str, Any],
+        test_report_path: str,
+        benchmark_report_path: str,
+        expected_commit: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create gate evidence from authenticated test and benchmark reports."""
+
+        if not self._evolution_gate:
+            return {"ok": False, "error": "evolution_gate_unavailable"}
+
+        from src.brain_v2.engine.evolution_evidence import (
+            EvidenceVerificationError,
+        )
+        from src.brain_v2.engine.evolution_gate import EvolutionCandidate
+
+        try:
+            cand = EvolutionCandidate.from_dict(candidate)
+            evidence = self._evolution_gate.verify_evidence_reports(
+                test_report_path,
+                benchmark_report_path,
+                candidate=cand,
+                expected_commit=expected_commit,
+            )
+        except (EvidenceVerificationError, OSError, ValueError) as exc:
+            return {
+                "ok": False,
+                "error": "evidence_verification_failed",
+                "reason": str(exc),
+            }
+        return {"ok": True, "evidence": evidence.to_dict()}
+
     def evaluate_evolution_candidate(
         self,
         candidate: Dict[str, Any],
@@ -1734,9 +1770,16 @@ class IronEngine:
             EvolutionCandidate,
         )
 
-        cand = EvolutionCandidate.from_dict(candidate)
-        ev = CandidateEvidence.from_dict(evidence)
-        decision = self._evolution_gate.evaluate(cand, ev)
+        try:
+            cand = EvolutionCandidate.from_dict(candidate)
+            ev = CandidateEvidence.from_dict(evidence)
+            decision = self._evolution_gate.evaluate(cand, ev)
+        except (TypeError, ValueError) as exc:
+            return {
+                "ok": False,
+                "error": "invalid_evolution_input",
+                "reason": str(exc),
+            }
         return {"ok": True, "decision": decision.to_dict()}
 
     def sign_evolution_candidate(self, candidate: Dict[str, Any], key_id: str = "local") -> Dict[str, Any]:
@@ -1745,8 +1788,15 @@ class IronEngine:
 
         from src.brain_v2.engine.evolution_gate import EvolutionCandidate
 
-        cand = EvolutionCandidate.from_dict(candidate)
-        signature = self._evolution_gate.sign_candidate(cand, key_id=key_id)
+        try:
+            cand = EvolutionCandidate.from_dict(candidate)
+            signature = self._evolution_gate.sign_candidate(cand, key_id=key_id)
+        except (TypeError, ValueError) as exc:
+            return {
+                "ok": False,
+                "error": "invalid_evolution_candidate",
+                "reason": str(exc),
+            }
         payload = cand.to_dict()
         payload["signature"] = signature
         return {"ok": True, "candidate": payload}

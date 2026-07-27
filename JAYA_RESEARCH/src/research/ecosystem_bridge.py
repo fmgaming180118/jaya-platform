@@ -1,117 +1,114 @@
-"""
-ecosystem_bridge.py — Phase D Ecosystem Auto-Upgrade Bridge for JAYA_RESEARCH & JAYA_CORE
+"""Review-only bridge from Research findings to immutable artifact outbox."""
 
-Extracts research findings, literature gap analyses, and paper synthesis from JAYA_RESEARCH,
-formats them into signed CandidateManifests, and submits them to JAYA_CORE's EvolutionGate
-for automated self-improvement.
-"""
+from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
-import os
-import sys
+import hashlib
 import time
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
-# Ensure JAYA_CORE is on sys.path if running within workspace
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-CORE_DIR = os.path.join(ROOT_DIR, "JAYA_CORE")
-if os.path.exists(CORE_DIR) and CORE_DIR not in sys.path:
-    sys.path.insert(0, CORE_DIR)
+try:
+    from research.research_artifact import (
+        EvidenceKind,
+        ResearchArtifact,
+        ResearchArtifactOutbox,
+        build_research_artifact,
+    )
+except ImportError:
+    from .research_artifact import (
+        EvidenceKind,
+        ResearchArtifact,
+        ResearchArtifactOutbox,
+        build_research_artifact,
+    )
 
-from src.brain_v2.engine.evolution_gate import EvolutionGate, EvolutionCandidate
 
-
-@dataclass
+@dataclass(frozen=True)
 class ResearchFinding:
-    """Represents a scientific research finding or gap analysis from JAYA_RESEARCH."""
+    """A proposed finding with explicit evidence and provenance metadata."""
+
     finding_id: str
     paper_title: str
-    authors: List[str]
+    authors: list[str]
     topic: str
     gap_summary: str
     suggested_patch_type: str
     patch_code: str
-    confidence_score: float = 0.90
+    confidence_score: float = 0.0
+    evidence_kind: str = EvidenceKind.UNVERIFIED.value
+    source_hashes: list[str] = field(default_factory=list)
+    dataset_sha256: str = ""
+    license_id: str = ""
+    reproduction_runs: int = 0
+    reproduced: bool = False
     created_at: float = field(default_factory=time.time)
 
 
 class ResearchEcosystemBridge:
-    """
-    Phase D Ecosystem Bridge connecting JAYA_RESEARCH to JAYA_CORE.
-    Transfers autonomous research breakthroughs into verified evolution candidates.
-    """
+    """Exports candidates for review and never imports or mutates JAYA Core."""
 
-    def __init__(self, evolution_gate: Optional[EvolutionGate] = None):
-        self.gate = evolution_gate or EvolutionGate()
-        self._submitted_findings: List[ResearchFinding] = []
+    def __init__(self, outbox_dir: Path | str | None = None, **_: Any):
+        project_root = Path(__file__).resolve().parents[2]
+        resolved_outbox = outbox_dir or project_root / "data" / "artifact_outbox"
+        self.outbox = ResearchArtifactOutbox(resolved_outbox)
+        self._submitted_findings: list[ResearchFinding] = []
 
-    def convert_finding_to_candidate(self, finding: ResearchFinding) -> EvolutionCandidate:
-        """Converts a ResearchFinding into a JAYA_CORE EvolutionCandidate."""
-        candidate_id = f"candidate-{finding.finding_id}"
-        
-        return EvolutionCandidate(
-            candidate_id=candidate_id,
-            source_hash=f"hash-{finding.finding_id}",
-            created_at=finding.created_at,
-            candidate_payload=finding.patch_code,
-            expected_perf_gain_pct=10.0,
-            metadata={
-                "author": "JAYA_RESEARCH_AUTONOMOUS",
+    def convert_finding_to_candidate(
+        self, finding: ResearchFinding
+    ) -> ResearchArtifact:
+        """Convert a finding into an immutable Research-owned artifact."""
+        payload_sha256 = hashlib.sha256(finding.patch_code.encode("utf-8")).hexdigest()
+        return build_research_artifact(
+            artifact_id=f"candidate-{finding.finding_id}",
+            artifact_type="research_capability_proposal",
+            finding_id=finding.finding_id,
+            evidence_kind=finding.evidence_kind,
+            subject=finding.topic,
+            payload={
                 "paper_title": finding.paper_title,
-                "patch_type": finding.suggested_patch_type
-            }
+                "authors": list(finding.authors),
+                "gap_summary": finding.gap_summary,
+                "proposal_type": finding.suggested_patch_type,
+                "proposal_text": finding.patch_code,
+                "proposal_sha256": payload_sha256,
+                "executable": False,
+            },
+            provenance={
+                "source_hashes": list(finding.source_hashes),
+                "dataset_sha256": finding.dataset_sha256,
+            },
+            reproducibility={
+                "run_count": int(finding.reproduction_runs),
+                "reproduced": bool(finding.reproduced),
+            },
+            license_info={"id": finding.license_id},
+            confidence=finding.confidence_score,
         )
 
-    def submit_research_upgrade(self, finding: ResearchFinding) -> Dict[str, Any]:
-        """Submits a research finding to JAYA_CORE's EvolutionGate for evaluation."""
+    def submit_research_upgrade(self, finding: ResearchFinding) -> dict[str, Any]:
+        """Publish a review candidate without signing, evaluating, or deploying it."""
         self._submitted_findings.append(finding)
-        candidate = self.convert_finding_to_candidate(finding)
-        
-        # Sign candidate with gate secret
-        self.gate.sign_candidate(candidate)
-        
-        from src.brain_v2.engine.evolution_gate import CandidateEvidence
-        evidence = CandidateEvidence(
-            tests_passed=True,
-            benchmark_gate_passed=True,
-            observed_perf_gain_pct=12.5,
-            ram_delta_pct=1.0,
-            cpu_delta_pct=2.0
-        )
-        
-        # Evaluate candidate via EvolutionGate
-        decision = self.gate.evaluate(candidate, evidence)
-        
-        deployed = False
-        target_path = None
-        if decision.accepted:
-            deployed, target_path = self.deploy_patch_to_core(finding)
-
+        artifact = self.convert_finding_to_candidate(finding)
+        artifact_path = self.outbox.publish(artifact)
         return {
             "finding_id": finding.finding_id,
-            "candidate_id": candidate.candidate_id,
-            "gate_passed": decision.accepted,
-            "decision_code": decision.code.value,
-            "reason": decision.reason,
-            "auto_deployed_by_research": deployed,
-            "target_path": target_path,
-            "timestamp": time.time()
+            "candidate_id": artifact.artifact_id,
+            "artifact_status": artifact.status.value,
+            "evidence_kind": artifact.evidence_kind.value,
+            "artifact_path": str(artifact_path),
+            "gate_passed": False,
+            "human_review_required": True,
+            "auto_deployed_by_research": False,
+            "target_path": None,
+            "timestamp": time.time(),
         }
 
-    def deploy_patch_to_core(self, finding: ResearchFinding) -> Tuple[bool, Optional[str]]:
-        """JAYA_RESEARCH itself deploys the accepted research patch directly into JAYA_CORE."""
-        try:
-            core_engine_dir = os.path.join(CORE_DIR, "src", "brain_v2", "engine")
-            os.makedirs(core_engine_dir, exist_ok=True)
-            patch_file_path = os.path.join(core_engine_dir, "auto_research_patch.py")
-            
-            with open(patch_file_path, "w", encoding="utf-8") as f:
-                f.write(finding.patch_code)
-                
-            return True, patch_file_path
-        except Exception as err:
-            return False, str(err)
+    def deploy_patch_to_core(self, finding: ResearchFinding) -> tuple[bool, str]:
+        """Remain as an explicit fail-closed compatibility method."""
+        del finding
+        return False, "Direct Research-to-Core deployment is disabled"
 
-    def get_submission_history(self) -> List[ResearchFinding]:
-        """Returns history of all research findings submitted to JAYA_CORE."""
+    def get_submission_history(self) -> list[ResearchFinding]:
+        """Return an immutable snapshot of findings submitted during this process."""
         return list(self._submitted_findings)

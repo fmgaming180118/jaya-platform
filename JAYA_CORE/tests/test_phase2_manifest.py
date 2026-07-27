@@ -8,14 +8,14 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.brain_v2.engine.evolution_gate import EvolutionCandidate, EvolutionGate
-from src.brain_v2.engine.evolution_manifest import (
+from src.brain_v2.engine.evolution_gate import EvolutionCandidate, EvolutionGate  # noqa: E402
+from src.brain_v2.engine.evolution_manifest import (  # noqa: E402
     build_signed_manifest,
     load_manifest,
     save_manifest,
     verify_manifest,
 )
-from src.brain_v2.engine.runtime import IronEngine
+from src.brain_v2.engine.runtime import IronEngine  # noqa: E402
 
 
 class TestPhase2Manifest(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestPhase2Manifest(unittest.TestCase):
         )
 
     def test_manifest_build_and_verify(self):
-        gate = EvolutionGate()
+        gate = EvolutionGate(test_mode=True)
         cand = self._candidate()
         manifest = build_signed_manifest(cand, gate=gate, baseline_ref="phase1-closed-v0.1", notes="smoke")
 
@@ -39,7 +39,7 @@ class TestPhase2Manifest(unittest.TestCase):
         self.assertEqual(reason, "ok")
 
     def test_manifest_tamper_rejected(self):
-        gate = EvolutionGate()
+        gate = EvolutionGate(test_mode=True)
         cand = self._candidate()
         manifest = build_signed_manifest(cand, gate=gate, baseline_ref="phase1")
         manifest["candidate"]["candidate_payload"] = "tampered payload"
@@ -49,7 +49,7 @@ class TestPhase2Manifest(unittest.TestCase):
         self.assertIn("mismatch", reason)
 
     def test_manifest_file_roundtrip(self):
-        gate = EvolutionGate()
+        gate = EvolutionGate(test_mode=True)
         cand = self._candidate()
         manifest = build_signed_manifest(cand, gate=gate, baseline_ref="phase1")
 
@@ -63,7 +63,12 @@ class TestPhase2Manifest(unittest.TestCase):
         self.assertEqual(reason, "ok")
 
     def test_runtime_manifest_hooks_smoke(self):
-        engine = IronEngine(model_path="missing.jay", password="x", enable_twin=False)
+        engine = IronEngine(
+            model_path="missing.jay",
+            password="x",
+            enable_twin=False,
+            evolution_test_mode=True,
+        )
         engine._init_security()
         engine._init_intelligence()
 

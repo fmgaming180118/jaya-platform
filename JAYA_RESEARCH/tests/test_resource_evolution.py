@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import asyncio
+import pytest
 from pathlib import Path
 
 # Configure sys.stdout to handle UTF-8 printing in Windows terminals
@@ -13,6 +14,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from src.evolution.twin import DigitalTwin, TwinState
 from src.optimizer import Optimizer
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 async def test_ram_monitoring():
     print("\n--- 1. Testing RAM Monitoring & Garbage Collection ---")

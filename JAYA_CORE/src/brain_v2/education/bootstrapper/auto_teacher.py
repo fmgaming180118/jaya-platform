@@ -3,14 +3,13 @@ import os
 import time
 from typing import List
 
-# Setup Basic Logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger("AutoTeacher")
-
 from src.brain_v2.engine.runtime import IronEngine
 from src.brain_v2.extensions.nvidia_llm import NvidiaNIMClient
 from src.brain_v2.soul.agentic_rag import AgenticRAG
 
+# Setup Basic Logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("AutoTeacher")
 
 class AutoTeacher:
     """
@@ -131,39 +130,25 @@ class AutoTeacher:
 
             # Format sesuai spesifikasi EvolutionCandidate (Phase 2 EvolutionGate)
             import hashlib
+            source_hash = hashlib.sha256(axiom.encode("utf-8")).hexdigest()
             candidate = {
-                "candidate_id": f"evo_{int(time.time())}",
-                "source_hash": hashlib.md5(axiom.encode()).hexdigest(),
+                "candidate_id": f"evo_{int(time.time())}_{source_hash[:12]}",
+                "source_hash": source_hash,
                 "created_at": time.time(),
                 "candidate_payload": axiom,
                 "metadata": {"authors": ["AutoTeacher API"], "topic": subject}
-            }
-            evidence = {
-                "tests_passed": True,
-                "benchmark_gate_passed": True,
-                "observed_perf_gain_pct": 10.0,
-                "ram_delta_pct": 0.1,
-                "cpu_delta_pct": 0.5,
-                "metadata": {"test_coverage": 1.0, "reviewer_signatures": ["Llama-3-70b"]}
             }
 
             # 6. Menandatangani Kandidat (Pillar 13 - Cryptographic Skin)
             signed_res = self.engine.sign_evolution_candidate(candidate)
 
             if signed_res.get("ok"):
-                result = self.engine.evaluate_evolution_candidate(signed_res["candidate"], evidence)
-
-                if result.get("ok"):
-                    decision = result.get("decision", {})
-                    if decision.get("accepted"):
-                        logger.info("   ✓ [EVO GATE APPROVED] - Logika murni layak disimpan ke .jay!")
-                        # In real JAYA, we commit this to the Morphic kernel memory tree.
-                        if not self.dry_run:
-                            self.engine.register_stable_state(f"auto_{subject}", snapshot=candidate)
-                    else:
-                        logger.warning(f"   ✗ [EVO GATE REJECTED] - Alasan: {decision.get('reason')}")
-                else:
-                    logger.error(f"   ! EvolutionGate gagal evaluasi: {result.get('error')}")
+                logger.info(
+                    "   [EVO CANDIDATE CREATED] Kandidat %s belum dipromosikan. "
+                    "Laporan test dan benchmark bertanda tangan wajib diverifikasi "
+                    "oleh EvolutionGate.",
+                    candidate["candidate_id"],
+                )
             else:
                 logger.error("   ! Gagal menandatangani kandidat evolusi.")
 

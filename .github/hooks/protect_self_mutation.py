@@ -12,6 +12,7 @@ ROOT_FILE_ALLOWLIST = {
     ".env",
     ".gitignore",
     "readme.md",
+    "contributing.md",
     "agents.md",
     "jaya.jay",
     "rag_vault.db",
@@ -218,14 +219,26 @@ def _check_path_policy(paths: set[str]) -> str | None:
                 )
 
         if lower.endswith(".md"):
-            if "/" not in rel_path and lower not in {"readme.md", "agents.md"}:
-                return f"Root markdown write blocked for {rel_path}. Use docs/ for cross-cutting docs."
+            if "/" not in rel_path and lower not in {
+                "readme.md",
+                "agents.md",
+                "contributing.md",
+            }:
+                return f"Root markdown write blocked for {rel_path}. Use docs/."
 
-            if lower.startswith("jaya_core/") and lower != "jaya_core/readme.md" and not lower.startswith("jaya_core/docs/"):
-                return f"Core markdown must be in JAYA_CORE/docs/: {rel_path}"
-
-            if lower.startswith("jaya_research/") and lower != "jaya_research/readme.md" and not lower.startswith("jaya_research/docs/"):
-                return f"Research markdown must be in JAYA_RESEARCH/docs/: {rel_path}"
+            module_roots = (
+                "jaya_core/",
+                "jaya_research/",
+                "jaya_agent/",
+                "jaya_os/",
+                "jaya_android/",
+            )
+            for module_root in module_roots:
+                if lower.startswith(module_root) and lower != f"{module_root}readme.md":
+                    return (
+                        f"Module markdown is limited to {module_root}README.md: "
+                        f"{rel_path}. Place active documentation in root docs/."
+                    )
 
     return None
 

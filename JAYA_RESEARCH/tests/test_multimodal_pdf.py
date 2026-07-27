@@ -6,6 +6,8 @@ import os
 import sys
 import pytest
 
+pytestmark = pytest.mark.integration
+
 # Ensure sys.path includes JAYA_RESEARCH
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RESEARCH_DIR = os.path.join(ROOT_DIR, "JAYA_RESEARCH")

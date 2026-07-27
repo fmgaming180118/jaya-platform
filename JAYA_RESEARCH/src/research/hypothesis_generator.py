@@ -1,169 +1,165 @@
-"""
-Hypothesis Generator Module for JAYA_RESEARCH.
-Implements Autonomous Scientific Hypothesis Generation, Knowledge Gap Detection,
-and Novelty Scoring for Phase 1 of Autonomous Scientific Discovery.
+"""Evidence-aware hypothesis generation for JAYA_RESEARCH.
+
+This module creates *research proposals*, not findings. A generated hypothesis
+is always marked as unverified until an empirical experiment supplies the
+required provenance and reproducibility evidence.
 """
 
+from __future__ import annotations
+
+import hashlib
 import json
 import logging
-import math
-import random
 import re
-import time
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-import numpy as np
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-# Rich pool of AGI & JARVIS research concepts for dynamic hypothesis synthesis
-CONCEPT_POOL_A = [
-    "Hierarchical Task Decomposition",
-    "Dynamic 2-Bit Quantization Adapter",
-    "Full-Duplex Latency Reduction",
-    "GraphRAG Memory Consolidation",
-    "Sparse Top-K Attention Gating",
-    "Ternary-Weight Execution Subnet",
-    "Zero-Shot Tool Synthesis",
-    "Bayesian Belief Revision Kernel",
-    "Specular Action Loop",
-    "Autonomous Safety Interlock",
-    "Speculative Decoding Pipeline",
-    "Cross-Modal Embedding Alignment"
-]
-
-CONCEPT_POOL_B = [
-    "Edge Memory Bandwidth",
-    "AGI Reasoning Latency",
-    "Context Window Retention",
-    "Action Loop Falsifiability",
-    "System-2 Deliberative Capacity",
-    "Multi-Subsystem Synchronization",
-    "Sub-100ms Voice Response",
-    "Dynamic Energy Consumption",
-    "Hallucination Suppression Rate",
-    "Autonomous Safety Clearance",
-    "Cross-Thread Execution Stability"
-]
-
-TOPIC_POOL = [
-    "Hierarchical Task Decomposition & Autonomous Action Loop for AGI Agent",
-    "Edge Memory Optimization using Dynamic 2-bit Quantization Adapters",
-    "Real-Time Full-Duplex Voice Interaction for JARVIS Assistant",
-    "GraphRAG Temporal Memory Consolidation for Long-Horizon Planning",
-    "Sparse Top-K Attention Sparsity for Low-Latency Brain Kernels",
-    "Speculative Execution Subnets for Zero-Shot Tool Calling"
-]
 
 class HypothesisGenerator:
-    """
-    Autonomous Hypothesis Generator for scientific research.
-    Combines GraphRAG entity context, knowledge gap detection,
-    and novelty scoring to produce structured scientific hypotheses.
-    """
+    """Generate falsifiable, explicitly unverified research proposals."""
 
-    def __init__(self, graph_engine: Optional[Any] = None, teacher: Optional[Any] = None):
+    def __init__(
+        self, graph_engine: Optional[Any] = None, teacher: Optional[Any] = None
+    ):
         self.graph_engine = graph_engine
+        # External model clients must be injected explicitly. Importing and
+        # initializing one here would hide network/configuration side effects.
         self.teacher = teacher
         self.corpus_memory: List[str] = []
-        
-        # Auto-initialize Teacher if not passed
-        if self.teacher is None:
-            try:
-                import sys
-                from pathlib import Path
-                src_dir = Path(__file__).resolve().parent.parent
-                if str(src_dir) not in sys.path:
-                    sys.path.insert(0, str(src_dir))
-                # Ensure .env is loaded from the correct location
-                try:
-                    from dotenv import load_dotenv
-                    env_path = src_dir.parent / ".env"
-                    if not env_path.exists():
-                        env_path = src_dir / ".env"
-                    load_dotenv(dotenv_path=str(env_path), override=True)
-                except Exception:
-                    pass
-                from teacher import Teacher
-                self.teacher = Teacher(model_type="chat")
-                logger.info(f"[HypothesisGen] Teacher auto-initialized: {self.teacher.model}")
-            except Exception as e:
-                logger.warning(f"[HypothesisGen] Teacher auto-init failed (will use templates): {e}")
-                self.teacher = None
+        self.corpus_sources: List[str] = []
 
-    def add_to_corpus(self, text: str) -> None:
-        """Add text content to internal literature corpus memory."""
-        if text and text not in self.corpus_memory:
-            self.corpus_memory.append(text)
+    def add_to_corpus(self, text: str, source_id: Optional[str] = None) -> str:
+        """Add literature text and return its stable local evidence identifier."""
+        normalized = text.strip()
+        if not normalized:
+            raise ValueError("Corpus text must not be empty.")
+
+        evidence_id = source_id or (
+            "inline:" + hashlib.sha256(normalized.encode("utf-8")).hexdigest()[:16]
+        )
+        if normalized not in self.corpus_memory:
+            self.corpus_memory.append(normalized)
+            self.corpus_sources.append(evidence_id)
+        return evidence_id
+
+    @staticmethod
+    def _tokenize(text: str) -> set[str]:
+        return set(re.findall(r"\w+", text.casefold()))
 
     def detect_knowledge_gaps(
         self, topic: str, corpus_texts: Optional[List[str]] = None
     ) -> List[Dict[str, Any]]:
+        """Identify candidate gaps without inventing missing evidence.
+
+        Graph gaps are grounded in the supplied graph. Corpus gaps describe
+        topic terms absent from the supplied corpus. If neither source exists,
+        the result explicitly states that evidence is insufficient.
         """
-        Detects knowledge gaps or missing connections in the given topic or corpus.
-        """
-        gaps = []
-        texts = corpus_texts or self.corpus_memory
+        gaps: List[Dict[str, Any]] = []
+        texts = self.corpus_memory if corpus_texts is None else corpus_texts
 
         if self.graph_engine and hasattr(self.graph_engine, "graph"):
             graph = self.graph_engine.graph
             nodes = list(graph.nodes())
-            if len(nodes) >= 2:
-                for i in range(min(len(nodes), 10)):
-                    for j in range(i + 1, min(len(nodes), 10)):
-                        n1, n2 = nodes[i], nodes[j]
-                        if not graph.has_edge(n1, n2) and not graph.has_edge(n2, n1):
-                            gaps.append({
-                                "type": "missing_link",
-                                "concept_a": n1,
-                                "concept_b": n2,
-                                "description": f"Unexplored relationship between {n1} and {n2} in topic '{topic}'.",
-                            })
+            for index, concept_a in enumerate(nodes[:10]):
+                for concept_b in nodes[index + 1 : 10]:
+                    if not graph.has_edge(concept_a, concept_b) and not graph.has_edge(
+                        concept_b, concept_a
+                    ):
+                        gaps.append(
+                            {
+                                "type": "missing_graph_link",
+                                "concept_a": str(concept_a),
+                                "concept_b": str(concept_b),
+                                "description": (
+                                    "No edge is present between "
+                                    f"{concept_a} and {concept_b} in the supplied graph."
+                                ),
+                                "grounded": True,
+                                "evidence_ids": [
+                                    f"graph-node:{concept_a}",
+                                    f"graph-node:{concept_b}",
+                                ],
+                            }
+                        )
+
+        if not gaps and texts:
+            corpus_tokens = set().union(*(self._tokenize(text) for text in texts))
+            topic_tokens = [
+                token
+                for token in sorted(self._tokenize(topic))
+                if len(token) > 3 and token not in corpus_tokens
+            ]
+            if topic_tokens:
+                missing_term = topic_tokens[0]
+                gaps.append(
+                    {
+                        "type": "missing_corpus_coverage",
+                        "concept_a": missing_term,
+                        "concept_b": "preregistered primary outcome",
+                        "description": (
+                            f"The term '{missing_term}' is absent from the supplied "
+                            "corpus; additional literature review is required."
+                        ),
+                        "grounded": True,
+                        "evidence_ids": list(self.corpus_sources),
+                    }
+                )
 
         if not gaps:
-            ca = random.choice(CONCEPT_POOL_A)
-            cb = random.choice(CONCEPT_POOL_B)
-            gaps.append({
-                "type": "untested_combination",
-                "concept_a": ca,
-                "concept_b": cb,
-                "description": f"Investigating non-linear effects of {ca} on {cb} under {topic}.",
-            })
+            gaps.append(
+                {
+                    "type": "insufficient_evidence",
+                    "concept_a": topic.strip() or "the proposed intervention",
+                    "concept_b": "preregistered primary outcome",
+                    "description": (
+                        "No graph or literature evidence was supplied; this is only "
+                        "a question seed and cannot be treated as a knowledge gap."
+                    ),
+                    "grounded": False,
+                    "evidence_ids": [],
+                }
+            )
 
         return gaps
 
     def compute_novelty_score(
         self, statement: str, corpus_texts: Optional[List[str]] = None
     ) -> float:
-        """
-        Computes novelty score (0.0 to 1.0) based on Jaccard dissimilarity.
-        """
-        texts = corpus_texts or self.corpus_memory
+        """Return Jaccard dissimilarity, or ``0.0`` when it cannot be assessed."""
+        texts = self.corpus_memory if corpus_texts is None else corpus_texts
         if not texts:
-            return round(random.uniform(0.85, 0.96), 2)
+            return 0.0
 
-        def tokenize(txt: str) -> set:
-            return set(re.findall(r"\w+", txt.lower()))
+        statement_tokens = self._tokenize(statement)
+        if not statement_tokens:
+            return 0.0
 
-        stmt_tokens = tokenize(statement)
-        if not stmt_tokens:
-            return 0.85
-
-        similarities = []
+        similarities: List[float] = []
         for text in texts:
-            corpus_tokens = tokenize(text)
+            corpus_tokens = self._tokenize(text)
             if not corpus_tokens:
                 continue
-            intersection = len(stmt_tokens & corpus_tokens)
-            union = len(stmt_tokens | corpus_tokens)
-            jaccard = intersection / union if union > 0 else 0.0
-            similarities.append(jaccard)
+            union = statement_tokens | corpus_tokens
+            similarities.append(
+                len(statement_tokens & corpus_tokens) / len(union) if union else 0.0
+            )
 
-        max_sim = max(similarities) if similarities else 0.0
-        novelty = 1.0 - max_sim
-        return round(float(np.clip(novelty, 0.70, 0.98)), 2)
+        if not similarities:
+            return 0.0
+        return round(max(0.0, min(1.0, 1.0 - max(similarities))), 4)
+
+    @staticmethod
+    def _as_string_list(value: Any, fallback: List[str]) -> List[str]:
+        if not isinstance(value, list):
+            return fallback
+        cleaned = [
+            item.strip() for item in value if isinstance(item, str) and item.strip()
+        ]
+        return cleaned or fallback
 
     def generate_hypothesis(
         self,
@@ -171,94 +167,103 @@ class HypothesisGenerator:
         context: Optional[str] = None,
         gap_info: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """
-        Generates a fully structured scientific hypothesis.
-        Uses NVIDIA NIM API (Teacher) if available, or dynamic randomized synthesis.
-        """
+        """Generate a structured proposal with explicit evidence limitations."""
+        topic = topic.strip()
+        if not topic:
+            raise ValueError("A research topic is required.")
         if context:
             self.add_to_corpus(context)
 
-        gaps = [gap_info] if gap_info else self.detect_knowledge_gaps(topic)
-        selected_gap = gaps[0] if gaps else {}
+        selected_gap = gap_info or self.detect_knowledge_gaps(topic)[0]
+        concept_a = str(selected_gap.get("concept_a") or topic)
+        concept_b = str(
+            selected_gap.get("concept_b") or "preregistered primary outcome"
+        )
 
-        concept_a = selected_gap.get("concept_a", random.choice(CONCEPT_POOL_A))
-        concept_b = selected_gap.get("concept_b", random.choice(CONCEPT_POOL_B))
+        statement = ""
+        independent_variables = [concept_a]
+        dependent_variables = [concept_b]
+        control_variables = ["preregistered baseline condition"]
+        predicted_relationship = (
+            f"A measurable difference in {concept_b} after changing {concept_a}."
+        )
+        falsifiability = (
+            "Reject the hypothesis when the preregistered primary outcome does not "
+            "meet its preregistered effect threshold or quality checks."
+        )
+        model_generated = False
 
-        llm_success = False
-        stmt = ""
-        ind_vars = []
-        dep_vars = []
-        ctrl_vars = []
-        rel = ""
-        falsifiability = ""
-
-        # Attempt generation via NVIDIA NIM API (Teacher)
         if self.teacher and hasattr(self.teacher, "ask"):
-            prompt = f"""
-            You are an AGI Autonomous Scientific Researcher for JAYA.
-            Generate a novel, highly specific, falsifiable scientific hypothesis for topic: "{topic}".
-            Concept A: {concept_a}
-            Concept B: {concept_b}
-            Context: {selected_gap.get('description', '')}
-
-            Respond strictly in valid JSON format with keys:
-            - statement: (Clear, novel, falsifiable scientific hypothesis sentence)
-            - independent_variables: list of strings
-            - dependent_variables: list of strings
-            - control_variables: list of strings
-            - predicted_relationship: string
-            - falsifiability_criteria: string
-            """
+            prompt = (
+                "Create one falsifiable research proposal. Do not invent citations, "
+                "measurements, percentages, p-values, or prior results. Respond as "
+                "JSON with statement, independent_variables, dependent_variables, "
+                "control_variables, predicted_relationship, and "
+                f"falsifiability_criteria. Topic: {topic}. Candidate gap: "
+                f"{selected_gap.get('description', '')}"
+            )
             try:
-                raw_res = self.teacher.ask(prompt, max_tokens=1024, system_instruction="Output valid JSON only.")
-                raw_res = raw_res.replace("```json", "").replace("```", "").strip()
-                parsed = json.loads(raw_res)
+                raw_response = self.teacher.ask(
+                    prompt,
+                    max_tokens=1024,
+                    system_instruction="Output valid JSON only.",
+                )
+                parsed = json.loads(
+                    raw_response.replace("```json", "").replace("```", "").strip()
+                )
+                candidate_statement = parsed.get("statement")
+                if isinstance(candidate_statement, str) and candidate_statement.strip():
+                    statement = candidate_statement.strip()
+                    independent_variables = self._as_string_list(
+                        parsed.get("independent_variables"), independent_variables
+                    )
+                    dependent_variables = self._as_string_list(
+                        parsed.get("dependent_variables"), dependent_variables
+                    )
+                    control_variables = self._as_string_list(
+                        parsed.get("control_variables"), control_variables
+                    )
+                    predicted_relationship = str(
+                        parsed.get("predicted_relationship") or predicted_relationship
+                    )
+                    falsifiability = str(
+                        parsed.get("falsifiability_criteria") or falsifiability
+                    )
+                    model_generated = True
+            except (AttributeError, TypeError, ValueError, json.JSONDecodeError) as exc:
+                logger.warning(
+                    "Injected hypothesis model returned unusable output: %s", exc
+                )
 
-                stmt = parsed.get("statement", "")
-                ind_vars = parsed.get("independent_variables", [f"{concept_a}_param"])
-                dep_vars = parsed.get("dependent_variables", [f"{concept_b}_metric"])
-                ctrl_vars = parsed.get("control_variables", ["Memory Constraint", "GPU Clock"])
-                rel = parsed.get("predicted_relationship", "Non-linear correlation")
-                falsifiability = parsed.get("falsifiability_criteria", f"Rejected if variance < 5%")
-                if stmt:
-                    llm_success = True
-            except Exception as e:
-                logger.warning(f"NVIDIA NIM LLM generation notice: {e}. Using dynamic concept synthesis.")
+        if not statement:
+            statement = (
+                f"Under a preregistered comparison for {topic}, changing {concept_a} "
+                f"will produce a measurable difference in {concept_b} relative to "
+                "an unchanged baseline."
+            )
 
-        if not llm_success:
-            templates = [
-                f"Integrating {concept_a} into {concept_b} induces a non-linear efficiency increase (> {random.randint(15, 35)}%) under {topic} constraints.",
-                f"Dynamic coupling of {concept_a} with {concept_b} suppresses reasoning latency by {random.randint(20, 50)}% during complex multi-step planning.",
-                f"Applying {concept_a} over {concept_b} reduces memory footprint to sub-150MB while preserving 99.2% inference precision.",
-                f"A hybrid framework combining {concept_a} and {concept_b} enables real-time sub-50ms execution loops for JARVIS agents."
-            ]
-            stmt = random.choice(templates)
-            ind_vars = [f"{concept_a}_intensity", "quantization_bits"]
-            dep_vars = [f"{concept_b}_throughput", "latency_ms"]
-            ctrl_vars = ["Baseline Memory Limit", "Execution Timeout (100ms)"]
-            rel = f"Direct proportional modulation between {concept_a} and {concept_b}."
-            falsifiability = f"Hypothesis is rejected if p-value > 0.05 when altering {concept_a}."
-
-        novelty = self.compute_novelty_score(stmt)
-        timestamp_str = datetime.now().strftime("%Y%m%d-%H%M%S")
-        hyp_id = f"HYP-{timestamp_str}-{random.randint(100, 999)}"
-
-        hypothesis = {
-            "hypothesis_id": hyp_id,
+        novelty_score = self.compute_novelty_score(statement)
+        grounded = bool(selected_gap.get("grounded", False))
+        now = datetime.now(timezone.utc)
+        return {
+            "hypothesis_id": f"HYP-{now:%Y%m%d}-{uuid.uuid4().hex[:12]}",
             "topic": topic,
-            "statement": stmt,
+            "statement": statement,
             "variables": {
-                "independent": ind_vars,
-                "dependent": dep_vars,
-                "control": ctrl_vars,
+                "independent": independent_variables,
+                "dependent": dependent_variables,
+                "control": control_variables,
             },
-            "predicted_relationship": rel,
+            "predicted_relationship": predicted_relationship,
             "domain": topic,
-            "knowledge_gap": selected_gap.get("description", f"Unexplored relationship between {concept_a} and {concept_b}."),
-            "novelty_score": novelty,
+            "knowledge_gap": selected_gap.get("description", ""),
+            "novelty_score": novelty_score,
+            "novelty_status": "CALCULATED" if self.corpus_memory else "NOT_EVALUATED",
             "falsifiability_criteria": falsifiability,
-            "timestamp": datetime.now().isoformat(),
-            "llm_generated": llm_success
+            "timestamp": now.isoformat(),
+            "llm_generated": model_generated,
+            "evidence_kind": "UNVERIFIED",
+            "grounding_status": "GROUNDED_PROPOSAL" if grounded else "UNGROUNDED_SEED",
+            "evidence_ids": list(selected_gap.get("evidence_ids", [])),
+            "promotion_eligible": False,
         }
-
-        return hypothesis

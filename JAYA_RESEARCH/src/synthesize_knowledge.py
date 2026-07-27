@@ -1,102 +1,167 @@
-from config import config
+"""Synthesize video reports without persisting provider failures as knowledge."""
+
+from __future__ import annotations
+
 import os
 import sys
-import glob
 from pathlib import Path
-from dotenv import load_dotenv
-import requests
+from typing import Any
 
-# Add project root to path
+import requests
+from dotenv import load_dotenv
+
+try:
+    from config import config
+    from provider_errors import (
+        ProviderAuthError,
+        ProviderError,
+        ProviderInvalidResponseError,
+        ProviderPolicy,
+        ensure_http_success,
+        execute_with_retry,
+    )
+except ImportError:
+    from src.config import config
+    from src.provider_errors import (
+        ProviderAuthError,
+        ProviderError,
+        ProviderInvalidResponseError,
+        ProviderPolicy,
+        ensure_http_success,
+        execute_with_retry,
+    )
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-sys.path.append(str(PROJECT_ROOT))
 load_dotenv(PROJECT_ROOT / ".env")
 
-from src.research.video_processor import VideoProcessor # Import purely for potentially needed utils, or skip
 
-def generate_knowledge_synthesis(all_reports_content):
-    """
-    Synthesize multiple video reports into a single Knowledge Artifact using Llama 3.1 Nemotron.
-    """
-    print("\n[SYNTHESIS] Generating Consolidated Knowledge Artifact...")
-    
+def _extract_content(payload: Any) -> str:
+    try:
+        content = payload["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ProviderInvalidResponseError(
+            "nvidia_nim",
+            "Provider response did not contain synthesized content",
+            cause_type=type(exc).__name__,
+        ) from exc
+    if not isinstance(content, str) or not content.strip():
+        raise ProviderInvalidResponseError(
+            "nvidia_nim",
+            "Provider returned empty synthesized content",
+        )
+    return content
+
+
+def generate_knowledge_synthesis(all_reports_content: str) -> str:
+    """Return a valid synthesis or raise a typed provider exception."""
+    if not isinstance(all_reports_content, str) or not all_reports_content.strip():
+        raise ValueError("all_reports_content must be a non-empty string")
+
     api_key = os.getenv("NVIDIA_API_KEY")
-    model = os.getenv("NVIDIA_LLAMA31_MODEL") or os.getenv("NVIDIA_LLAMA3.1_MODEL") or config.NVIDIA_REASONING_MODEL
-    invoke_url = (os.getenv("NVIDIA_LLAMA31_BASE_URL") or os.getenv("NVIDIA_LLAMA3.1_BASE_URL") or config.NVIDIA_BASE_URL) + "/chat/completions"
-    
+    if not api_key:
+        raise ProviderAuthError(
+            "nvidia_nim",
+            "NVIDIA_API_KEY is not configured",
+        )
+
+    model = (
+        os.getenv("NVIDIA_LLAMA31_MODEL")
+        or os.getenv("NVIDIA_LLAMA3.1_MODEL")
+        or config.NVIDIA_REASONING_MODEL
+    )
+    base_url = (
+        os.getenv("NVIDIA_LLAMA31_BASE_URL")
+        or os.getenv("NVIDIA_LLAMA3.1_BASE_URL")
+        or config.NVIDIA_BASE_URL
+    )
+    invoke_url = f"{base_url.rstrip('/')}/chat/completions"
+    max_tokens = int(os.getenv("NVIDIA_LLAMA31_MAX_TOKENS", "4096"))
+    if max_tokens <= 0:
+        raise ValueError("NVIDIA_LLAMA31_MAX_TOKENS must be greater than zero")
+
     prompt = f"""
-    You are JAYA_RESEARCH, an advanced AI Researcher.
-    
-    TASK:
-    Analyze the following raw observational reports from video analysis sessions. 
-    Some reports might be incomplete due to processing limits; focus on the completed ones.
-    
-    Synthesize them into a single structured "KNOWLEDGE ARTIFACT" (Markdown).
-    
-    The goal is NOT just a summary, but to extract KNOWLEDGE:
-    1. Identify the core topics discussed across the videos.
-    2. Extract specific facts, rules, or procedures mentioned (e.g. database schemas, admin rules).
-    3. Connect the dots between the visual observations and the audio transcripts.
-    4. Format as a professional research document with "Key Insights", "Technical Details", and "Actionable Knowledge".
-    
-    RAW REPORTS:
-    {all_reports_content}
-    """
-    
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-    
+You are JAYA_RESEARCH, an advanced AI researcher.
+
+Analyze the raw observational reports below and create one Markdown knowledge
+artifact. Separate direct observations, supported inferences, uncertainties,
+and follow-up questions. Extract core topics, facts, procedures, technical
+details, and actionable knowledge. Never present failed analyses as evidence.
+
+RAW REPORTS:
+{all_reports_content}
+"""
+    temperature = float(os.getenv("NVIDIA_LLAMA31_TEMPERATURE", "0.5"))
+    top_p = float(os.getenv("NVIDIA_LLAMA31_TOP_P", "0.95"))
+    if not 0 <= temperature <= 2:
+        raise ValueError("NVIDIA_LLAMA31_TEMPERATURE must be between 0 and 2")
+    if not 0 <= top_p <= 1:
+        raise ValueError("NVIDIA_LLAMA31_TOP_P must be between 0 and 1")
+
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": int(os.getenv("NVIDIA_LLAMA31_MAX_TOKENS", 1000000)),
-        "temperature": 0.5,
-        "top_p": 0.95
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        "top_p": top_p,
     }
-    
-    try:
-        response = requests.post(invoke_url, headers=headers, json=payload)
-        response.raise_for_status()
-        content = response.json()['choices'][0]['message']['content']
-        return content
-    except Exception as e:
-        error_details = str(e)
-        if 'response' in locals():
-            error_details += f"\nResponse Body: {response.text}"
-        print(f"[SYNTHESIS FAILED] {error_details}")
-        return f"Failed to synthesize knowledge. Error: {error_details}"
+    policy = ProviderPolicy.from_env("NVIDIA_PROVIDER")
 
-def main():
+    def request() -> str:
+        response = requests.post(
+            invoke_url,
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=policy.requests_timeout,
+        )
+        ensure_http_success("nvidia_nim", response)
+        try:
+            response_payload = response.json()
+        except (TypeError, ValueError) as exc:
+            raise ProviderInvalidResponseError(
+                "nvidia_nim",
+                "Provider returned malformed JSON",
+                cause_type=type(exc).__name__,
+            ) from exc
+        return _extract_content(response_payload)
+
+    return execute_with_retry("nvidia_nim", request, policy)
+
+
+def main() -> int:
     reports_dir = PROJECT_ROOT / "reports" / "video_analysis"
     report_files = list(reports_dir.glob("*_report.md"))
-    
     print(f"Found {len(report_files)} report files.")
-    
-    aggregated_content = ""
+
+    report_sections: list[str] = []
     for report_file in report_files:
         print(f"Reading: {report_file.name}")
-        with open(report_file, "r", encoding="utf-8") as f:
-            content = f.read()
-            # Filter out known failure reports if they are mostly empty/failed
-            if "Analysis failed" in content and len(content) < 2000:
-                print(f"Skipping incomplete report: {report_file.name}")
-                continue
-                
-            aggregated_content += f"\n\n=== SOURCE REPORT: {report_file.name} ===\n"
-            aggregated_content += content
+        content = report_file.read_text(encoding="utf-8")
+        if "Analysis failed" in content and len(content) < 2000:
+            print(f"Skipping incomplete report: {report_file.name}")
+            continue
+        report_sections.append(
+            f"\n\n=== SOURCE REPORT: {report_file.name} ===\n{content}"
+        )
 
-    if aggregated_content:
-        knowledge = generate_knowledge_synthesis(aggregated_content)
-        
-        knowledge_path = reports_dir / "CONSOLIDATED_KNOWLEDGE.md"
-        with open(knowledge_path, "w", encoding="utf-8") as f:
-            f.write(knowledge)
-            
-        print(f"\n✅✅ KNOWLEDGE SYNTHESIS COMPLETE!")
-        print(f"File: {knowledge_path}")
-    else:
+    if not report_sections:
         print("No valid content to synthesize.")
+        return 0
+
+    try:
+        knowledge = generate_knowledge_synthesis("".join(report_sections))
+    except ProviderError as error:
+        print(f"[SYNTHESIS FAILED] {error.code} ({error.provider})")
+        return 1
+
+    knowledge_path = reports_dir / "CONSOLIDATED_KNOWLEDGE.md"
+    knowledge_path.write_text(knowledge, encoding="utf-8")
+    print(f"Knowledge synthesis complete: {knowledge_path}")
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

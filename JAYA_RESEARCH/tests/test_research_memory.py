@@ -1,64 +1,71 @@
-"""
-Quick test of ResearchAgent memory storage
-"""
+"""Offline regression test for ResearchAgent report persistence."""
+
+from __future__ import annotations
+
+import contextlib
+import importlib
+import io
+import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
-from research.agent import ResearchAgent
-from memory import DiscoveryMemory
 
-# Test research with memory storage
-print("=" * 60)
-print("Testing Research Report Storage in Memory")
-print("=" * 60)
+def _load_agent_module():
+    """Import the agent only during test execution and suppress import banners."""
+    with (
+        contextlib.redirect_stdout(io.StringIO()),
+        contextlib.redirect_stderr(io.StringIO()),
+    ):
+        return importlib.import_module("research.agent")
 
-topic = "JIT Compilation Optimization"
-agent = ResearchAgent(topic=topic)
 
-# Generate very small plan for quick test
-agent.queries = [
-    "What is JIT compilation?",
-    "How can JIT compilation be optimized?"
-]
+def test_save_report_writes_only_to_injected_report_and_memory_paths(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    module = _load_agent_module()
+    reports_dir = tmp_path / "reports"
+    memory_path = tmp_path / "memory" / "discoveries.json"
+    fixed_time = 2_000_000_000.0
+    monkeypatch.setattr(module.time, "time", lambda: fixed_time)
+    monkeypatch.setattr(
+        module.config,
+        "DISCOVERY_MEMORY_PATH",
+        str(memory_path),
+    )
 
-print(f"\nTesting with 2 quick queries on: {topic}\n")
+    agent = module.ResearchAgent.__new__(module.ResearchAgent)
+    agent.config = SimpleNamespace(reports_dir=str(reports_dir))
+    agent.topic = "JIT Compilation Optimization"
+    agent.focus_areas = "Compiler performance"
+    agent.queries = ["What is JIT?", "How is JIT optimized?"]
+    agent.findings = [
+        {
+            "query": "What is JIT?",
+            "answer": "A runtime compilation strategy.",
+            "sources": ["fixture.md"],
+        }
+    ]
+    agent.report = "# Deterministic Research Report\nOffline evidence."
 
-# Execute (sequential for  test speed)
-findings = agent.execute_queries()
+    with contextlib.redirect_stdout(io.StringIO()):
+        agent.save_report()
 
-# Write report
-agent.report = agent.write_report()
+    report_path = reports_dir / "JIT_Compilation_Optimization_2000000000.md"
+    assert report_path.read_text(encoding="utf-8") == agent.report
 
-# Save (should store in memory)
-print("\n" + "=" * 60)
-print("Saving Report...")
-print("=" * 60)
-agent.save_report()
-
-# Verify memory
-print("\n" + "=" * 60)
-print("Verifying Memory Storage...")
-print("=" * 60)
-
-memory = DiscoveryMemory()
-
-# Find research reports
-research_reports = [
-    entry for entry in memory.history
-    if entry.get('result') == 'RESEARCH_REPORT'
-]
-
-print(f"\nTotal research reports in memory: {len(research_reports)}")
-
-if research_reports:
-    latest = research_reports[-1]
-    print(f"\nLatest Report:")
-    print(f"  Topic: {latest.get('topic', 'N/A')}")
-    print(f"  Queries: {latest.get('queries_count', 'N/A')}")
-    print(f"  Findings: {latest.get('findings_count', 'N/A')}")
-    print(f"  Path: {latest.get('report_path', 'N/A')}")
-    print(f"  Timestamp: {latest.get('timestamp', 'N/A')}")
-    
-print("\n✅ Memory storage test complete!")
+    stored = json.loads(memory_path.read_text(encoding="utf-8"))
+    assert len(stored) == 1
+    entry = stored[0]
+    assert entry["result"] == "RESEARCH_REPORT"
+    assert entry["topic"] == agent.topic
+    assert entry["focus_areas"] == agent.focus_areas
+    assert entry["queries_count"] == 2
+    assert entry["findings_count"] == 1
+    assert entry["report_path"] == str(report_path)
+    assert len(entry["hash"]) == 64

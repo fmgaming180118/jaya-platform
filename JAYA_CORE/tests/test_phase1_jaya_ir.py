@@ -7,17 +7,19 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.brain_v2.engine.jaya_ir import (
+from src.brain_v2.engine.jaya_ir import (  # noqa: E402
+    IRFailureCode,
     IRInstruction,
+    IRMutationError,
     JayaIRGraph,
     OpCode,
     ValidationMode,
     contract_metadata,
     validate_graph,
 )
-from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor
-from src.brain_v2.engine.jaya_ir_translator import logic_expr_to_ir
-from src.brain_v2.engine.runtime import IronEngine
+from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor  # noqa: E402
+from src.brain_v2.engine.jaya_ir_translator import logic_expr_to_ir  # noqa: E402
+from src.brain_v2.engine.runtime import IronEngine  # noqa: E402
 
 
 class TestJayaIRSchema(unittest.TestCase):
@@ -30,7 +32,7 @@ class TestJayaIRSchema(unittest.TestCase):
         self.assertEqual(md["phase_state"], "phase1_frozen")
         self.assertGreaterEqual(md["opcode_count"], 24)
 
-    def test_lenient_validator_marks_unknown_as_non_executable(self):
+    def test_lenient_validator_rejects_unknown_opcode(self):
         graph = JayaIRGraph(
             instructions=[
                 IRInstruction(opcode="UNKNOWN_OPCODE", args=("x",), target="out"),
@@ -39,10 +41,10 @@ class TestJayaIRSchema(unittest.TestCase):
             source="unit",
         )
         report = validate_graph(graph, mode=ValidationMode.LENIENT)
-        self.assertTrue(report.is_valid)
-        self.assertFalse(report.has_critical)
-        self.assertFalse(graph.instructions[0].executable)
-        self.assertIn("validation_error", graph.instructions[0].metadata)
+        self.assertFalse(report.is_valid)
+        self.assertTrue(report.has_critical)
+        self.assertEqual(report.issues[0].code, IRFailureCode.UNKNOWN_OPCODE)
+        self.assertTrue(graph.instructions[0].executable)
 
 
 class TestTranslator(unittest.TestCase):
@@ -69,7 +71,7 @@ class TestExecutor(unittest.TestCase):
         self.assertTrue(out2["cache_hit"])
         self.assertGreaterEqual(ex.status()["hit_rate"], 0.5)
 
-    def test_lenient_invalid_instruction_is_skipped(self):
+    def test_lenient_invalid_instruction_is_typed_failure(self):
         ex = JayaIRExecutor(mode=ValidationMode.LENIENT)
         graph = JayaIRGraph(
             instructions=[
@@ -80,8 +82,144 @@ class TestExecutor(unittest.TestCase):
             source="unit",
         )
         out = ex.execute_graph(graph)
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error"], IRFailureCode.UNKNOWN_OPCODE.value)
+
+    def test_unknown_action_stub_is_typed_failure(self):
+        ex = JayaIRExecutor()
+        graph = logic_expr_to_ir(("ACTION", "TURN_ON", "lamp"))
+
+        out = ex.execute_graph(graph)
+
+        self.assertFalse(out["ok"])
+        self.assertEqual(
+            out["error"],
+            IRFailureCode.UNSUPPORTED_OPCODE.value,
+        )
+        self.assertEqual(
+            out["failure"]["instruction_index"],
+            0,
+        )
+
+    def test_divide_by_zero_is_typed_failure(self):
+        ex = JayaIRExecutor()
+        graph = logic_expr_to_ir(("QUERY", "ARITH", ("DIV", 8, 0)))
+
+        out = ex.execute_graph(graph)
+
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error"], IRFailureCode.DIVIDE_BY_ZERO.value)
+
+    def test_invalid_cfg_target_is_typed_failure(self):
+        ex = JayaIRExecutor()
+        graph = JayaIRGraph(
+            instructions=[
+                IRInstruction(opcode=OpCode.JUMP, args=(99,)),
+                IRInstruction(opcode=OpCode.RETURN, args=("out",)),
+            ],
+            source="unit",
+        )
+
+        out = ex.execute_graph(graph)
+
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["error"], IRFailureCode.INVALID_CFG.value)
+
+    def test_valid_branch_cfg_executes_deterministically(self):
+        ex = JayaIRExecutor()
+        graph = JayaIRGraph(
+            instructions=[
+                IRInstruction(
+                    opcode=OpCode.LOAD_CONST,
+                    args=(True,),
+                    target="condition",
+                ),
+                IRInstruction(
+                    opcode=OpCode.BRANCH_IF,
+                    args=("condition", 2, 4),
+                ),
+                IRInstruction(
+                    opcode=OpCode.PASS_LITERAL,
+                    args=("yes",),
+                    target="out",
+                ),
+                IRInstruction(opcode=OpCode.JUMP, args=(5,)),
+                IRInstruction(
+                    opcode=OpCode.PASS_LITERAL,
+                    args=("no",),
+                    target="out",
+                ),
+                IRInstruction(opcode=OpCode.RETURN, args=("out",)),
+            ],
+            source="unit",
+        )
+
+        out = ex.execute_graph(graph)
+
         self.assertTrue(out["ok"])
-        self.assertEqual(out["result"], "safe")
+        self.assertEqual(out["result"], "yes")
+
+    def test_validated_graph_is_immutable(self):
+        graph = logic_expr_to_ir(("ACTION", "OPEN", "window"))
+        report = validate_graph(graph)
+
+        self.assertTrue(report.is_valid)
+        self.assertTrue(graph.is_sealed)
+        self.assertIsInstance(graph.instructions, tuple)
+        with self.assertRaises(IRMutationError):
+            graph.instructions[0].args = ("tampered",)
+        with self.assertRaises(IRMutationError):
+            graph.source = "tampered"
+        with self.assertRaises(TypeError):
+            graph.metadata["tampered"] = True
+
+    def test_cache_rejects_forced_mutation_after_validation(self):
+        ex = JayaIRExecutor()
+        graph = logic_expr_to_ir(("ACTION", "OPEN", "window"))
+        first = ex.execute_graph(graph)
+        self.assertTrue(first["ok"])
+
+        object.__setattr__(
+            graph.instructions[0],
+            "args",
+            ("tampered",),
+        )
+        second = ex.execute_graph(graph)
+
+        self.assertTrue(second["ok"])
+        self.assertTrue(second["cache_hit"])
+        self.assertEqual(second["result"]["target"], "window")
+
+        ex.clear_cache()
+        third = ex.execute_graph(graph)
+        self.assertFalse(third["ok"])
+        self.assertEqual(third["error"], IRFailureCode.IR_MUTATION.value)
+
+    def test_unvalidated_graph_cannot_spoof_cached_signature(self):
+        ex = JayaIRExecutor()
+        safe_graph = logic_expr_to_ir(("ACTION", "OPEN", "window"))
+        self.assertTrue(ex.execute_graph(safe_graph)["ok"])
+
+        unsupported = JayaIRGraph(
+            instructions=[
+                IRInstruction(
+                    opcode=OpCode.CALL_STUB,
+                    args=("fallback",),
+                    target="out",
+                ),
+                IRInstruction(opcode=OpCode.RETURN, args=("out",)),
+            ],
+            source="unit",
+        )
+        unsupported.signature = safe_graph.signature
+
+        out = ex.execute_graph(unsupported)
+
+        self.assertFalse(out["ok"])
+        self.assertEqual(
+            out["error"],
+            IRFailureCode.UNSUPPORTED_OPCODE.value,
+        )
 
 
 class TestRuntimeIntegration(unittest.TestCase):

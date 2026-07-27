@@ -1,10 +1,10 @@
 {
   "version": "0.1",
-  "id": "b0ebe034-8f17-4235-904d-14add60c4dac",
+  "id": "ee729174-4b45-4bc7-b671-b827191323e5",
   "name": "Dashboard",
   "description": "Main dashboard with metrics and quick actions",
   "root": {
-    "id": "8a3f231b-4b7e-4786-b115-8324a0c9f4f8",
+    "id": "11954ef4-9611-449a-bf2d-1205993f7fb2",
     "type": "window",
     "label": "Untitled",
     "placeholder": "",
@@ -12,7 +12,7 @@
     "options": [],
     "children": [
       {
-        "id": "2eb508b6-ee19-4ecf-b881-c78f9d49140a",
+        "id": "12df8bbd-3728-4044-b590-4b12467f58b9",
         "type": "panel",
         "label": "",
         "placeholder": "",
@@ -20,7 +20,7 @@
         "options": [],
         "children": [
           {
-            "id": "de225289-d7f2-433b-bf08-8e7c0a150ef2",
+            "id": "9393c2c7-0711-4554-805c-40b25377df06",
             "type": "label",
             "label": "Untitled",
             "placeholder": "",
@@ -37,7 +37,7 @@
             "metadata": {}
           },
           {
-            "id": "749c9a68-d433-4b8d-9b42-61d3859d2d3f",
+            "id": "171207db-ab0e-4c44-961e-8eede463c4d6",
             "type": "panel",
             "label": "",
             "placeholder": "",
@@ -45,7 +45,7 @@
             "options": [],
             "children": [
               {
-                "id": "99202324-58e8-4bc2-8229-d1588190e895",
+                "id": "c853f7a8-9486-4c07-8008-d00039205fc5",
                 "type": "button",
                 "label": "New Task",
                 "placeholder": "",
@@ -72,7 +72,7 @@
                 }
               },
               {
-                "id": "c9c1ee5c-3eae-41e1-8d00-9ccb7ed92706",
+                "id": "080bcbf7-322d-4a62-b37b-75cff7e97f39",
                 "type": "button",
                 "label": "Settings",
                 "placeholder": "",
@@ -119,7 +119,7 @@
         "metadata": {}
       },
       {
-        "id": "bfec629b-7b52-481e-be1a-de4af6494b2f",
+        "id": "540e5bee-843d-464b-a897-54300868aca3",
         "type": "panel",
         "label": "",
         "placeholder": "",
@@ -127,7 +127,7 @@
         "options": [],
         "children": [
           {
-            "id": "4ec65272-713a-4a38-bca3-7dfd03c90985",
+            "id": "ca986313-4941-4559-bd43-c25388e3cdd0",
             "type": "panel",
             "label": "",
             "placeholder": "",
@@ -135,7 +135,7 @@
             "options": [],
             "children": [
               {
-                "id": "97bb2f0e-fe12-49b7-b7ba-e6e9d1ef4c10",
+                "id": "0e3d5819-2f44-4335-a19e-01a6fa091776",
                 "type": "panel",
                 "label": "",
                 "placeholder": "",
@@ -143,7 +143,7 @@
                 "options": [],
                 "children": [
                   {
-                    "id": "d1634e58-f2b5-4aa6-8942-1f09f6385404",
+                    "id": "da272e2f-f2c9-4260-af35-c74604925255",
                     "type": "label",
                     "label": "Total Tasks",
                     "placeholder": "",
@@ -160,7 +160,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "dccc4b47-632b-4568-a5a4-84d0a0d471ad",
+                    "id": "ab39d21a-5fa4-41fd-8688-c0577c1b27df",
                     "type": "label",
                     "label": "1,234",
                     "placeholder": "",
@@ -177,7 +177,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "2a35a7d5-48e9-4b83-ad79-e0e105716492",
+                    "id": "54d6964a-1421-4798-ad00-e745a43e85a2",
                     "type": "label",
                     "label": "+12%",
                     "placeholder": "",
@@ -204,7 +204,7 @@
                 "metadata": {}
               },
               {
-                "id": "f152cfad-fd4f-4716-bf89-3995c9f78429",
+                "id": "8e9d94a2-904b-41c4-8aa3-71a81878cfd2",
                 "type": "panel",
                 "label": "",
                 "placeholder": "",
@@ -212,7 +212,7 @@
                 "options": [],
                 "children": [
                   {
-                    "id": "d251a2d2-6bf8-4e85-89b7-fcda040f847d",
+                    "id": "1f141cda-a7d1-493e-9579-3caa0cbac7a0",
                     "type": "label",
                     "label": "Completed",
                     "placeholder": "",
@@ -229,7 +229,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "b5748054-db3e-4ec5-9723-079c335a71d5",
+                    "id": "129afa0e-a712-41eb-a6cf-e6116957437a",
                     "type": "label",
                     "label": "987",
                     "placeholder": "",
@@ -246,7 +246,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "0cccc5ff-570b-4fe4-9dbd-1e140ba7a8f7",
+                    "id": "4938d7b9-e9c5-4030-b4e4-c79f2109538e",
                     "type": "label",
                     "label": "+8%",
                     "placeholder": "",
@@ -273,7 +273,7 @@
                 "metadata": {}
               },
               {
-                "id": "6d7ab13d-043b-4b92-b2d6-25242b1f0c7c",
+                "id": "3ebf9a19-7a6e-45ab-8110-da77b46c38ca",
                 "type": "panel",
                 "label": "",
                 "placeholder": "",
@@ -281,7 +281,7 @@
                 "options": [],
                 "children": [
                   {
-                    "id": "ea15b43d-f0c9-451b-bd07-32aadee2771d",
+                    "id": "6904d0d8-fc6e-4575-919f-2e4fd202f98c",
                     "type": "label",
                     "label": "In Progress",
                     "placeholder": "",
@@ -298,7 +298,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "263e60a4-4f7c-47c4-982d-b64e322103c9",
+                    "id": "6cb67f5d-3f15-4bdf-9546-496197acb1dc",
                     "type": "label",
                     "label": "156",
                     "placeholder": "",
@@ -315,7 +315,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "1daee32e-5cd1-41d5-b013-6eb6b366f2eb",
+                    "id": "7a789a50-077d-4135-b7a9-445a515fade5",
                     "type": "label",
                     "label": "-3%",
                     "placeholder": "",
@@ -342,7 +342,7 @@
                 "metadata": {}
               },
               {
-                "id": "05c0abfe-aa9a-43b7-9938-ec64e1f3f504",
+                "id": "c8974f42-8239-4489-9f77-aafe62cca697",
                 "type": "panel",
                 "label": "",
                 "placeholder": "",
@@ -350,7 +350,7 @@
                 "options": [],
                 "children": [
                   {
-                    "id": "be79e46d-e7ab-4573-8b67-e901e3cdcf74",
+                    "id": "2694b6b2-9356-445d-b3d7-6914b6f97e53",
                     "type": "label",
                     "label": "Overdue",
                     "placeholder": "",
@@ -367,7 +367,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "e96b5241-a540-4a4e-b15d-280d3ff557d8",
+                    "id": "1cc1dc3c-b84d-4a40-b69e-e45472fc5384",
                     "type": "label",
                     "label": "12",
                     "placeholder": "",
@@ -384,7 +384,7 @@
                     "metadata": {}
                   },
                   {
-                    "id": "7507bf8b-5ad3-4124-8ab8-f2ee018d66ea",
+                    "id": "99ba2751-2d65-46f8-99dd-560dafc3c105",
                     "type": "label",
                     "label": "+2%",
                     "placeholder": "",

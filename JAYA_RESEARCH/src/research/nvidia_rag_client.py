@@ -2,33 +2,27 @@
 NVIDIARAGClient — Production RAG client using NVIDIA embeddings + FAISS.
 Implements the interface expected by the research API and thesis analyzer.
 """
+
 from __future__ import annotations
 
+import logging
 import os
-import json
-import hashlib
-import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-
-import numpy as np
-
-try:
-    import faiss
-except ImportError:
-    faiss = None
 
 from config import config
 from research.enhanced_rag import (
     NVIDIAEmbeddings,
     VectorStore,
-    clean_text,
-    chunk_text,
-    chunk_pages,
+    _embedding_provenance,
     _extract_pdf_pages,
+    _format_query_response,
     _read_text_file,
-    _normalize_vectors,
+    chunk_pages,
+    chunk_text,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class NVIDIARAGClient:
@@ -58,7 +52,11 @@ class NVIDIARAGClient:
 
         # Initialize embedder
         self.embedder = NVIDIAEmbeddings() if use_embeddings else None
-        dim = self.embedder.dimension if self.embedder else int(os.getenv("RAG_EMBED_DIMENSION", "1024"))
+        dim = (
+            self.embedder.dimension
+            if self.embedder
+            else int(os.getenv("RAG_EMBED_DIMENSION", "1024"))
+        )
 
         # Initialize vector store (single global index + workspace filter)
         self.vector_store = VectorStore(
@@ -71,9 +69,10 @@ class NVIDIARAGClient:
         self.web_search = None
         try:
             from research.web_search import WebSearchClient
+
             self.web_search = WebSearchClient()
-        except Exception:
-            pass
+        except (ImportError, RuntimeError) as exc:
+            logger.warning("Web search integration is unavailable: %s", exc)
 
     @staticmethod
     def _resolve_store_dir(vector_store_path: Optional[str]) -> str:
@@ -90,7 +89,7 @@ class NVIDIARAGClient:
     # Embedding API
     # ---------------------------------------------------------------------
     def embed(self, texts: List[str]) -> List[List[float]]:
-        """Embed a list of texts using NVIDIA embeddings (with cache + fallback)."""
+        """Embed texts using the configured remote or explicitly local adapter."""
         if not texts:
             return []
         if not self.embedder:
@@ -118,7 +117,7 @@ class NVIDIARAGClient:
         # Delete existing chunks from same source (idempotent)
         source = metadata.get("source") or metadata.get("file_name")
         if source:
-            self.vector_store.delete_by_source(source)
+            self.vector_store.delete_by_source(str(source), ws_id)
 
         # Chunk
         chunks = chunk_text(text, base_metadata=metadata)
@@ -144,7 +143,12 @@ class NVIDIARAGClient:
         if ext == ".pdf":
             pages = _extract_pdf_pages(file_path)
             if not pages:
-                return {"status": "error", "message": f"Could not extract PDF: {file_path}", "chunks_added": 0}
+                return {
+                    "status": "error",
+                    "message": f"Could not extract PDF: {file_path}",
+                    "chunks_added": 0,
+                    "workspace_id": ws_id,
+                }
             chunks = chunk_pages(pages, base_metadata=metadata)
         else:
             text = _read_text_file(file_path)
@@ -157,17 +161,29 @@ class NVIDIARAGClient:
         result["file_path"] = file_path
         return result
 
-    def _index_chunks(self, chunks: List[Dict[str, Any]], workspace_id: str) -> Dict[str, Any]:
+    def _index_chunks(
+        self, chunks: List[Dict[str, Any]], workspace_id: str
+    ) -> Dict[str, Any]:
         texts = [c["content"] for c in chunks]
-        metas = [c["metadata"] for c in chunks]
 
         if not self.embedder:
             self.embedder = NVIDIAEmbeddings()
 
+        provenance = _embedding_provenance(self.embedder)
+        metas = []
+        for chunk in chunks:
+            metadata = dict(chunk["metadata"])
+            metadata["embedding"] = provenance
+            metas.append(metadata)
+
         embeddings = self.embedder.embed_texts(texts)
         added = self.vector_store.add_chunks(texts, embeddings, metas)
 
-        return {"status": "success", "chunks_added": added, "workspace_id": workspace_id}
+        return {
+            "status": "success",
+            "chunks_added": added,
+            "workspace_id": workspace_id,
+        }
 
     # ---------------------------------------------------------------------
     # Search API
@@ -185,7 +201,7 @@ class NVIDIARAGClient:
         """
         ws_id = workspace_id or self.workspace_id
 
-        if self.vector_store.count() == 0:
+        if self.vector_store.count(ws_id) == 0:
             return []
 
         if not self.embedder:
@@ -199,12 +215,14 @@ class NVIDIARAGClient:
         )
 
         # Optional rerank (placeholder for Nemotron reranker integration)
-        if rerank and results:
+        if (rerank or self.rerank_enabled) and results:
             results = self._rerank_results(query, results, top_k)
 
         return results[:top_k]
 
-    def _rerank_results(self, query: str, results: List[Dict], top_k: int) -> List[Dict]:
+    def _rerank_results(
+        self, query: str, results: List[Dict], top_k: int
+    ) -> List[Dict]:
         """Placeholder for Nemotron reranker integration."""
         # TODO: Integrate NVIDIA Nemotron reranker API
         # For now, return as-is (already sorted by FAISS score)
@@ -237,45 +255,23 @@ class NVIDIARAGClient:
         if use_web:
             web_results = self.web_search.search(query_text, max_results=top_k)
 
-        parts: List[str] = []
-        sources: List[str] = []
-
-        if local_results:
-            parts.append("**Local Research Data:**")
-            for r in local_results:
-                doc = r.get("document", {})
-                name = doc.get("file_name") or doc.get("source", "document")
-                parts.append(f"- [{name}] {r.get('snippet', '')}")
-                sources.append(name)
-
-        if web_results:
-            parts.append("**Web Search Results:**")
-            for r in web_results:
-                doc = r.get("document", {})
-                title = doc.get("title", "Web")
-                parts.append(f"- [{title}] {r.get('snippet', '')}")
-                sources.append(doc.get("url", title))
-
-        if not parts:
-            return {"answer": "No relevant context found.", "sources": []}
-
-        return {"answer": "\n".join(parts), "sources": sources}
+        return _format_query_response(local_results, web_results)
 
     # ---------------------------------------------------------------------
     # Utility
     # ---------------------------------------------------------------------
     def list_documents(self) -> List[Dict[str, str]]:
-        stats = self.vector_store.stats()
+        stats = self.vector_store.stats(self.workspace_id)
         return [
             {"name": src, "type": "indexed_chunk_source", "path": src}
             for src in stats.get("sources", [])
         ]
 
     def get_stats(self) -> Dict[str, Any]:
-        return self.vector_store.stats()
+        return self.vector_store.stats(self.workspace_id)
 
     def delete_by_source(self, source_id: str) -> int:
-        return self.vector_store.delete_by_source(source_id)
+        return self.vector_store.delete_by_source(source_id, self.workspace_id)
 
 
 # Backward compatibility alias

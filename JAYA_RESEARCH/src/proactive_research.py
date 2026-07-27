@@ -3,19 +3,9 @@ Proactive Research Agent.
 Delegates hypothesis generation and knowledge gap detection to HypothesisGenerator.
 """
 
-import sys
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# Ensure research package is importable
-current_dir = Path(__file__).parent
-if str(current_dir / "research") not in sys.path:
-    sys.path.append(str(current_dir / "research"))
-
-try:
-    from hypothesis_generator import HypothesisGenerator
-except ImportError:
-    from research.hypothesis_generator import HypothesisGenerator
+from research.hypothesis_generator import HypothesisGenerator
 
 
 class ProactiveResearchAgent:

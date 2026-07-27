@@ -1,0 +1,184 @@
+{
+  "version": "0.1",
+  "id": "aa969568-6131-4d7a-b4fc-d60ca4ebbf6a",
+  "name": "Login Dialog",
+  "description": "User authentication dialog",
+  "root": {
+    "id": "3accc7dc-a9bc-4fcd-a552-922b1f8ef719",
+    "type": "window",
+    "label": "Untitled",
+    "placeholder": "",
+    "value": null,
+    "options": [],
+    "children": [
+      {
+        "id": "90fb187f-ae9b-46a9-a390-3a1a3577311d",
+        "type": "panel",
+        "label": "",
+        "placeholder": "",
+        "value": null,
+        "options": [],
+        "children": [
+          {
+            "id": "2f663928-c7c4-4b63-bbbe-14602e1c95bd",
+            "type": "label",
+            "label": "Welcome to JAYA",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {}
+          },
+          {
+            "id": "d807b0fd-6ccc-4773-8844-6ab12ddd2f5b",
+            "type": "text_input",
+            "label": "",
+            "placeholder": "Username or Email",
+            "value": "",
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [
+              {
+                "event": "change",
+                "action": "jaya:update_state",
+                "payload": {},
+                "debounce_ms": 0,
+                "once": false
+              }
+            ],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {}
+          },
+          {
+            "id": "ef234f83-a926-4072-aa47-d16a8051a4a4",
+            "type": "text_input",
+            "label": "",
+            "placeholder": "Password",
+            "value": "",
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [
+              {
+                "event": "change",
+                "action": "jaya:update_state",
+                "payload": {},
+                "debounce_ms": 0,
+                "once": false
+              }
+            ],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {}
+          },
+          {
+            "id": "4c48a402-72f0-40c6-b2f0-70290583dd39",
+            "type": "button",
+            "label": "Sign In",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [
+              {
+                "event": "click",
+                "action": "jaya:run_task",
+                "payload": {},
+                "debounce_ms": 0,
+                "once": false
+              }
+            ],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {
+              "variant": "primary"
+            }
+          }
+        ],
+        "style": {},
+        "layout": "flex_col",
+        "rect": null,
+        "events": [],
+        "bindings": [],
+        "visible": true,
+        "enabled": true,
+        "metadata": {}
+      }
+    ],
+    "style": {},
+    "layout": "flex_col",
+    "rect": {
+      "x": {
+        "value": 0,
+        "unit": "px"
+      },
+      "y": {
+        "value": 0,
+        "unit": "px"
+      },
+      "width": null,
+      "height": null
+    },
+    "events": [],
+    "bindings": [],
+    "visible": true,
+    "enabled": true,
+    "metadata": {}
+  },
+  "styles": {
+    "color_primary": "#0066CC",
+    "color_secondary": "#6C757D",
+    "color_success": "#28A745",
+    "color_warning": "#FFC107",
+    "color_danger": "#DC3545",
+    "color_background": "#FFFFFF",
+    "color_surface": "#F8F9FA",
+    "color_text": "#212529",
+    "color_text_muted": "#6C757D",
+    "color_border": "#DEE2E6",
+    "spacing_xs": "4px",
+    "spacing_sm": "8px",
+    "spacing_md": "16px",
+    "spacing_lg": "24px",
+    "spacing_xl": "32px",
+    "font_family": "system-ui, -apple-system, sans-serif",
+    "font_size_sm": "12px",
+    "font_size_md": "14px",
+    "font_size_lg": "18px",
+    "font_size_xl": "24px",
+    "font_weight_normal": 400,
+    "font_weight_medium": 500,
+    "font_weight_bold": 700,
+    "border_radius_sm": "4px",
+    "border_radius_md": "8px",
+    "border_radius_lg": "12px",
+    "border_width": "1px",
+    "shadow_sm": "0 1px 2px rgba(0,0,0,0.05)",
+    "shadow_md": "0 4px 6px rgba(0,0,0,0.1)",
+    "shadow_lg": "0 10px 15px rgba(0,0,0,0.1)",
+    "transition_fast": "150ms ease",
+    "transition_normal": "250ms ease",
+    "transition_slow": "350ms ease"
+  },
+  "global_state": {},
+  "metadata": {}
+}

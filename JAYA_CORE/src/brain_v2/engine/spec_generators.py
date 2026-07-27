@@ -22,6 +22,19 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from src.brain_v2.engine.action_protocol import (
+    DEFAULT_ACTION_CATALOG,
+    ActionPlan,
+    ActionPolicy,
+    ActionStep,
+    AuthorizationDecision,
+    ExecutionReceipt,
+    ReceiptOutcome,
+    RiskLevel,
+    SideEffectClass,
+    build_action_plan,
+)
+
 
 @dataclass
 class IntentMatch:
@@ -140,6 +153,7 @@ class ExecutionPlan:
     estimated_latency_ms: float = 1.0
     required_resources: Dict[str, float] = field(default_factory=dict)
     priority: int = 0
+    status: str = "PLAN_ONLY"
 
 
 @dataclass
@@ -150,6 +164,7 @@ class ActionSpec:
     payload: Dict[str, Any] = field(default_factory=dict)
     require_auth: bool = True
     timestamp: float = field(default_factory=time.time)
+    status: str = "PLAN_ONLY"
 
 
 @dataclass
@@ -160,6 +175,9 @@ class SpecBundle:
     feature_spec: Optional[FeatureManifest] = None
     task_spec: Optional[ExecutionPlan] = None
     action_spec: Optional[ActionSpec] = None
+    action_plan: Optional[ActionPlan] = None
+    execution_receipt: Optional[ExecutionReceipt] = None
+    execution_status: str = "PLAN_ONLY"
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
 
@@ -169,8 +187,38 @@ class SpecBundle:
             self.ui_spec is None and
             self.feature_spec is None and
             self.task_spec is None and
-            self.action_spec is None
+            self.action_spec is None and
+            self.action_plan is None
         )
+
+    def apply_execution_receipt(
+        self,
+        *,
+        policy: ActionPolicy,
+        authorization: AuthorizationDecision,
+        receipt: ExecutionReceipt,
+    ) -> str:
+        """Advance compatibility status only after receipt authentication."""
+
+        if self.action_plan is None:
+            raise ValueError("bundle has no ActionPlan")
+        policy.verify_receipt(
+            receipt,
+            plan=self.action_plan,
+            authorization=authorization,
+        )
+        self.execution_receipt = receipt
+        self.execution_status = (
+            "EXECUTED"
+            if receipt.outcome is ReceiptOutcome.SUCCEEDED
+            else "EXECUTION_FAILED"
+        )
+        self.metadata = {
+            **self.metadata,
+            "execution_status": self.execution_status,
+            "execution_receipt_digest": receipt.receipt_digest,
+        }
+        return self.execution_status
 
 
 class SpecGenerator(ABC):
@@ -362,19 +410,19 @@ class UITemplateRegistry:
         # 7. Progress Dialog
         self.register(
             "progress_dialog",
-            "Task execution progress bar",
+            "Task authorization and execution status",
             ["progress", "loading", "status"],
             lambda title="Task Progress", **kwargs: SceneGraph(
                 name="Progress Dialog",
-                description="Task progress bar",
+                description="Task authorization status",
                 root=create_window(
                     title=title, width="400px", height="180px",
                     children=[
                         create_panel(
                             layout="flex_col",
                             children=[
-                                create_label("Executing task..."),
-                                create_label("Progress: 100%"),
+                                create_label("Task planned; awaiting authorization"),
+                                create_label("Status: PLAN_ONLY"),
                             ]
                         )
                     ]
@@ -517,6 +565,9 @@ class FeatureSpecGenerator(SpecGenerator):
 class TaskSpecGenerator(SpecGenerator):
     """Brain-side Task Spec Generator producing ExecutionPlan DAG specs."""
 
+    def __init__(self, action_policy: Optional[ActionPolicy] = None) -> None:
+        self._action_policy = action_policy
+
     def can_handle(self, intent: IntentMatch) -> bool:
         return any(t in intent.intent_type for t in ["compute", "calculate", "simulate", "optimize", "task"])
 
@@ -548,11 +599,49 @@ class TaskSpecGenerator(SpecGenerator):
             required_resources={"cpu_topk": 0.10, "ram_mb": 50.0},
             priority=10
         )
+        action_steps = (
+            ActionStep(
+                step_id="step_1_init",
+                action="init_context",
+                parameters={"intent": intent.intent_type},
+            ),
+            ActionStep(
+                step_id="step_2_execute",
+                action="run_computation",
+                parameters=intent.parameters,
+                required_capabilities=("compute.execute",),
+            ),
+            ActionStep(
+                step_id="step_3_finalize",
+                action="format_result",
+            ),
+        )
+        plan_kwargs = {
+            "intent": {
+                "intent_type": intent.intent_type,
+                "parameters": intent.parameters,
+            },
+            "ordered_steps": action_steps,
+            "risk": RiskLevel.LOW,
+            "required_capabilities": ("compute.execute",),
+            "side_effect_class": SideEffectClass.NONE,
+        }
+        action_plan = (
+            self._action_policy.create_plan(**plan_kwargs)
+            if self._action_policy is not None
+            else build_action_plan(**plan_kwargs)
+        )
 
         return SpecBundle(
             bundle_id=f"bundle-task-{intent.intent_type}-{int(time.time())}",
             task_spec=plan,
-            metadata={"plan_id": plan.plan_id, "intent_type": intent.intent_type}
+            action_plan=action_plan,
+            metadata={
+                "plan_id": plan.plan_id,
+                "action_plan_id": action_plan.plan_id,
+                "intent_type": intent.intent_type,
+                "execution_status": "PLAN_ONLY",
+            },
         )
 
 
@@ -566,6 +655,9 @@ class ActionSpecGenerator(SpecGenerator):
         "config_get": ("config_manager", "get_config"),
         "config_set": ("config_manager", "set_config"),
     }
+
+    def __init__(self, action_policy: Optional[ActionPolicy] = None) -> None:
+        self._action_policy = action_policy
 
     def can_handle(self, intent: IntentMatch) -> bool:
         return intent.intent_type in self.ACTION_MAP or any(
@@ -581,11 +673,55 @@ class ActionSpecGenerator(SpecGenerator):
             payload=intent.parameters,
             require_auth=True
         )
+        requirement = DEFAULT_ACTION_CATALOG.get(action)
+        required_capabilities = (
+            requirement.required_capabilities if requirement is not None else ()
+        )
+        side_effect_class = (
+            requirement.side_effect_class
+            if requirement is not None
+            else SideEffectClass.NONE
+        )
+        risk = (
+            requirement.minimum_risk if requirement is not None else RiskLevel.LOW
+        )
+        plan_kwargs = {
+            "intent": {
+                "intent_type": intent.intent_type,
+                "parameters": intent.parameters,
+            },
+            "ordered_steps": (
+                ActionStep(
+                    step_id="step_1_action",
+                    action=action,
+                    parameters={
+                        "channel": channel,
+                        "payload": intent.parameters,
+                    },
+                    required_capabilities=required_capabilities,
+                    side_effect_class=side_effect_class,
+                ),
+            ),
+            "risk": risk,
+            "required_capabilities": required_capabilities,
+            "side_effect_class": side_effect_class,
+        }
+        action_plan = (
+            self._action_policy.create_plan(**plan_kwargs)
+            if self._action_policy is not None
+            else build_action_plan(**plan_kwargs)
+        )
 
         return SpecBundle(
             bundle_id=f"bundle-action-{intent.intent_type}-{int(time.time())}",
             action_spec=action_spec,
-            metadata={"channel": channel, "action": action}
+            action_plan=action_plan,
+            metadata={
+                "channel": channel,
+                "action": action,
+                "action_plan_id": action_plan.plan_id,
+                "execution_status": "PLAN_ONLY",
+            },
         )
 
 
@@ -595,12 +731,16 @@ class SpecGeneratorRouter:
     to assemble a composite SpecBundle.
     """
 
-    def __init__(self, template_registry: Optional[UITemplateRegistry] = None):
+    def __init__(
+        self,
+        template_registry: Optional[UITemplateRegistry] = None,
+        action_policy: Optional[ActionPolicy] = None,
+    ):
         self.template_registry = template_registry or UITemplateRegistry()
         self.ui_generator = UISpecGenerator(self.template_registry)
         self.feature_generator = FeatureSpecGenerator()
-        self.task_generator = TaskSpecGenerator()
-        self.action_generator = ActionSpecGenerator()
+        self.task_generator = TaskSpecGenerator(action_policy=action_policy)
+        self.action_generator = ActionSpecGenerator(action_policy=action_policy)
 
         self.generators: List[SpecGenerator] = [
             self.ui_generator,
@@ -625,9 +765,12 @@ class SpecGeneratorRouter:
                     composite.task_spec = sub_bundle.task_spec
                 if sub_bundle.action_spec and not composite.action_spec:
                     composite.action_spec = sub_bundle.action_spec
+                if sub_bundle.action_plan and not composite.action_plan:
+                    composite.action_plan = sub_bundle.action_plan
 
         # Fallback if no specific generator handled it
         if composite.is_empty():
             composite.ui_spec = self.ui_generator.generate(intent).ui_spec
 
+        composite.metadata["execution_status"] = composite.execution_status
         return composite

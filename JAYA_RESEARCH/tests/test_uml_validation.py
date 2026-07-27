@@ -1,17 +1,17 @@
+import os
+import sys
 import unittest
-import sys, os
-from pathlib import Path
 
 # Add src to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from research.uml_generator import UMLGenerator, UMLValidationError
 
+
 class TestUMLValidation(unittest.TestCase):
-    
     def setUp(self):
         self.validator = UMLGenerator()
-        
+
     # ── USE CASE DIAGRAM TESTS ───────────────────────────────────────────────
     def test_valid_usecase(self):
         code = """@startuml
@@ -42,7 +42,10 @@ m -- d
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "usecase")
-        self.assertIn("Aktor 'm' tidak boleh terhubung langsung ke Aktor 'd'", str(context.exception))
+        self.assertIn(
+            "Aktor 'm' tidak boleh terhubung langsung ke Aktor 'd'",
+            str(context.exception),
+        )
 
     def test_invalid_usecase_unconnected_usecase(self):
         code = """@startuml
@@ -55,7 +58,10 @@ m -- uc1
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "usecase")
-        self.assertIn("Use case berikut tidak terhubung ke Aktor mana pun: uc2", str(context.exception))
+        self.assertIn(
+            "Use case berikut tidak terhubung ke Aktor mana pun: uc2",
+            str(context.exception),
+        )
 
     # ── CLASS DIAGRAM TESTS ──────────────────────────────────────────────────
     def test_valid_class_diagram(self):
@@ -90,7 +96,9 @@ note top of Mahasiswa : Ini adalah catatan akademik
         try:
             self.validator.validate_diagram(code, "class")
         except UMLValidationError as e:
-            self.fail(f"Class diagram with notes and labeled relations failed validation: {e}")
+            self.fail(
+                f"Class diagram with notes and labeled relations failed validation: {e}"
+            )
 
     def test_usecase_diagram_with_quoted_actors(self):
         code = """@startuml
@@ -125,7 +133,9 @@ Child --- Parent
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "class")
-        self.assertIn("Simbol panah relasi '---' tidak sesuai standar UML", str(context.exception))
+        self.assertIn(
+            "Simbol panah relasi '---' tidak sesuai standar UML", str(context.exception)
+        )
 
     # ── SEQUENCE DIAGRAM TESTS ───────────────────────────────────────────────
     def test_valid_sequence(self):
@@ -151,7 +161,11 @@ deactivate System
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "sequence")
-        self.assertIn("Lifeline 'System' dideaktivasi pada baris 5 tanpa diaktivasi terlebih dahulu", str(context.exception))
+        self.assertIn(
+            "Lifeline 'System' dideaktivasi pada baris 5 tanpa "
+            "diaktivasi terlebih dahulu",
+            str(context.exception),
+        )
 
     def test_invalid_sequence_leftover_activation(self):
         code = """@startuml
@@ -162,7 +176,10 @@ activate System
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "sequence")
-        self.assertIn("Lifeline 'System' diaktivasi tetapi tidak dideaktivasi di akhir diagram", str(context.exception))
+        self.assertIn(
+            "Lifeline 'System' diaktivasi tetapi tidak dideaktivasi di akhir diagram",
+            str(context.exception),
+        )
 
     # ── ACTIVITY DIAGRAM TESTS ───────────────────────────────────────────────
     def test_valid_activity(self):
@@ -188,7 +205,10 @@ stop
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "activity")
-        self.assertIn("Activity diagram harus memiliki node mulai ('start')", str(context.exception))
+        self.assertIn(
+            "Activity diagram harus memiliki node mulai ('start')",
+            str(context.exception),
+        )
 
     def test_invalid_activity_unclosed_if(self):
         code = """@startuml
@@ -202,16 +222,20 @@ stop
 @enduml"""
         with self.assertRaises(UMLValidationError) as context:
             self.validator.validate_diagram(code, "activity")
-        self.assertIn("Terdapat 1 blok 'if' yang tidak ditutup dengan 'endif'", str(context.exception))
+        self.assertIn(
+            "Terdapat 1 blok 'if' yang tidak ditutup dengan 'endif'",
+            str(context.exception),
+        )
 
     # ── RENDER ENCODING TESTS ────────────────────────────────────────────────
     def test_get_render_url(self):
         code = "@startuml\nBob -> Alice : hello\n@enduml"
         url = self.validator.get_render_url(code)
-        self.assertTrue(url.startswith("http://www.plantuml.com/plantuml/svg/~1"))
+        self.assertTrue(url.startswith("https://www.plantuml.com/plantuml/svg/~1"))
         # Ensure it generated a non-empty compressed hash payload
-        payload = url.replace("http://www.plantuml.com/plantuml/svg/~1", "")
+        payload = url.replace("https://www.plantuml.com/plantuml/svg/~1", "")
         self.assertGreater(len(payload), 10)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

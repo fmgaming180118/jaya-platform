@@ -1,5 +1,8 @@
 import asyncio
+import pytest
 from src.evolution.twin import DigitalTwin
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 async def test_twin_sandbox():
     print("Initializing Twin...")

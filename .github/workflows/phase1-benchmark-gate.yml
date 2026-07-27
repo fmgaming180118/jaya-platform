@@ -46,10 +46,10 @@ jobs:
 
       - name: Run strict benchmark gate
         run: |
-          python JAYA_CORE/scripts/benchmark_phase1_ir.py --rounds 40 --gate --fail-on-gate --max-warm-p50-ms 0.05 --max-warm-p95-ms 0.10 --min-hit-rate 0.95 --json-out JAYA_CORE/docs/phase1_benchmark_latest.json
+          python JAYA_CORE/scripts/benchmark_phase1_ir.py --rounds 40 --gate --fail-on-gate --max-warm-p50-ms 0.05 --max-warm-p95-ms 0.10 --min-hit-rate 0.95 --json-out reports/benchmarks/phase1_benchmark_latest.json
 
       - name: Upload benchmark artifact
         uses: actions/upload-artifact@v4
         with:
           name: phase1-benchmark-latest
-          path: JAYA_CORE/docs/phase1_benchmark_latest.json
+          path: reports/benchmarks/phase1_benchmark_latest.json

@@ -74,7 +74,8 @@ class FeatureCompiler:
     def compile(self, scene: SceneGraph, feature_name: str = None) -> str:
         """Compile a SceneGraph into a Python feature module."""
         feature_name = feature_name or scene.name.replace(" ", "_").lower()
-        feature_id = scene.id[:8]
+        feature_id = scene.id
+        feature_symbol_id = scene.id[:8]
 
         # Collect all widget types used
         used_widgets = self._collect_widget_types(scene.root)
@@ -86,7 +87,11 @@ class FeatureCompiler:
             self._generate_style_tokens(scene.styles),
             self._generate_widget_classes(used_widgets),
             self._generate_scene_builder(scene),
-            self._generate_feature_entry_point(feature_name, feature_id),
+            self._generate_feature_entry_point(
+                feature_name,
+                feature_id,
+                feature_symbol_id,
+            ),
             self._generate_jaya_dispatcher(),
         ]
 
@@ -481,7 +486,12 @@ def get_token(name: str, default: str = "") -> str:
 
         return props
 
-    def _generate_feature_entry_point(self, feature_name: str, feature_id: str) -> str:
+    def _generate_feature_entry_point(
+        self,
+        feature_name: str,
+        feature_id: str,
+        feature_symbol_id: str,
+    ) -> str:
         return f'''# Feature Entry Point
 async def run_feature(jaya_bridge: JayaBridge, config: Dict = None) -> Dict[str, Any]:
     """Main entry point for the feature.
@@ -496,7 +506,7 @@ async def run_feature(jaya_bridge: JayaBridge, config: Dict = None) -> Dict[str,
     config = config or {{}}
 
     # Build scene
-    root = build_scene_{feature_id}()
+    root = build_scene_{feature_symbol_id}()
 
     # Initialize runtime
     from src.os_kernel.feature_runtime import FeatureRuntime, EventBus
@@ -523,6 +533,19 @@ async def run_feature(jaya_bridge: JayaBridge, config: Dict = None) -> Dict[str,
         return {{"status": "error", "error": str(e)}}
     finally:
         await runtime.unmount()
+
+def feature_manifest() -> Dict[str, Any]:
+    """Return the generated feature's registration contract."""
+    return {{
+        "name": FEATURE_NAME,
+        "id": FEATURE_ID,
+        "version": FEATURE_VERSION,
+        "description": FEATURE_DESCRIPTION,
+        "protocol_version": FEATURE_PROTOCOL_VERSION,
+        "entry_point": "run_feature",
+        "capabilities": ["ui", "events", "state", "jaya_actions"],
+        "permissions": ["ui_mount", "state_read", "state_write", "api_call"],
+    }}
 
 _runtime: Optional[FeatureRuntime] = None
 

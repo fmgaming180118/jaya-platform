@@ -10,10 +10,38 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+
+from .evolution_evidence import (
+    CandidateEvidence,
+    EvidenceReceiptVerifier,
+    EvidenceVerificationError,
+)
+
+__all__ = [
+    "CandidateEvidence",
+    "EvidenceVerificationError",
+    "EvolutionCandidate",
+    "EvolutionGate",
+    "EvolutionGateConfigurationError",
+    "GateDecision",
+    "GateDecisionCode",
+    "GateThresholds",
+]
+
+
+_PRODUCTION_ENVIRONMENTS = {"prod", "production"}
+_EPHEMERAL_PROCESS_SIGNING_KEY = secrets.token_bytes(32)
+_EPHEMERAL_PROCESS_EVIDENCE_KEY = secrets.token_bytes(32)
+
+
+class EvolutionGateConfigurationError(RuntimeError):
+    """Raised when a secure evolution gate cannot be configured."""
 
 
 class GateDecisionCode(str, Enum):
@@ -23,6 +51,7 @@ class GateDecisionCode(str, Enum):
     REJECT_PERF = "REJECT_PERF"
     REJECT_RESOURCE = "REJECT_RESOURCE"
     REJECT_TEST = "REJECT_TEST"
+    REJECT_EVIDENCE = "REJECT_EVIDENCE"
 
 
 @dataclass
@@ -82,27 +111,6 @@ class EvolutionCandidate:
 
 
 @dataclass
-class CandidateEvidence:
-    tests_passed: bool
-    benchmark_gate_passed: bool
-    observed_perf_gain_pct: float
-    ram_delta_pct: float
-    cpu_delta_pct: float
-    metadata: Dict[str, Any] = field(default_factory=dict)
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "CandidateEvidence":
-        return cls(
-            tests_passed=bool(data.get("tests_passed", False)),
-            benchmark_gate_passed=bool(data.get("benchmark_gate_passed", False)),
-            observed_perf_gain_pct=float(data.get("observed_perf_gain_pct") or 0.0),
-            ram_delta_pct=float(data.get("ram_delta_pct") or 0.0),
-            cpu_delta_pct=float(data.get("cpu_delta_pct") or 0.0),
-            metadata=dict(data.get("metadata") or {}),
-        )
-
-
-@dataclass
 class GateThresholds:
     min_perf_gain_pct: float = 8.0
     max_ram_delta_pct: float = 5.0
@@ -133,20 +141,114 @@ class EvolutionGate:
         thresholds: Optional[GateThresholds] = None,
         ethical_heart: Optional[Any] = None,
         zero_trust: Optional[Any] = None,
-        signing_secret: Optional[str] = None,
+        signing_secret: Optional[str | bytes] = None,
+        evidence_signing_secret: Optional[str | bytes] = None,
         require_signed: bool = True,
-    ):
+        require_verified_evidence: Optional[bool] = None,
+        test_mode: bool = False,
+        environment: Optional[str] = None,
+        evidence_max_age_s: float = 3600.0,
+        candidate_max_age_s: float = 86400.0,
+        trusted_evidence_runners: Optional[Iterable[str]] = None,
+    ) -> None:
         self.thresholds = thresholds or GateThresholds()
         self._ethical_heart = ethical_heart
         self._zero_trust = zero_trust
-        # Development fallback key: can be replaced with env var in deployment.
-        self._signing_secret = (signing_secret or os.getenv("JAYA_EVOLUTION_SIGNING_KEY")
-                                or "jaya-phase2-dev-key").encode("utf-8")
+        self._environment = (
+            environment
+            or os.getenv("JAYA_ENVIRONMENT")
+            or os.getenv("JAYA_ENV")
+            or "development"
+        ).strip().lower()
+        self._production = self._environment in _PRODUCTION_ENVIRONMENTS
+        self._test_mode = bool(test_mode)
+
+        if self._production and self._test_mode:
+            raise EvolutionGateConfigurationError(
+                "test_mode cannot be enabled in a production environment"
+            )
+        if self._production and not require_signed:
+            raise EvolutionGateConfigurationError(
+                "candidate signatures are mandatory in production"
+            )
+
+        if require_verified_evidence is None:
+            self._require_verified_evidence = not self._test_mode
+        else:
+            self._require_verified_evidence = bool(require_verified_evidence)
+        if not self._require_verified_evidence and not self._test_mode:
+            raise EvolutionGateConfigurationError(
+                "unverified evidence is allowed only with explicit test_mode=True"
+            )
+
+        self._signing_secret, self._signing_key_source = self._resolve_secret(
+            explicit=signing_secret,
+            env_name="JAYA_EVOLUTION_SIGNING_KEY",
+            ephemeral=_EPHEMERAL_PROCESS_SIGNING_KEY,
+        )
+        evidence_secret, self._evidence_key_source = self._resolve_secret(
+            explicit=evidence_signing_secret,
+            env_name="JAYA_EVOLUTION_EVIDENCE_SIGNING_KEY",
+            ephemeral=_EPHEMERAL_PROCESS_EVIDENCE_KEY,
+        )
+        trusted_runners = trusted_evidence_runners
+        if trusted_runners is None:
+            trusted_runners = (
+                value.strip()
+                for value in os.getenv(
+                    "JAYA_EVOLUTION_TRUSTED_RUNNERS",
+                    "",
+                ).split(",")
+                if value.strip()
+            )
+        self._evidence_verifier = EvidenceReceiptVerifier(
+            evidence_secret,
+            max_age_s=evidence_max_age_s,
+            trusted_runners=trusted_runners,
+        )
+        self._candidate_max_age_s = float(candidate_max_age_s)
+        if self._candidate_max_age_s <= 0:
+            raise EvolutionGateConfigurationError(
+                "candidate_max_age_s must be positive"
+            )
+
         self._require_signed = bool(require_signed)
         self._decisions: List[GateDecision] = []
         self._audit_events: List[Dict[str, Any]] = []
         self._stable_snapshots: Dict[str, Dict[str, Any]] = {}
         self._active_stable_label: Optional[str] = None
+        self._consumed_candidate_signatures: set[str] = set()
+
+    def _resolve_secret(
+        self,
+        *,
+        explicit: Optional[str | bytes],
+        env_name: str,
+        ephemeral: bytes,
+    ) -> Tuple[bytes, str]:
+        configured: Optional[str | bytes] = explicit
+        source = "constructor"
+        if configured is None:
+            configured = os.getenv(env_name)
+            source = env_name
+
+        if configured is None or configured == "" or configured == b"":
+            if self._production:
+                raise EvolutionGateConfigurationError(
+                    f"{env_name} is required in production"
+                )
+            return ephemeral, "ephemeral-process"
+
+        secret = (
+            configured
+            if isinstance(configured, bytes)
+            else configured.encode("utf-8")
+        )
+        if len(secret) < 32:
+            raise EvolutionGateConfigurationError(
+                f"{env_name} must contain at least 32 bytes"
+            )
+        return secret, source
 
     def _record_event(self, event_type: str, payload: Dict[str, Any]) -> None:
         self._audit_events.append(
@@ -201,6 +303,51 @@ class EvolutionGate:
             return False, "signature mismatch"
         return True, "ok"
 
+    def sign_evidence_report(self, report: Mapping[str, Any]) -> Dict[str, Any]:
+        """Sign a report only in explicit test mode.
+
+        Production reports must be signed by a trusted external runner rather
+        than by the runtime that consumes them.
+        """
+
+        if not self._test_mode:
+            raise EvolutionGateConfigurationError(
+                "runtime evidence report signing is available only in test_mode"
+            )
+        return self._evidence_verifier.sign_report(report)
+
+    def verify_evidence_reports(
+        self,
+        test_report_path: str | Path,
+        benchmark_report_path: str | Path,
+        *,
+        candidate: EvolutionCandidate,
+        expected_commit: Optional[str] = None,
+    ) -> CandidateEvidence:
+        """Build verified evidence from authenticated test and benchmark JSON."""
+
+        evidence = self._evidence_verifier.verify_reports(
+            test_report_path,
+            benchmark_report_path,
+            candidate_id=candidate.candidate_id,
+            source_hash=candidate.source_hash,
+            expected_commit=expected_commit,
+        )
+        self._record_event(
+            "evidence_verified",
+            {
+                "candidate_id": candidate.candidate_id,
+                "commit": evidence.metadata.get("commit"),
+                "test_report_digest": evidence.metadata.get(
+                    "test_report_digest"
+                ),
+                "benchmark_report_digest": evidence.metadata.get(
+                    "benchmark_report_digest"
+                ),
+            },
+        )
+        return evidence
+
     def _reject(self, code: GateDecisionCode, reason: str, **details: Any) -> GateDecision:
         d = GateDecision(accepted=False, code=code, reason=reason, details=details)
         self._decisions.append(d)
@@ -218,12 +365,53 @@ class EvolutionGate:
                     signature_reason=reason_sig,
                 )
 
+        if not self._test_mode:
+            now = time.time()
+            if candidate.created_at <= 0:
+                return self._reject(
+                    GateDecisionCode.REJECT_SECURITY,
+                    "candidate timestamp is invalid",
+                    candidate_id=candidate.candidate_id,
+                )
+            if candidate.created_at > now + 300.0:
+                return self._reject(
+                    GateDecisionCode.REJECT_SECURITY,
+                    "candidate timestamp is in the future",
+                    candidate_id=candidate.candidate_id,
+                )
+            if now - candidate.created_at > self._candidate_max_age_s:
+                return self._reject(
+                    GateDecisionCode.REJECT_SECURITY,
+                    "candidate signature expired",
+                    candidate_id=candidate.candidate_id,
+                )
+            if candidate.signature in self._consumed_candidate_signatures:
+                return self._reject(
+                    GateDecisionCode.REJECT_SECURITY,
+                    "candidate signature replay detected",
+                    candidate_id=candidate.candidate_id,
+                )
+
         if not candidate.candidate_payload.strip():
             return self._reject(
                 GateDecisionCode.REJECT,
                 "candidate payload is empty",
                 candidate_id=candidate.candidate_id,
             )
+
+        if self._require_verified_evidence:
+            ok_evidence, reason_evidence = self._evidence_verifier.verify_receipt(
+                evidence,
+                candidate_id=candidate.candidate_id,
+                source_hash=candidate.source_hash,
+            )
+            if not ok_evidence:
+                return self._reject(
+                    GateDecisionCode.REJECT_EVIDENCE,
+                    "candidate evidence verification failed",
+                    candidate_id=candidate.candidate_id,
+                    evidence_reason=reason_evidence,
+                )
 
         if not evidence.tests_passed:
             return self._reject(
@@ -298,6 +486,8 @@ class EvolutionGate:
             },
         )
         self._decisions.append(decision)
+        if candidate.signature:
+            self._consumed_candidate_signatures.add(candidate.signature)
         self._record_event("decision", decision.to_dict())
         return decision
 
@@ -338,6 +528,11 @@ class EvolutionGate:
             "accepted": accepted,
             "rejected": rejected,
             "require_signed": self._require_signed,
+            "require_verified_evidence": self._require_verified_evidence,
+            "environment": self._environment,
+            "test_mode": self._test_mode,
+            "signing_key_source": self._signing_key_source,
+            "evidence_key_source": self._evidence_key_source,
             "audit_events": len(self._audit_events),
             "active_stable_label": self._active_stable_label,
             "stable_snapshots": len(self._stable_snapshots),

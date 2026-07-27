@@ -1,5 +1,8 @@
 import sys, os
 from pathlib import Path
+import pytest
+
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
 # Configure sys.stdout to handle UTF-8 printing in Windows terminals
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')

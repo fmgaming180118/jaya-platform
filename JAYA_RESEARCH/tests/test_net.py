@@ -1,23 +1,16 @@
-
-import requests
 import ssl
-import certifi
 
-def test_conn():
-    print(f"SSL Context: {ssl.get_default_verify_paths()}")
-    try:
-        print("Testing Google...")
-        r = requests.get("https://www.google.com", timeout=5)
-        print(f"Google: {r.status_code}")
-    except Exception as e:
-        print(f"Google Fail: {e}")
+import pytest
+import requests
 
-    try:
-        print("Testing DuckDuckGo...")
-        r = requests.get("https://duckduckgo.com", timeout=5)
-        print(f"DDG: {r.status_code}")
-    except Exception as e:
-        print(f"DDG Fail: {e}")
+pytestmark = [pytest.mark.network, pytest.mark.integration]
 
-if __name__ == "__main__":
-    test_conn()
+
+def test_live_tls_connections():
+    assert ssl.get_default_verify_paths()
+
+    google = requests.get("https://www.google.com", timeout=5)
+    duckduckgo = requests.get("https://duckduckgo.com", timeout=5)
+
+    google.raise_for_status()
+    duckduckgo.raise_for_status()

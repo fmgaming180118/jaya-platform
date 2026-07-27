@@ -16,17 +16,28 @@ The backbone of the Research UI.
 from contextlib import asynccontextmanager
 from typing import List, Optional
 import asyncio
+import hashlib
 import time
 import sys
 import os
+import secrets
 import shutil
 import tempfile
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    Request,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uvicorn
 
 # Ensure both `src/` and project root are on sys.path so imports like `research.*` and `src.*` work
@@ -50,35 +61,130 @@ from network.api_models import (
     RecursiveResearchRequest,
     RecursiveResearchResponse,
 )
+from network.upload_security import (
+    UploadSecurityError,
+    store_upload,
+    upload_policy,
+)
+from network.http_security import (
+    HttpSecurityMiddleware,
+    authorize_research_request,
+    require_workspace_identity,
+    runtime_http_security_from_environment,
+)
+from network.job_repository import (
+    DurableJobRepository,
+    JobNotFoundError,
+    JobState,
+    JobTransitionError,
+    JobValidationError,
+)
+from network.model_registry import (
+    ModelRegistryConfigurationError,
+    NVIDIARegistryService,
+    validate_model_id,
+)
 # VideoProcessor dimuat secara lazy (saat endpoint digunakan) karena membutuhkan cv2/ffmpeg opsional
 VideoProcessor = None  # akan dimuat on-demand di endpoint /ingest/video
 from research.workspace_manager import WorkspaceManager
 from research.academic.journal_processor import JournalProcessor
 
 from research.academic.tracker import ExperimentTracker
+from research.academic.thesis_session_repository import (
+    PersistentThesisSessions,
+    ThesisSessionError,
+    ThesisSessionRepository,
+)
 import traceback
 from fastapi.responses import FileResponse
 from evolution.twin import DigitalTwin
+
+_job_repository = DurableJobRepository(
+    Path(
+        os.getenv(
+            "JAYA_RESEARCH_JOB_DB",
+            str(ROOT_DIR / "data" / "research_jobs.db"),
+        )
+    )
+)
 
 # Global Managers
 workspace_manager = WorkspaceManager()
 meta_analyst = None
 active_sessions = {} # workspace_id -> {rag, graph}
 # DigitalTwin may require external config/env — initialize safely
-try:
-    digital_twin = DigitalTwin()
-except Exception as e:
-    print(f"[API] DigitalTwin initialization failed: {e}")
-    digital_twin = None
+digital_twin = None
+if os.getenv("JAYA_ENABLE_DIGITAL_TWIN", "").strip() == "1":
+    try:
+        digital_twin = DigitalTwin()
+    except Exception as e:
+        print(f"[API] DigitalTwin initialization failed: {e}")
 
-app = FastAPI(title="JAYA Research API", version="2.0")
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    """Lifespan handler — replaces deprecated @app.on_event for FastAPI 0.115+"""
+    global _is_autonomous_loop_running, _auto_loop_task
+    # ── STARTUP ──────────────────────────────────────────────────────────────
+    print("[API] Starting JAYA Research Backend...")
+    recovered_jobs = _job_repository.recover_expired()
+    if recovered_jobs:
+        print(
+            f"[API] Recovered {recovered_jobs} expired job lease(s) to a "
+            "retryable state."
+        )
+    if digital_twin is not None:
+        try:
+            import threading
+            def run_twin():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(digital_twin.start_loop())
+            t = threading.Thread(target=run_twin, daemon=True)
+            t.start()
+            print("[API] Started DigitalTwin loop in background thread.")
+        except Exception as e:
+            print(f"[API] Failed to start DigitalTwin loop: {e}")
+
+    # Consent is process-scoped and must never be restored after a restart.
+    if _read_loop_state():
+        _save_loop_state(False)
+        print("[API] Cleared unsafe persisted autonomous-loop state.")
+    _is_autonomous_loop_running = False
+    _auto_loop_task = None
+    print("[API] Autonomous Research Loop is stopped; explicit consent is required.")
+
+    yield  # ── Application runs here ─────────────────────────────────────────
+
+    # ── SHUTDOWN ─────────────────────────────────────────────────────────────
+    print("[API] Shutting down...")
+    _is_autonomous_loop_running = False
+    _save_loop_state(False)
+    if _auto_loop_task and not _auto_loop_task.done():
+        _auto_loop_task.cancel()
+    if digital_twin is not None:
+        try:
+            digital_twin.stop()
+        except Exception as e:
+            print(f"[API] Error stopping DigitalTwin: {e}")
+
+
+_http_security = runtime_http_security_from_environment()
+app = FastAPI(
+    title="JAYA Research API",
+    version="2.0",
+    lifespan=lifespan,
+    dependencies=[Depends(authorize_research_request)],
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    **_http_security.cors.as_middleware_kwargs(),
+)
+app.add_middleware(
+    HttpSecurityMiddleware,
+    authenticator=_http_security.authenticator,
+    policy=_http_security.policy,
+    rate_limiter=_http_security.rate_limiter,
 )
 
 # ─── LOOP STATE PERSISTENCE HELPERS ─────────────────
@@ -134,49 +240,7 @@ def _read_loop_state() -> bool:
 
 _ensure_settings_table()
 
-@app.on_event("startup")
-async def startup_event():
-    global _is_autonomous_loop_running, _auto_loop_task
-    print("[API] Starting JAYA Research Backend...")
-    if digital_twin is not None:
-        try:
-            import threading
-            def run_twin():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(digital_twin.start_loop())
-            t = threading.Thread(target=run_twin, daemon=True)
-            t.start()
-            print("[API] Started DigitalTwin loop in background thread.")
-        except Exception as e:
-            print(f"[API] Failed to start DigitalTwin loop: {e}")
-
-    # ⭐ Auto-restore autonomous loop state from SQLite
-    was_running = _read_loop_state()
-    if was_running:
-        _is_autonomous_loop_running = True
-        _auto_loop_task = asyncio.create_task(_continuous_autonomous_research_worker())
-        print("[API] ⭐ Autonomous Research Loop auto-restored from persisted state!")
-    else:
-        print("[API] Autonomous Research Loop not running (last saved state: stopped).")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    print("[API] Shutting down...")
-    if digital_twin is not None:
-        try:
-            digital_twin.stop()
-        except Exception as e:
-            print(f"[API] Error stopping DigitalTwin: {e}")
-
-# CORS for Vite Frontend
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # For dev, restrict in prod
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# NOTE: startup/shutdown logic telah dipindah ke lifespan() di atas.
 
 # Session State (In-Memory for MVP - ideal: Redis)
 # Map workspace_id -> {rag_client, graph_engine}
@@ -231,13 +295,6 @@ def _recursive_search(rag_client, query: str, depth: int, max_sources_per_level:
             return collected, current_depth + 1
 
     return collected, depth
-
-# Pre-load default (safe): try but don't crash if model config missing
-try:
-    get_engines("default")
-except Exception as e:
-    print(f"[API] Warning: failed to pre-load engines: {e}")
-    # Engines will be lazy-loaded on first request
 
 @app.get("/")
 def health_check():
@@ -331,36 +388,159 @@ async def recursive_research(request: RecursiveResearchRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to run recursive research: {e}")
 
-# --- Workspace Management ---
-@app.get("/workspaces")
-def list_workspaces():
-    return workspace_manager.list_workspaces()
-
-@app.post("/workspaces/create")
-def create_workspace(name: str):
-    return workspace_manager.create_workspace(name)
-
-@app.post("/research/autonomous")
-async def start_research(request: ResearchRequest, background_tasks: BackgroundTasks):
-    """Start autonomous research in background"""
-    workspace_id = request.workspace_id
-    rag_client, graph_engine = get_engines(workspace_id)
-    
-    def run_agent(topic, focus):
-        agent = ResearchAgent(topic=topic, focus_areas=focus)
-        report = agent.run(human_in_loop=False) # Auto mode
-        
-        # Ingest into Graph
-        print(f"[API] Ingesting report into Knowledge Graph ({workspace_id})...")
+def _run_research_job(job_id: str) -> None:
+    """Run one durable research job under an expiring worker lease."""
+    worker_id = f"api-worker-{os.getpid()}"
+    try:
+        job = _job_repository.start(
+            job_id,
+            worker_id=worker_id,
+            lease_seconds=300.0,
+        )
+        if job.state is JobState.CANCELED:
+            return
+        _job_repository.update_progress(
+            job_id,
+            worker_id=worker_id,
+            progress=0.05,
+            lease_seconds=300.0,
+        )
+        topic = str(job.payload["topic"])
+        focus = str(job.payload.get("focus_areas") or "")
+        max_queries = int(job.payload.get("max_queries") or 5)
+        _, graph_engine = get_engines(job.workspace_id)
+        agent = ResearchAgent(
+            topic=topic,
+            focus_areas=focus,
+            workspace=job.workspace_id,
+        )
+        agent.config.max_queries = max(1, min(max_queries, 20))
+        report = agent.run(human_in_loop=False)
+        if not isinstance(report, str) or not report.strip():
+            raise RuntimeError("Research agent produced no report")
+        _job_repository.update_progress(
+            job_id,
+            worker_id=worker_id,
+            progress=0.8,
+            lease_seconds=120.0,
+        )
         graph_engine.ingest_document(report, f"Research: {topic}")
-        
-        # Ingest into Vector Store (Optional but good)
-        # rag_client.ingest_text(report) 
-        
-        print(f"[API] Research completed for: {topic}")
-        
-    background_tasks.add_task(run_agent, request.topic, request.focus_areas)
-    return {"message": "Research started", "topic": request.topic, "workspace": workspace_id}
+        _job_repository.succeed(
+            job_id,
+            worker_id=worker_id,
+            result={
+                "report_sha256": hashlib.sha256(
+                    report.encode("utf-8")
+                ).hexdigest(),
+                "evidence_status": "UNVERIFIED_RESEARCH_REPORT",
+                "core_mutated": False,
+            },
+        )
+    except (JobNotFoundError, JobTransitionError):
+        return
+    except Exception as exc:
+        try:
+            _job_repository.fail(
+                job_id,
+                worker_id=worker_id,
+                error_code="RESEARCH_EXECUTION_FAILED",
+                error_message=f"{type(exc).__name__}: {exc}",
+                retryable=True,
+            )
+        except (JobNotFoundError, JobTransitionError):
+            return
+
+
+@app.post("/research/autonomous", status_code=202)
+async def start_research(
+    request: ResearchRequest,
+    background_tasks: BackgroundTasks,
+    idempotency_key: str = Header(
+        ...,
+        alias="Idempotency-Key",
+        min_length=8,
+        max_length=128,
+    ),
+):
+    """Queue a bounded, durable research job; Core mutation is impossible."""
+    try:
+        job, created = _job_repository.create(
+            job_type="research-study",
+            workspace_id=request.workspace_id,
+            idempotency_key=idempotency_key,
+            payload={
+                "topic": request.topic,
+                "focus_areas": request.focus_areas or "",
+                "max_queries": max(1, min(request.max_queries, 20)),
+            },
+            max_attempts=3,
+        )
+    except JobValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if created or job.state is JobState.QUEUED:
+        background_tasks.add_task(_run_research_job, job.job_id)
+    return {
+        "job": job.to_dict(),
+        "created": created,
+        "message": "Research job queued" if created else "Existing job returned",
+        "core_mutation_enabled": False,
+    }
+
+
+@app.get("/jobs/{job_id}")
+async def get_research_job(job_id: str, request: Request):
+    """Return persistent job state after workspace authorization."""
+    try:
+        job = _job_repository.get(job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    require_workspace_identity(
+        request,
+        job.workspace_id,
+        required_scopes={"research:read"},
+    )
+    return {"job": job.to_dict(), "events": _job_repository.events(job_id)}
+
+
+@app.post("/jobs/{job_id}/cancel")
+async def cancel_research_job(job_id: str, request: Request):
+    """Request idempotent cancellation for a queued or running job."""
+    try:
+        current = _job_repository.get(job_id)
+        require_workspace_identity(
+            request,
+            current.workspace_id,
+            required_scopes={"research:write"},
+        )
+        job = _job_repository.request_cancel(job_id)
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    return {"job": job.to_dict()}
+
+
+@app.post("/jobs/{job_id}/resume", status_code=202)
+async def resume_research_job(
+    job_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """Resume a recovered/retried queued job without creating a duplicate."""
+    try:
+        job = _job_repository.get(job_id)
+        require_workspace_identity(
+            request,
+            job.workspace_id,
+            required_scopes={"research:write"},
+        )
+    except JobNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    if job.state is not JobState.QUEUED:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Job cannot resume from state {job.state.value}",
+        )
+    background_tasks.add_task(_run_research_job, job.job_id)
+    return {"job": job.to_dict(), "message": "Job resume scheduled"}
 
 @app.post("/academic/defense")
 async def generate_defense_questions(topic: str, abstract: str):
@@ -431,10 +611,6 @@ async def ingest_pdf_document(
         - Extracted content summary
         - Storage locations
     """
-    # Validate file
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="File must be a PDF")
-    
     # Get workspace paths
     paths = workspace_manager.get_paths(workspace_id)
     workspace_root = Path(paths['vector_store']).parent  # Get workspace root from vector_store path
@@ -443,16 +619,37 @@ async def ingest_pdf_document(
     docs_dir = workspace_root / "documents"
     docs_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save uploaded PDF
-    safe_filename = Path(file.filename).name
-    # prevent path traversal
-    pdf_path = docs_dir / safe_filename
-    
     try:
-        with open(pdf_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save PDF: {e}")
+        upload_receipt = store_upload(
+            file.file,
+            original_filename=file.filename or "",
+            media_type=file.content_type or "application/octet-stream",
+            destination_dir=docs_dir,
+            policy=upload_policy("pdf"),
+        )
+    except UploadSecurityError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Upload storage/configuration failed: {exc}",
+        ) from exc
+
+    safe_filename = upload_receipt.filename
+    pdf_path = upload_receipt.path
+    if upload_receipt.duplicate:
+        return {
+            "status": "duplicate",
+            "message": "Identical PDF already exists; it was not ingested again.",
+            "workspace_id": workspace_id,
+            "filename": safe_filename,
+            "sha256": upload_receipt.sha256,
+            "size_bytes": upload_receipt.size_bytes,
+            "processing_started": False,
+        }
     
     # Process in background
     def process_pdf():
@@ -480,6 +677,9 @@ async def ingest_pdf_document(
         "message": "PDF upload successful, processing started in background",
         "workspace_id": workspace_id,
         "filename": safe_filename,
+        "sha256": upload_receipt.sha256,
+        "size_bytes": upload_receipt.size_bytes,
+        "processing_started": True,
         "pdf_path": str(pdf_path.relative_to(ROOT_DIR)),
     }
 
@@ -1273,19 +1473,33 @@ async def upload_document_to_workspace(workspace_id: str, file: UploadFile = Fil
     Upload a file directly to the workspace files directory.
     """
     files_dir = get_workspace_files_dir(workspace_id)
-    safe_filename = Path(file.filename).name
-    filepath = files_dir / safe_filename
-    
     try:
-        with open(filepath, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+        receipt = store_upload(
+            file.file,
+            original_filename=file.filename or "",
+            media_type=file.content_type or "application/octet-stream",
+            destination_dir=files_dir,
+            policy=upload_policy("document"),
+        )
         return {
-            "status": "success",
-            "filename": safe_filename,
-            "message": f"File '{safe_filename}' uploaded successfully."
+            "status": "duplicate" if receipt.duplicate else "success",
+            "filename": receipt.filename,
+            "sha256": receipt.sha256,
+            "size_bytes": receipt.size_bytes,
+            "duplicate": receipt.duplicate,
+            "message": (
+                "Identical file already exists; no new copy was stored."
+                if receipt.duplicate
+                else f"File '{receipt.filename}' uploaded successfully."
+            ),
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except UploadSecurityError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/ingest/video")
@@ -1439,27 +1653,6 @@ def find_cached_journals(request: FindCachedRequest):
         print(f"[API] Find cached error: {e}")
         return {"status": "error", "message": str(e), "cache_hits": []}
 
-@app.get("/evolution/status")
-async def get_evolution_status():
-    """Get the current state of the Digital Twin"""
-    if digital_twin is None:
-        return {"status": "unavailable", "message": "DigitalTwin not initialized"}
-
-    recent_thoughts = digital_twin.memory.get_recent_thoughts(limit=5)
-    return {
-        "state": digital_twin.state.value,
-        "is_awake": getattr(digital_twin, 'running', False),
-        "latest_thought": recent_thoughts[-1] if recent_thoughts else None,
-        "recent_history": recent_thoughts
-    }
-
-@app.get("/evolution/logs")
-async def get_evolution_logs(limit: int = 50):
-    """Get full history of Twin's thoughts"""
-    if digital_twin is None:
-        return {"status": "unavailable", "message": "DigitalTwin not initialized"}
-    return digital_twin.memory.get_recent_thoughts(limit=limit)
-
 @app.post("/evolution/night_mode")
 def set_night_mode(enabled: bool):
     if digital_twin is None:
@@ -1479,57 +1672,95 @@ def get_history():
 # ─── DYNAMIC MODEL CONFIGURATION ──────────────────────────────────────────────
 
 class ModelConfigRequest(BaseModel):
-    model_name: str
+    model_name: str = Field(min_length=2, max_length=200)
+
+
+def _configured_model_catalog() -> tuple[str, ...]:
+    extra_models = [
+        item.strip()
+        for item in os.getenv("JAYA_ALLOWED_MODELS", "").split(",")
+        if item.strip()
+    ]
+    return tuple(
+        sorted(
+            {
+                config.NVIDIA_REASONING_MODEL,
+                config.NVIDIA_CHAT_MODEL,
+                config.NVIDIA_CODING_MODEL,
+                config.NVIDIA_VISION_MODEL,
+                *extra_models,
+            }
+        )
+    )
+
+
+def _model_registry_result():
+    return NVIDIARegistryService(
+        api_key=os.getenv("NVIDIA_API_KEY"),
+        base_url=os.getenv(
+            "NVIDIA_LLAMA31_BASE_URL",
+            config.NVIDIA_BASE_URL,
+        ),
+        configured_models=_configured_model_catalog(),
+    ).list_models()
 
 @app.get("/config/models")
 def get_config_models():
-    """
-    Fetch list of available models from integrate.api.nvidia.com 
-    and get the currently active model.
-    """
+    """Return configured and provider-verified models with typed status."""
     from teacher import get_override_model
-    import os
-    
-    # Get active model
-    active_model = get_override_model() or os.getenv("NVIDIA_LLAMA31_MODEL") or config.NVIDIA_REASONING_MODEL
-    
-    # Get list of models from NVIDIA API
-    available_models = []
     try:
-        api_key = os.getenv("NVIDIA_API_KEY")
-        base_url = os.getenv("NVIDIA_LLAMA31_BASE_URL", config.NVIDIA_BASE_URL)
-        if api_key:
-            from openai import OpenAI
-            client = OpenAI(base_url=base_url, api_key=api_key)
-            models = client.models.list()
-            # Ambil semua model yang tersedia
-            available_models = [m.id for m in models]
-            available_models.sort()
-    except Exception as e:
-        print(f"[API] Error listing NVIDIA models: {e}")
-        # Fallback list jika API list gagal
-        available_models = [
-            config.NVIDIA_REASONING_MODEL,
-            config.NVIDIA_CHAT_MODEL,
-            config.NVIDIA_CODING_MODEL,
-            config.NVIDIA_VISION_MODEL,
-        ]
-        
+        registry = _model_registry_result()
+    except (ModelRegistryConfigurationError, ValueError) as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model registry configuration is invalid: {exc}",
+        ) from exc
+    active_model = (
+        get_override_model()
+        or os.getenv("NVIDIA_LLAMA31_MODEL")
+        or config.NVIDIA_REASONING_MODEL
+    )
+    compatibility_models = (
+        registry.provider_models
+        if registry.status == "AVAILABLE"
+        else registry.configured_models
+    )
     return {
         "active_model": active_model,
-        "available_models": available_models
+        "active_model_source": (
+            "PROCESS_OVERRIDE"
+            if get_override_model()
+            else "VALIDATED_CONFIGURATION"
+        ),
+        "override_persistence": "PROCESS_LOCAL",
+        "available_models": list(compatibility_models),
+        **registry.to_dict(),
     }
 
 @app.post("/config/models")
 def update_config_model(request: ModelConfigRequest):
-    """
-    Update the active reasoning model.
-    """
+    """Set a validated process-local model override."""
     from teacher import set_override_model
-    set_override_model(request.model_name)
+    try:
+        model_name = validate_model_id(request.model_name)
+        registry = _model_registry_result()
+    except (ModelRegistryConfigurationError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    allowed_models = set(registry.configured_models) | set(
+        registry.provider_models
+    )
+    if model_name not in allowed_models:
+        raise HTTPException(
+            status_code=422,
+            detail="Model is not present in configured or provider-verified catalog",
+        )
+    set_override_model(model_name)
     return {
         "status": "success",
-        "active_model": request.model_name
+        "active_model": model_name,
+        "active_model_source": "PROCESS_OVERRIDE",
+        "override_persistence": "PROCESS_LOCAL",
+        "provider_status": registry.status,
     }
 
 
@@ -1537,12 +1768,26 @@ def update_config_model(request: ModelConfigRequest):
 # THESIS UPLOAD & ANALYSIS ENDPOINTS
 # ============================================================
 
-# In-memory store untuk progress analisis: session_id -> status dict
-_thesis_sessions: dict = {}
+# Thesis source text and progress must survive process restarts.
+_thesis_repository = ThesisSessionRepository(
+    Path(
+        os.getenv(
+            "JAYA_THESIS_SESSION_DB",
+            str(ROOT_DIR / "data" / "thesis_sessions.db"),
+        )
+    )
+)
+_thesis_repository.recover_interrupted()
+_thesis_sessions = PersistentThesisSessions(_thesis_repository)
 
-THESIS_UPLOADS_DIR = ROOT_DIR / "data" / "thesis_uploads"
-THESIS_UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+def _persist_thesis_session(session_id: str, payload: dict) -> None:
+    try:
+        _thesis_sessions.persist(session_id, payload)
+    except ThesisSessionError as exc:
+        raise RuntimeError(
+            f"Could not persist thesis session {session_id}: {exc}"
+        ) from exc
 
 def _extract_pdf_text(file_path: str) -> str:
     """
@@ -1608,19 +1853,57 @@ async def upload_thesis(
     Upload PDF Tugas Akhir. Simpan ke disk, ekstrak teks, dan kembalikan session_id
     yang bisa digunakan untuk memanggil /thesis/analyze.
     """
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Hanya file PDF yang diterima.")
+    workspace_paths = workspace_manager.get_or_create_paths(workspace_id)
+    thesis_uploads_dir = Path(workspace_paths["root"]) / "thesis_uploads"
+    try:
+        upload_receipt = store_upload(
+            file.file,
+            original_filename=file.filename or "",
+            media_type=file.content_type or "application/octet-stream",
+            destination_dir=thesis_uploads_dir,
+            policy=upload_policy("pdf"),
+        )
+    except UploadSecurityError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    # Simpan file
-    safe_name = "".join(c if c.isalnum() or c in "._- " else "_" for c in file.filename)
-    dest_path = THESIS_UPLOADS_DIR / safe_name
-    with open(dest_path, "wb") as out:
-        shutil.copyfileobj(file.file, out)
-
-    print(f"[ThesisAPI] File saved: {dest_path} ({dest_path.stat().st_size} bytes)")
+    if upload_receipt.duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "DUPLICATE_UPLOAD",
+                "message": "Identical thesis PDF already exists and was not ingested again.",
+                "sha256": upload_receipt.sha256,
+            },
+        )
+    safe_name = upload_receipt.filename
+    dest_path = upload_receipt.path
 
     # Ekstrak teks
-    raw_text = _extract_pdf_text(str(dest_path))
+    parser_timeout_seconds = int(os.getenv("JAYA_PDF_PARSE_TIMEOUT_SECONDS", "60"))
+    if parser_timeout_seconds < 1 or parser_timeout_seconds > 600:
+        raise HTTPException(
+            status_code=500,
+            detail="JAYA_PDF_PARSE_TIMEOUT_SECONDS must be between 1 and 600",
+        )
+    try:
+        raw_text = await asyncio.wait_for(
+            asyncio.to_thread(_extract_pdf_text, str(dest_path)),
+            timeout=parser_timeout_seconds,
+        )
+    except asyncio.TimeoutError as exc:
+        dest_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=408,
+            detail={
+                "code": "PDF_PARSE_TIMEOUT",
+                "message": "PDF parsing exceeded the configured timeout",
+            },
+        ) from exc
     page_count = raw_text.count("\n\n") + 1  # rough estimate
 
     # Simpan teks ke sesi
@@ -1630,9 +1913,13 @@ async def upload_thesis(
         "status": "uploaded",
         "file_name": safe_name,
         "file_path": str(dest_path),
+        "file_sha256": upload_receipt.sha256,
+        "file_size_bytes": upload_receipt.size_bytes,
         "workspace_id": workspace_id,
         "raw_text": raw_text,
         "char_count": len(raw_text),
+        "sha256": upload_receipt.sha256,
+        "size_bytes": upload_receipt.size_bytes,
         "analysis": None,
         "error": None,
     }
@@ -1675,10 +1962,14 @@ async def analyze_thesis(session_id: str, background_tasks: BackgroundTasks):
     sess["status"] = "analyzing"
     sess["progress"] = 0
     sess["steps"] = []
+    _persist_thesis_session(session_id, sess)
 
     def run_analysis(sid: str):
         s = _thesis_sessions[sid]
         text = s["raw_text"]
+        def persist_progress() -> None:
+            _persist_thesis_session(sid, s)
+
         # Ambil 8000 karakter pertama untuk LLM (token budget)
         excerpt = text[:8000]
 
@@ -1689,6 +1980,7 @@ async def analyze_thesis(session_id: str, background_tasks: BackgroundTasks):
             # Step 1: Meta extraction
             s["progress"] = 10
             s["steps"].append({"step": "meta", "status": "running", "label": "Mengekstrak metadata..."})
+            persist_progress()
             meta_prompt = f"""
 Ekstrak informasi berikut dari dokumen Tugas Akhir di bawah ini dalam format JSON:
 {{
@@ -1717,6 +2009,7 @@ DOKUMEN (potongan awal):
 
             s["meta"] = meta
             s["steps"][-1]["status"] = "done"
+            persist_progress()
             print(f"[ThesisAPI] Meta: {meta.get('judul', 'N/A')}")
 
             topic = meta.get("topik_utama", "AI Research")
@@ -1725,6 +2018,7 @@ DOKUMEN (potongan awal):
             # Step 2: Novelty check
             s["progress"] = 25
             s["steps"].append({"step": "novelty", "status": "running", "label": "Memeriksa novelty..."})
+            persist_progress()
             novelty_result = {}
             try:
                 from research.academic.novelty_checker import NoveltyChecker
@@ -1740,10 +2034,12 @@ DOKUMEN (potongan awal):
                 novelty_result = {"is_novel": None, "confidence": 0, "reasoning": f"Error: {e}"}
             s["novelty"] = novelty_result
             s["steps"][-1]["status"] = "done"
+            persist_progress()
 
             # Step 3: Gap analysis
             s["progress"] = 45
             s["steps"].append({"step": "gap", "status": "running", "label": "Mengidentifikasi research gap..."})
+            persist_progress()
             gap_report = ""
             try:
                 from research.academic.gap_finder import GapFinder
@@ -1755,10 +2051,12 @@ DOKUMEN (potongan awal):
                 gap_report = f"Tidak bisa menjalankan analisis gap: {e}"
             s["gap_report"] = gap_report
             s["steps"][-1]["status"] = "done"
+            persist_progress()
 
             # Step 4: Critique
             s["progress"] = 65
             s["steps"].append({"step": "critique", "status": "running", "label": "Mengkritisi draft..."})
+            persist_progress()
             critique = ""
             try:
                 from research.academic.reviewer import ReviewerAgent
@@ -1769,10 +2067,12 @@ DOKUMEN (potongan awal):
                 critique = f"Tidak bisa menjalankan kritik: {e}"
             s["critique"] = critique
             s["steps"][-1]["status"] = "done"
+            persist_progress()
 
             # Step 5: Defense questions
             s["progress"] = 85
             s["steps"].append({"step": "defense", "status": "running", "label": "Membuat pertanyaan sidang..."})
+            persist_progress()
             defense_questions = ""
             try:
                 from research.academic.reviewer import ReviewerAgent
@@ -1783,6 +2083,7 @@ DOKUMEN (potongan awal):
                 defense_questions = f"Tidak bisa membuat pertanyaan: {e}"
             s["defense_questions"] = defense_questions
             s["steps"][-1]["status"] = "done"
+            persist_progress()
 
             # Done
             s["progress"] = 100
@@ -1794,6 +2095,7 @@ DOKUMEN (potongan awal):
                 "critique": s.get("critique", ""),
                 "defense_questions": s.get("defense_questions", ""),
             }
+            persist_progress()
             # Jangan simpan raw_text di hasil (hemat memori response)
             print(f"[ThesisAPI] Analysis complete for session {sid}")
 
@@ -1801,6 +2103,7 @@ DOKUMEN (potongan awal):
             import traceback
             s["status"] = "error"
             s["error"] = str(e)
+            persist_progress()
             print(f"[ThesisAPI] Analysis FAILED: {e}\n{traceback.format_exc()}")
 
     background_tasks.add_task(run_analysis, session_id)
@@ -1914,6 +2217,7 @@ async def revise_thesis_section(session_id: str, request: ThesisReviseRequest):
             "type": request.revision_type,
             "revised_preview": revised[:500],
         })
+        _persist_thesis_session(session_id, sess)
 
         return {
             "revised_text": revised,
@@ -2007,6 +2311,7 @@ async def find_relevant_journals(session_id: str, max_papers: int = 10):
 
     # Simpan ke sesi
     sess["journals"] = unique_results
+    _persist_thesis_session(session_id, sess)
 
     return {
         "session_id": session_id,
@@ -2176,91 +2481,112 @@ _is_autonomous_loop_running = False
 _auto_loop_task = None
 _loop_iteration_count = 0
 _loop_is_busy = False  # prevent concurrent executions
+_loop_max_iterations = 0
+_loop_current_iterations = 0
+_loop_interval_seconds = 60
+_loop_topics: list[str] = []
+
+
+class AutonomousLoopStartRequest(BaseModel):
+    """Explicit, bounded consent for one process-local research batch."""
+
+    consent_token: str
+    topics: List[str]
+    max_iterations: int = 1
+    interval_seconds: int = 60
+
+
+class ResearchCandidateRequest(BaseModel):
+    consent_token: str
+    topic: str
+
+
+class ConsentRequest(BaseModel):
+    consent_token: str
+
+
+def _require_evolution_consent(supplied_token: str) -> None:
+    configured_token = os.getenv("JAYA_AUTONOMOUS_CONSENT_TOKEN", "")
+    if len(configured_token) < 32:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Set JAYA_AUTONOMOUS_CONSENT_TOKEN to a secret with at least "
+                "32 characters before enabling evolution operations."
+            ),
+        )
+    if not secrets.compare_digest(supplied_token, configured_token):
+        raise HTTPException(status_code=403, detail="Invalid evolution consent token")
 
 def _do_auto_upgrade_sync(custom_topic: Optional[str] = None):
-    """Synchronous core auto-upgrade logic to be executed in thread pool."""
+    """Create one simulation candidate without mutating JAYA_CORE."""
     global _latest_upgrade_result
-    import sys
-    import random
-    from pathlib import Path
-    src_dir = Path(__file__).resolve().parent.parent
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
-    if str(src_dir / "research") not in sys.path:
-        sys.path.insert(0, str(src_dir / "research"))
-
-    from research.hypothesis_generator import HypothesisGenerator, TOPIC_POOL
     from research.experiment_designer import ExperimentDesigner
     from research.experiment_runner import ExperimentRunner
-    from research.learning_from_results import LearningFromResults
+    from research.hypothesis_generator import HypothesisGenerator
     from research.jarvis_discovery_bridge import JarvisDiscoveryBridge
+    from research.learning_from_results import LearningFromResults
 
-    # 1. Dynamic Topic Selection with unique seed per call
-    seed = int(time.time() * 1000) % (2**32)
-    rng = random.Random(seed)
-    selected_topic = custom_topic or rng.choice(TOPIC_POOL)
+    selected_topic = str(custom_topic or "").strip()
+    if not selected_topic:
+        raise ValueError("An explicit research topic is required")
+    if len(selected_topic) > 300:
+        raise ValueError("Research topic must be at most 300 characters")
 
-    # 2. Dynamic Hypothesis Generation
-    hyp_gen = HypothesisGenerator()
-    hypothesis = hyp_gen.generate_hypothesis(
-        topic=selected_topic,
-        context=f"JAYA_CORE AGI optimization constraint < 200MB memory, latency < 100ms, seed: {seed}, ts: {time.time():.6f}"
+    hypothesis = HypothesisGenerator().generate_hypothesis(topic=selected_topic)
+    experiment_plan = ExperimentDesigner().design_experiment(
+        hypothesis,
+        execution_mode="SIMULATION",
+    )
+    trial_result = ExperimentRunner().run_experiment(experiment_plan)
+    posterior, delta, recommendation, summary = (
+        LearningFromResults().update_hypothesis_confidence(
+            hypothesis,
+            trial_result,
+            prior_confidence=0.5,
+        )
     )
 
-    # Ensure hypothesis_id is globally unique
-    import uuid
-    from datetime import datetime as _dt
-    hyp_uid = uuid.uuid4().hex[:8].upper()
-    hypothesis["hypothesis_id"] = f"HYP-{_dt.now().strftime('%Y%m%d-%H%M%S')}-{hyp_uid}"
-
-    # 3. Experiment Design
-    designer = ExperimentDesigner()
-    exp_plan = designer.design_experiment(hypothesis)
-
-    # 4. Trial Runner & Bayesian Update
-    runner = ExperimentRunner()
-    trial_res = runner.run_experiment(exp_plan)
-    
-    learner = LearningFromResults()
-    prior = round(rng.uniform(0.42, 0.58), 2)
-    post, delta, rec, summary = learner.update_hypothesis_confidence(hypothesis, trial_res, prior_confidence=prior)
-
-    # 5. JARVIS Discovery Bridge — unique patch ID per call
-    db_path = src_dir.parent / "data" / "agentic_jarvis.db"
-    bridge = JarvisDiscoveryBridge(core_db_path=db_path)
-    
     learning_analysis = {
-        "posterior_confidence": post,
-        "recommendation": rec,
-        "summary": summary
+        "posterior_confidence": posterior,
+        "recommendation": recommendation,
+        "summary": summary,
+        "evidence_kind": trial_result.get("evidence_kind", "UNVERIFIED"),
     }
-    patch = bridge.create_jarvis_patch(hypothesis, learning_analysis)
-
-    # Override patch_id with guaranteed-unique value
-    patch["patch_id"] = f"JAYPATCH-{_dt.now().strftime('%Y%m%d-%H%M%S')}-{hyp_uid}"
-    patch["llm_generated"] = hypothesis.get("llm_generated", False)
-    patch["novelty_score"] = hypothesis.get("novelty_score", 0.85)
-
-    applied = bridge.apply_patch_to_core(patch)
-
-    res = {
-        "patch_id": patch["patch_id"],
+    bridge = JarvisDiscoveryBridge()
+    candidate = bridge.create_jarvis_patch(
+        hypothesis,
+        learning_analysis,
+        run_result=trial_result,
+    )
+    disposition = bridge.deploy_discovery_to_jarvis(
+        hypothesis,
+        trial_result,
+        learning_analysis,
+    )
+    result = {
+        "candidate_id": candidate["patch_id"],
         "topic": selected_topic,
-        "target_system": patch.get("target_system", "JAYA_CORE_BRAIN"),
-        "bayes_confidence": round(post, 4),
-        "novelty_score": hypothesis.get("novelty_score", 0.85),
+        "target_system": "JAYA_CORE",
+        "confidence": round(posterior, 4),
+        "confidence_delta": delta,
+        "novelty_score": hypothesis.get("novelty_score", 0.0),
+        "novelty_status": hypothesis.get("novelty_status", "NOT_EVALUATED"),
         "statement": hypothesis["statement"],
         "llm_generated": hypothesis.get("llm_generated", False),
-        "recommendation": rec,
-        "sqlite_injection_success": applied,
+        "recommendation": recommendation,
+        "evidence_kind": trial_result.get("evidence_kind", "UNVERIFIED"),
+        "experiment_status": trial_result.get("status"),
+        "candidate_status": disposition.get("status"),
+        "auto_deployed": False,
+        "core_mutated": False,
         "hypothesis_id": hypothesis["hypothesis_id"],
         "iteration": _loop_iteration_count,
-        "timestamp": time.time()
+        "timestamp": time.time(),
     }
-    
-    _latest_upgrade_result = res
-    print(f"[AUTO-UPGRADE] ✅ Patch {patch['patch_id']} applied to DB: {applied}")
-    return res
+
+    _latest_upgrade_result = result
+    return result
 
 _live_execution_logs = []
 
@@ -2276,56 +2602,50 @@ def _add_live_log(msg: str):
 _add_live_log("[SYSTEM] JAYA Research Backend API Engine initialized.")
 
 async def _continuous_autonomous_research_worker():
-    global _is_autonomous_loop_running, _loop_iteration_count, _loop_is_busy
-    _add_live_log("[AUTONOMOUS LOOP] 🚀 Continuous Autonomous Research Loop Started.")
-    print("[AUTONOMOUS LOOP] 🚀 Continuous Research Loop Started!")
-    while _is_autonomous_loop_running:
-        if not _loop_is_busy:
+    global _is_autonomous_loop_running
+    global _loop_current_iterations
+    global _loop_iteration_count
+    global _loop_is_busy
+
+    _add_live_log("[AUTONOMOUS LOOP] Bounded research batch started.")
+    try:
+        while (
+            _is_autonomous_loop_running
+            and _loop_current_iterations < _loop_max_iterations
+        ):
             _loop_is_busy = True
             _loop_iteration_count += 1
+            _loop_current_iterations += 1
             iteration = _loop_iteration_count
+            topic = _loop_topics[(_loop_current_iterations - 1) % len(_loop_topics)]
             try:
-                _add_live_log(f"[AUTONOMOUS LOOP] ▶ Iteration #{iteration}: Formulating new hypothesis & testing in Native Sandbox...")
-                print(f"[AUTONOMOUS LOOP] ▶ Iteration #{iteration}")
-                # 1. Run Autonomous Discovery & SQLite Patch Injection in thread
-                res = await asyncio.to_thread(_do_auto_upgrade_sync)
-                if res:
-                    _add_live_log(f"[AUTONOMOUS LOOP] 💡 Discovery Verified: {res.get('topic')} (Confidence: {res.get('bayes_confidence')*100:.1f}%)")
-                    _add_live_log(f"[AUTO-UPGRADE] ✅ Patch {res.get('patch_id')} injected into agentic_jarvis.db")
-
-                # 2. Periodically trigger Autonomous LoRA Fine-Tuning & Memory Manager (every 5 iterations)
-                if iteration % 5 == 0:
-                    _add_live_log(f"[AUTONOMOUS LOOP] 🧬 Triggering Auto LoRA Fine-Tuning & Memory Manager Sync (Iteration #{iteration})...")
-                    print(f"[AUTONOMOUS LOOP] 🧬 Triggering Auto LoRA Fine-Tuning & Memory Manager Sync (Iteration #{iteration})...")
-                    from auto_finetune import run_auto_finetune_cycle
-                    from memory_manager import MemoryManager
-
-                    ft_res = await asyncio.to_thread(run_auto_finetune_cycle)
-                    if ft_res.get("success"):
-                        adapter_info = ft_res.get("training_result", {})
-                        _add_live_log(f"[LoRA TRAINER] 🧬 Adapter {adapter_info.get('adapter_id')} trained ({adapter_info.get('adapter_size_kb')} KB, Loss: {adapter_info.get('final_loss')})")
-
-                    mm = MemoryManager()
-                    await asyncio.to_thread(mm.optimize_sqlite_database)
-                    ms_res = await asyncio.to_thread(mm.check_and_compile_milestone)
-                    if ms_res.get("compiled"):
-                        _add_live_log(f"[MILESTONE COMPILER] 📦 Compiled new .jay package: {ms_res.get('package_name')}")
-                    
-                    sync_res = await asyncio.to_thread(mm.sync_to_ecosystem)
-                    _add_live_log(f"[UNIVERSAL SYNC] 🔄 Synced patches & adapters across {sync_res.get('targets_synced')} ecosystem targets.")
-                    
-                    ram_info = mm.enforce_memory_cap(max_ram_mb=200)
-                    _add_live_log(f"[MEMORY MANAGER] ⚡ Garbage collected. Current RAM RSS: {ram_info.get('current_rss_mb')} MB (Cap: 200 MB)")
-
-                print(f"[AUTONOMOUS LOOP] ✅ Iteration #{iteration} completed")
-            except Exception as e:
-                _add_live_log(f"[AUTONOMOUS LOOP] ❌ Error in iteration #{iteration}: {e}")
-                print(f"[AUTONOMOUS LOOP] ❌ Error in iteration #{iteration}: {e}")
+                _add_live_log(
+                    f"[AUTONOMOUS LOOP] Iteration #{iteration}: simulation for "
+                    f"explicit topic '{topic}'."
+                )
+                result = await asyncio.to_thread(_do_auto_upgrade_sync, topic)
+                _add_live_log(
+                    f"[AUTONOMOUS LOOP] Candidate {result.get('candidate_id')} "
+                    f"finished as {result.get('candidate_status')}; Core unchanged."
+                )
+            except Exception as exc:
+                _add_live_log(
+                    f"[AUTONOMOUS LOOP] Iteration #{iteration} failed: "
+                    f"{type(exc).__name__}: {exc}"
+                )
             finally:
                 _loop_is_busy = False
-        await asyncio.sleep(8)  # wait 8s between iterations
-    _add_live_log("[AUTONOMOUS LOOP] ⏹️ Continuous Research Loop Stopped.")
-    print("[AUTONOMOUS LOOP] ⏹️ Continuous Research Loop Stopped.")
+
+            if (
+                _is_autonomous_loop_running
+                and _loop_current_iterations < _loop_max_iterations
+            ):
+                await asyncio.sleep(_loop_interval_seconds)
+    finally:
+        _is_autonomous_loop_running = False
+        _loop_is_busy = False
+        _save_loop_state(False)
+        _add_live_log("[AUTONOMOUS LOOP] Bounded research batch stopped.")
 
 @app.get("/evolution/logs")
 async def get_live_logs(limit: int = 50):
@@ -2334,13 +2654,19 @@ async def get_live_logs(limit: int = 50):
 
 @app.get("/evolution/status")
 async def get_evolution_status():
-    """Return live status of JAYA_RESEARCH -> JAYA_CORE Evolution Bridge."""
+    """Return the bounded Research candidate-pipeline status."""
     return {
         "state": "running" if _is_autonomous_loop_running else ("idle" if not _latest_upgrade_result else "active"),
         "is_awake": True,
         "is_loop_running": _is_autonomous_loop_running,
         "loop_iteration_count": _loop_iteration_count,
-        "latest_thought": "Continuous Autonomous Discovery Loop Active" if _is_autonomous_loop_running else "ResearchEcosystemBridge ready for autonomous upgrades",
+        "current_batch_iterations": _loop_current_iterations,
+        "max_batch_iterations": _loop_max_iterations,
+        "latest_thought": (
+            "Bounded simulation batch active"
+            if _is_autonomous_loop_running
+            else "Research candidate pipeline idle; Core mutation is disabled"
+        ),
         "latest_upgrade_result": _latest_upgrade_result,
         "timestamp": time.time()
     }
@@ -2351,105 +2677,155 @@ async def get_loop_status():
     return {
         "is_running": _is_autonomous_loop_running,
         "loop_iteration_count": _loop_iteration_count,
+        "current_batch_iterations": _loop_current_iterations,
+        "max_batch_iterations": _loop_max_iterations,
         "latest_upgrade": _latest_upgrade_result
     }
 
 @app.get("/evolution/patches")
 async def get_all_patches(limit: int = 50):
-    """Read all applied JARVIS patches from agentic_jarvis.db SQLite database."""
-    try:
-        src_dir = Path(__file__).resolve().parent.parent
-        db_path = src_dir.parent / "data" / "agentic_jarvis.db"
-        if not db_path.exists():
-            return {"patches": [], "total": 0, "db_exists": False}
-        
-        import sqlite3 as _sqlite3
-        conn = _sqlite3.connect(str(db_path))
-        conn.row_factory = _sqlite3.Row
-        try:
-            rows = conn.execute(
-                "SELECT patch_id, topic, statement, bayes_confidence, applied_at, patch_data "
-                "FROM jarvis_patches ORDER BY applied_at DESC LIMIT ?",
-                (limit,)
-            ).fetchall()
-            patches = []
-            for row in rows:
-                patch_data = {}
-                try:
-                    patch_data = json.loads(row["patch_data"] or "{}")
-                except Exception:
-                    pass
-                patches.append({
-                    "patch_id": row["patch_id"],
-                    "topic": row["topic"],
-                    "statement": row["statement"],
-                    "bayes_confidence": row["bayes_confidence"],
-                    "applied_at": row["applied_at"],
-                    "novelty_score": patch_data.get("novelty_score", 0.0),
-                    "target_system": patch_data.get("target_system", "JAYA_CORE_BRAIN"),
-                    "llm_generated": patch_data.get("llm_generated", False),
-                    "falsifiability": patch_data.get("falsifiability", ""),
-                })
-            count = conn.execute("SELECT COUNT(*) FROM jarvis_patches").fetchone()[0]
-            return {"patches": patches, "total": count, "db_exists": True, "db_path": str(db_path)}
-        finally:
-            conn.close()
-    except Exception as e:
-        return {"patches": [], "total": 0, "db_exists": False, "error": str(e)}
+    """List immutable Research artifacts; none of these are applied patches."""
+    from research.research_artifact import (
+        ArtifactValidationError,
+        validate_artifact_dict,
+    )
+
+    bounded_limit = max(1, min(int(limit), 200))
+    outbox = ROOT_DIR / "data" / "artifact_outbox"
+    artifacts = []
+    rejected = []
+    if outbox.is_dir():
+        for artifact_path in sorted(
+            outbox.glob("*.json"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )[:bounded_limit]:
+            try:
+                artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
+                validate_artifact_dict(artifact)
+                artifacts.append(artifact)
+            except (
+                ArtifactValidationError,
+                json.JSONDecodeError,
+                OSError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                rejected.append({"file": artifact_path.name, "reason": str(exc)})
+    return {
+        "patches": artifacts,
+        "total": len(artifacts),
+        "applied_count": 0,
+        "core_mutated": False,
+        "source": "research_artifact_outbox",
+        "rejected": rejected,
+    }
 
 @app.post("/evolution/start-autonomous-loop")
-async def start_autonomous_loop():
-    """Start continuous autonomous research loop."""
-    global _is_autonomous_loop_running, _auto_loop_task
+async def start_autonomous_loop(request: AutonomousLoopStartRequest):
+    """Start one explicitly consented, bounded simulation batch."""
+    global _auto_loop_task
+    global _is_autonomous_loop_running
+    global _loop_current_iterations
+    global _loop_interval_seconds
+    global _loop_max_iterations
+    global _loop_topics
+
+    _require_evolution_consent(request.consent_token)
     if _is_autonomous_loop_running:
-        return {"ok": True, "message": "Autonomous loop is already running", "is_running": True}
-    
+        raise HTTPException(status_code=409, detail="A research batch is already running")
+
+    if not 1 <= request.max_iterations <= 100:
+        raise HTTPException(
+            status_code=422,
+            detail="max_iterations must be between 1 and 100",
+        )
+    if not 30 <= request.interval_seconds <= 3600:
+        raise HTTPException(
+            status_code=422,
+            detail="interval_seconds must be between 30 and 3600",
+        )
+    topics = list(
+        dict.fromkeys(topic.strip() for topic in request.topics if topic.strip())
+    )
+    if not topics or len(topics) > 20:
+        raise HTTPException(status_code=422, detail="Provide between 1 and 20 topics")
+    if any(len(topic) > 300 for topic in topics):
+        raise HTTPException(
+            status_code=422,
+            detail="Each research topic must be at most 300 characters",
+        )
+
+    _loop_topics = topics
+    _loop_max_iterations = request.max_iterations
+    _loop_current_iterations = 0
+    _loop_interval_seconds = request.interval_seconds
     _is_autonomous_loop_running = True
-    _save_loop_state(True)  # Persist to SQLite
+    # Never persist process-local consent as an enabled restart state.
+    _save_loop_state(False)
     _auto_loop_task = asyncio.create_task(_continuous_autonomous_research_worker())
-    print("[API] ▶ Autonomous loop STARTED and state saved to DB.")
-    return {"ok": True, "message": "Continuous Autonomous Research Loop Started", "is_running": True}
+    return {
+        "ok": True,
+        "message": "Bounded Research simulation batch started",
+        "is_running": True,
+        "max_iterations": _loop_max_iterations,
+        "interval_seconds": _loop_interval_seconds,
+        "topics": topics,
+        "core_mutation_enabled": False,
+    }
 
 @app.post("/evolution/stop-autonomous-loop")
 async def stop_autonomous_loop():
-    """Stop continuous autonomous research loop."""
+    """Stop the current bounded batch; this kill switch needs no token."""
     global _is_autonomous_loop_running, _auto_loop_task
     _is_autonomous_loop_running = False
-    _save_loop_state(False)  # Persist to SQLite
+    _save_loop_state(False)
     if _auto_loop_task and not _auto_loop_task.done():
-        try:
-            _auto_loop_task.cancel()
-        except Exception:
-            pass
-    print("[API] ⏹️ Autonomous loop STOPPED and state saved to DB.")
-    return {"ok": True, "message": "Continuous Autonomous Research Loop Stopped", "is_running": False}
+        _auto_loop_task.cancel()
+    return {
+        "ok": True,
+        "message": "Bounded Research simulation batch stopped",
+        "is_running": False,
+    }
 
 @app.post("/evolution/auto-upgrade")
-async def trigger_auto_upgrade(custom_topic: Optional[str] = None):
-    """Trigger autonomous research discovery and deployment to JAYA_CORE."""
+async def trigger_auto_upgrade(request: ResearchCandidateRequest):
+    """Run one simulation and return a non-deployable candidate receipt."""
+    _require_evolution_consent(request.consent_token)
     try:
-        res = await asyncio.to_thread(_do_auto_upgrade_sync, custom_topic)
+        res = await asyncio.to_thread(_do_auto_upgrade_sync, request.topic)
         return {
             "ok": True,
-            "message": "Autonomous research loop executed & patch injected into JAYA_CORE (agentic_jarvis.db)",
+            "message": (
+                "Research simulation completed; no database or JAYA_CORE mutation "
+                "was performed"
+            ),
             "result": res
         }
+    except ValueError as err:
+        raise HTTPException(status_code=422, detail=str(err)) from err
     except Exception as err:
-        import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(err))
+        raise HTTPException(status_code=500, detail=str(err)) from err
 
 @app.post("/evolution/auto-finetune")
-async def trigger_auto_finetune():
-    """Extract SFT dataset from agentic_jarvis.db and train LoRA neural weight adapter."""
+async def trigger_auto_finetune(request: ConsentRequest):
+    """Prepare evidence-gated data; training remains blocked without a real backend."""
+    _require_evolution_consent(request.consent_token)
     try:
         from auto_finetune import run_auto_finetune_cycle
         res = await asyncio.to_thread(run_auto_finetune_cycle)
-        return {"ok": True, "message": "Autonomous LoRA Weight Fine-Tuning Executed", "result": res}
+        return {
+            "ok": bool(res.get("success")),
+            "message": (
+                "Fine-tuning pipeline evaluated. An adapter exists only when an "
+                "injected real backend reports and writes a verified artifact."
+            ),
+            "result": res,
+        }
     except Exception as err:
-        import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(err))
+        raise HTTPException(status_code=500, detail=str(err)) from err
 
 @app.get("/evolution/adapters")
 async def get_adapter_info():

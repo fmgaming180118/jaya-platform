@@ -1,49 +1,106 @@
-"""
-Test script for parallel research execution and web search
-"""
+"""Offline tests for bounded multi-query research execution."""
+
+from __future__ import annotations
+
+import contextlib
+import importlib
+import io
 import sys
-import os
+import types
 from pathlib import Path
+from typing import Any
 
-# Reconfigure stdout for UTF-8 in Windows terminal
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+SRC_ROOT = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
 
-# Add project root and src to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from research.agent import ResearchAgent
+def _load_agent_module():
+    """Import the agent only during test execution and suppress import banners."""
+    with (
+        contextlib.redirect_stdout(io.StringIO()),
+        contextlib.redirect_stderr(io.StringIO()),
+    ):
+        return importlib.import_module("research.agent")
 
-# Test with a topic that won't have RAG results (to trigger web search)
-topic = "Latest advancements in quantum computing 2026"
 
-print("=" * 60)
-print("Testing Parallel Queries + Web Search Fallback")
-print("=" * 60)
-print(f"\nTopic: {topic}\n")
+class FakeRAG:
+    def __init__(self) -> None:
+        self.queries: list[tuple[str, int]] = []
 
-agent = ResearchAgent(topic=topic)
+    def search(self, query: str, *, top_k: int) -> list[dict[str, Any]]:
+        self.queries.append((query, top_k))
+        if query == "cached evidence":
+            return [
+                {
+                    "score": 0.9,
+                    "snippet": "Evidence stored in the local workspace.",
+                    "document": {"file_name": "local-study.md"},
+                }
+            ]
+        return []
 
-# Generate plan
-agent.plan = agent.generate_plan()
 
-print(f"\nGenerated {len(agent.queries)} research questions:")
-for i, q in enumerate(agent.queries, 1):
-    print(f"  {i}. {q}")
+class FakeWebSearchClient:
+    instances: list[FakeWebSearchClient] = []
 
-print("\n" + "=" * 60)
-print("Executing queries in PARALLEL...")
-print("=" * 60)
+    def __init__(self) -> None:
+        self.queries: list[tuple[str, int]] = []
+        self.instances.append(self)
 
-# Execute queries (will run in parallel + web search fallback)
-import time
-start = time.time()
-findings = agent.execute_queries()
-duration = time.time() - start
+    def is_available(self) -> bool:
+        return True
 
-print(f"\n✅ Completed in {duration:.2f} seconds")
-print(f"   Total findings: {len(findings)}")
+    def search(self, query: str, *, max_results: int) -> list[dict[str, str]]:
+        self.queries.append((query, max_results))
+        return [
+            {
+                "title": "Offline fixture",
+                "snippet": f"Deterministic evidence for {query}.",
+                "url": "https://example.invalid/offline-fixture",
+                "source": "offline_fixture",
+            }
+        ]
 
-for finding in findings:
-    source_count = finding.get('source_count', 0)
-    print(f"   - {finding['query'][:50]}... → {source_count} sources")
+
+class FakeTeacher:
+    def __init__(self) -> None:
+        self.prompts: list[str] = []
+
+    def ask(self, prompt: str, *, system_instruction: str) -> str:
+        self.prompts.append(prompt)
+        assert "provided context" in system_instruction
+        return "Answer grounded in injected evidence."
+
+
+def test_execute_queries_uses_local_results_then_injected_web_fallback(
+    monkeypatch,
+) -> None:
+    module = _load_agent_module()
+    fake_web_module = types.ModuleType("research.web_search")
+    fake_web_module.WebSearchClient = FakeWebSearchClient
+    monkeypatch.setitem(sys.modules, "research.web_search", fake_web_module)
+    FakeWebSearchClient.instances.clear()
+
+    agent = module.ResearchAgent.__new__(module.ResearchAgent)
+    agent.topic = "Offline research"
+    agent.queries = ["cached evidence", "missing evidence"]
+    agent.rag = FakeRAG()
+    agent.teacher = FakeTeacher()
+    agent.graph_rag = None
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        findings = agent.execute_queries()
+
+    assert [finding["query"] for finding in findings] == agent.queries
+    assert findings[0]["sources"] == ["local-study.md"]
+    assert findings[0]["source_count"] == 1
+    assert findings[1]["sources"] == ["Offline fixture"]
+    assert findings[1]["source_count"] == 1
+    assert agent.rag.queries == [
+        ("cached evidence", 3),
+        ("missing evidence", 3),
+    ]
+    assert len(FakeWebSearchClient.instances) == 1
+    assert FakeWebSearchClient.instances[0].queries == [("missing evidence", 3)]
+    assert len(agent.teacher.prompts) == 2

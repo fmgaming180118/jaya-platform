@@ -1,68 +1,60 @@
-"""
-test_ecosystem_bridge.py — Integration test for JAYA_RESEARCH & JAYA_CORE Ecosystem Bridge
-"""
+import inspect
+import json
 
-import os
-import sys
-import pytest
-
-# Ensure sys.path contains workspace root and JAYA_RESEARCH
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-RESEARCH_DIR = os.path.join(ROOT_DIR, "JAYA_RESEARCH")
-CORE_DIR = os.path.join(ROOT_DIR, "JAYA_CORE")
-
-for d in [ROOT_DIR, RESEARCH_DIR, CORE_DIR]:
-    if os.path.exists(d) and d not in sys.path:
-        sys.path.insert(0, d)
-
-from JAYA_RESEARCH.src.research.ecosystem_bridge import ResearchEcosystemBridge, ResearchFinding
-from src.brain_v2.engine.evolution_gate import EvolutionGate, EvolutionCandidate
+from research.ecosystem_bridge import (
+    ResearchEcosystemBridge,
+    ResearchFinding,
+)
+from research.research_artifact import ResearchArtifact, validate_artifact_dict
 
 
-def test_research_finding_conversion():
-    """Test converting a research finding into a JAYA_CORE EvolutionCandidate."""
-    finding = ResearchFinding(
-        finding_id="find-001",
-        paper_title="Autonomous Quantized Attention Optimization",
-        authors=["JAYA Academic Agent"],
-        topic="attention_sparsity",
-        gap_summary="Dynamic top-k attention reduces memory footprint by 15%",
-        suggested_patch_type="sparsity_patch",
-        patch_code="def optimized_sparsity(x): return x * 0.85",
-        confidence_score=0.96
+def _finding(**overrides):
+    values = {
+        "finding_id": "find-001",
+        "paper_title": "Measured Attention Evaluation",
+        "authors": ["Research team"],
+        "topic": "attention_sparsity",
+        "gap_summary": "A candidate relationship requiring review.",
+        "suggested_patch_type": "knowledge_proposal",
+        "patch_code": "Non-executable proposal text.",
+        "confidence_score": 0.6,
+    }
+    values.update(overrides)
+    return ResearchFinding(**values)
+
+
+def test_finding_conversion_returns_research_owned_artifact(tmp_path):
+    bridge = ResearchEcosystemBridge(outbox_dir=tmp_path / "outbox")
+
+    artifact = bridge.convert_finding_to_candidate(_finding())
+
+    assert isinstance(artifact, ResearchArtifact)
+    assert artifact.artifact_id == "candidate-find-001"
+    assert artifact.producer == "JAYA_RESEARCH"
+    assert artifact.payload["executable"] is False
+    assert artifact.status.value == "DRAFT_INCOMPLETE"
+
+
+def test_submission_writes_only_to_research_outbox(tmp_path):
+    outbox = tmp_path / "research-outbox"
+    bridge = ResearchEcosystemBridge(outbox_dir=outbox)
+
+    result = bridge.submit_research_upgrade(_finding(evidence_kind="SIMULATION"))
+
+    assert result["gate_passed"] is False
+    assert result["human_review_required"] is True
+    assert result["auto_deployed_by_research"] is False
+    artifact = json.loads(
+        (outbox / "candidate-find-001.json").read_text(encoding="utf-8")
     )
-
-    bridge = ResearchEcosystemBridge()
-    candidate = bridge.convert_finding_to_candidate(finding)
-
-    assert isinstance(candidate, EvolutionCandidate)
-    assert candidate.candidate_id == "candidate-find-001"
-    assert candidate.metadata["author"] == "JAYA_RESEARCH_AUTONOMOUS"
-    assert candidate.metadata["patch_type"] == "sparsity_patch"
+    validate_artifact_dict(artifact)
+    assert artifact["status"] == "SIMULATION_ONLY"
 
 
-def test_submit_research_upgrade_end_to_end():
-    """Test end-to-end flow: JAYA_RESEARCH finding -> ResearchEcosystemBridge -> JAYA_CORE EvolutionGate."""
-    finding = ResearchFinding(
-        finding_id="find-002",
-        paper_title="Morphic Kernel Safety Enhancement",
-        authors=["JAYA Research Agent"],
-        topic="zero_trust_governance",
-        gap_summary="Zero-trust cryptographic verification gate enhancement",
-        suggested_patch_type="governance_patch",
-        patch_code="def verify_kernel(): return True",
-        confidence_score=0.99
-    )
+def test_bridge_has_no_internal_core_import_or_deploy_path(tmp_path):
+    bridge = ResearchEcosystemBridge(outbox_dir=tmp_path / "outbox")
+    source = inspect.getsource(inspect.getmodule(ResearchEcosystemBridge))
 
-    bridge = ResearchEcosystemBridge()
-    result = bridge.submit_research_upgrade(finding)
-
-    assert isinstance(result, dict)
-    assert result["finding_id"] == "find-002"
-    assert result["candidate_id"] == "candidate-find-002"
-    assert "gate_passed" in result
-    assert len(bridge.get_submission_history()) == 1
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    assert "from JAYA_CORE" not in source
+    assert "src.brain_v2" not in source
+    assert bridge.deploy_patch_to_core(_finding())[0] is False

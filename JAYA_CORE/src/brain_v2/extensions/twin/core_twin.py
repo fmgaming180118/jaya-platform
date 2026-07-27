@@ -7,7 +7,7 @@ Each cycle it:
 
   1. Checks the TaskPlanner for queued work.
   2. If idle long enough, performs self-reflection to auto-generate tasks.
-  3. Picks the next task, executes it in an isolated Python namespace.
+  3. Picks the next task, executes it in a restricted subprocess sandbox.
   4. Scores the result and records it in ExperimentMemory.
   5. Reports high-scoring outcomes to the engine for potential application.
 
@@ -17,9 +17,11 @@ to continuously improve its own parameters without human intervention.
 
 import asyncio
 import logging
+import math
 import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from src.brain_v2.engine.evolution_sandbox import EvolutionSandbox
 from src.brain_v2.engine.temporal_weights import best_recent
 from src.brain_v2.extensions.twin.experiment_memory import (
     ExperimentMemory,
@@ -42,18 +44,20 @@ logger = logging.getLogger("CoreTwin")
 def _compute_score(outcome: Dict[str, Any]) -> float:
     """Derive a numeric score from an experiment's output namespace.
 
-    Looks for a 'score' or 'fitness' key in the output dict.  Falls
-    back to 1.0 on clean execution, 0.0 on error.
+    Looks for a measured score key. Missing, non-finite, and failed outcomes
+    score zero instead of receiving an automatic success score.
     """
     if "__error__" in outcome:
         return 0.0
     for key in ("score", "fitness", "reward", "value"):
         if key in outcome:
             try:
-                return float(outcome[key])
+                value = float(outcome[key])
+                if math.isfinite(value):
+                    return max(0.0, min(1.0, value))
             except (TypeError, ValueError):
                 pass
-    return 1.0   # clean run = baseline positive score
+    return 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +82,8 @@ class CoreTwin:
                  engine: Optional["IronEngine"],
                  omniverse_enabled: bool = False,
                  reflection_interval: float = 30.0,
-                 memory: Optional[ExperimentMemory] = None):
+                 memory: Optional[ExperimentMemory] = None,
+                 sandbox: Optional[EvolutionSandbox] = None):
         self.engine: Optional["IronEngine"] = engine
         self.omniverse_enabled = omniverse_enabled
         self.running           = False
@@ -87,6 +92,7 @@ class CoreTwin:
         # Core sub-systems
         self.memory  = memory if memory is not None else ExperimentMemory()
         self.planner = TaskPlanner()
+        self.sandbox = sandbox if sandbox is not None else EvolutionSandbox()
 
         # Timing  — initialise to now so first reflection waits a full interval
         self.reflection_interval = reflection_interval
@@ -206,17 +212,29 @@ class CoreTwin:
                              code: str,
                              label: str = "EXPLORE",
                              score_hint: float = 0.0) -> Dict[str, Any]:
-        """Execute *code* in an isolated namespace and return locals."""
-        namespace: Dict[str, Any] = {}
-        try:
-            exec(code, {"__builtins__": __builtins__}, namespace)
+        """Execute *code* in the isolated evolution worker."""
+        sandbox_result = await asyncio.to_thread(
+            self.sandbox.run_experiment,
+            code,
+        )
+        if sandbox_result.ok:
+            namespace: Dict[str, Any] = dict(sandbox_result.outcome)
             self.experiments_run += 1
-        except Exception as exc:
-            logger.warning("Experiment error: %s", exc)
-            namespace["__error__"] = str(exc)
+        else:
+            failure = sandbox_result.failure_payload()
+            logger.warning(
+                "Experiment rejected [%s]: %s",
+                failure["code"],
+                failure["message"],
+            )
+            namespace = {
+                "__error__": failure["message"],
+                "__failure_code__": failure["code"],
+                "__code_digest__": failure["code_digest"],
+            }
             label = "ERROR"
 
-        score = max(score_hint, _compute_score(namespace))
+        score = _compute_score(namespace)
         self.memory.record(code=code, outcome=namespace.copy(),
                            score=score, label=label)
         return namespace
@@ -250,6 +268,7 @@ class CoreTwin:
             "omniverse":    self.omniverse_enabled,
             "homeostasis":  self.homeostasis.status(),
             "spontaneity":  self.spontaneity.status(),
+            "sandbox":      self.sandbox.status(),
         }
 
 
@@ -279,10 +298,7 @@ def _generate_ideas(summary: Dict[str, Any],
     ideas.append(Task(
         priority=int(Priority.LOW),
         label="EXPLORE",
-        code=(
-            "import math\n"
-            "score = math.log1p(1.0)  # curiosity benchmark\n"
-        ),
+        code="score = 0.6931471805599453  # fixed curiosity baseline\n",
         score_hint=0.5,
     ))
 
