@@ -1,51 +1,76 @@
 package com.example.jaya.data.network
 
 import android.util.Log
-import com.example.jaya.data.remote.JayaApiService
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-data class SyncReport(
-    val lastSyncTimestamp: Long,
-    val pendingUploads: Int,
-    val downloadedPatches: Int,
-    val isSyncing: Boolean
+data class SyncReceipt(
+    val uploadedItems: Int,
+    val downloadedItems: Int,
+    val serverRevision: String,
 )
 
-class AutoSyncManager(private val apiService: JayaApiService) {
+interface EcosystemSyncAdapter {
+    suspend fun synchronize(): SyncReceipt
+}
+
+data class SyncReport(
+    val lastSyncTimestamp: Long?,
+    val pendingUploads: Int,
+    val downloadedPatches: Int,
+    val isSyncing: Boolean,
+    val lastErrorCode: String? = null,
+)
+
+class AutoSyncManager(
+    private val syncAdapter: EcosystemSyncAdapter? = null,
+    private val clockMillis: () -> Long = System::currentTimeMillis,
+) {
     private val _syncReport = MutableStateFlow(
         SyncReport(
-            lastSyncTimestamp = System.currentTimeMillis(),
+            lastSyncTimestamp = null,
             pendingUploads = 0,
             downloadedPatches = 0,
-            isSyncing = false
+            isSyncing = false,
         )
     )
     val syncReport: StateFlow<SyncReport> = _syncReport.asStateFlow()
 
     suspend fun performBiDirectionalSync(): Boolean {
-        _syncReport.value = _syncReport.value.copy(isSyncing = true)
-        Log.d("AutoSync", "Starting bi-directional sync with JAYA PC Server...")
-
+        val adapter = syncAdapter
+        if (adapter == null) {
+            _syncReport.value = _syncReport.value.copy(
+                isSyncing = false,
+                lastErrorCode = "SYNC_ADAPTER_UNAVAILABLE",
+            )
+            return false
+        }
+        _syncReport.value = _syncReport.value.copy(
+            isSyncing = true,
+            lastErrorCode = null,
+        )
         return try {
-            val response = apiService.getEvolutionStatus()
-            if (response.isSuccessful) {
-                Log.d("AutoSync", "Sync successful! PC Server Evolution Status: ${response.body()?.state}")
-                _syncReport.value = SyncReport(
-                    lastSyncTimestamp = System.currentTimeMillis(),
-                    pendingUploads = 0,
-                    downloadedPatches = 1,
-                    isSyncing = false
-                )
-                true
-            } else {
-                _syncReport.value = _syncReport.value.copy(isSyncing = false)
-                false
+            val receipt = adapter.synchronize()
+            require(receipt.uploadedItems >= 0 && receipt.downloadedItems >= 0) {
+                "Sync receipt counters cannot be negative"
             }
-        } catch (e: Exception) {
-            Log.e("AutoSync", "Sync failed: ${e.localizedMessage}", e)
-            _syncReport.value = _syncReport.value.copy(isSyncing = false)
+            require(receipt.serverRevision.isNotBlank()) {
+                "Sync receipt must include a server revision"
+            }
+            _syncReport.value = SyncReport(
+                lastSyncTimestamp = clockMillis(),
+                pendingUploads = 0,
+                downloadedPatches = receipt.downloadedItems,
+                isSyncing = false,
+            )
+            true
+        } catch (error: Exception) {
+            Log.e("AutoSync", "Ecosystem sync failed")
+            _syncReport.value = _syncReport.value.copy(
+                isSyncing = false,
+                lastErrorCode = "SYNC_FAILED",
+            )
             false
         }
     }

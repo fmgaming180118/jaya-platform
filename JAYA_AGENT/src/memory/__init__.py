@@ -1,10 +1,13 @@
-"""
-JAYA_AGENT Memory Package
-Provides WorkingMemoryManager, RAGMemoryEngine, and EcosystemSyncBridge
-"""
+"""JAYA_AGENT memory package."""
 
+from .rag_memory import MemoryQueryError, RAGMemoryEngine
+from .sync_bridge import EcosystemSyncBridge, LegacySyncDisabled
 from .working_memory import WorkingMemoryManager
-from .rag_memory import RAGMemoryEngine
-from .sync_bridge import EcosystemSyncBridge
 
-__all__ = ["WorkingMemoryManager", "RAGMemoryEngine", "EcosystemSyncBridge"]
+__all__ = [
+    "EcosystemSyncBridge",
+    "LegacySyncDisabled",
+    "MemoryQueryError",
+    "RAGMemoryEngine",
+    "WorkingMemoryManager",
+]

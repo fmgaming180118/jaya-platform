@@ -1,0 +1,17 @@
+diff --git a/.github/workflows/monorepo-quality-gates.yml b/.github/workflows/monorepo-quality-gates.yml
+--- a/.github/workflows/monorepo-quality-gates.yml
++++ b/.github/workflows/monorepo-quality-gates.yml
+@@ -25,9 +25,11 @@ jobs:
+         run: python -m pip install "ruff>=0.12,<1"
+       - name: Validate canonical documentation
+         run: python scripts/validate_docs.py
++      - name: Audit repository boundaries
++        run: python .github/tools/repo_layout_audit.py --fail-on-violations
+       - name: Audit Android security invariants
+         run: python scripts/audit_android_security.py
+       - name: Validate root tooling
+         run: |
+-          python -m compileall -q scripts
+-          ruff check scripts/run_test_matrix.py scripts/audit_android_security.py
++          python -m compileall -q scripts .github/tools/repo_layout_audit.py
++          ruff check scripts/run_test_matrix.py scripts/audit_android_security.py .github/tools/repo_layout_audit.py

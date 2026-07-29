@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, Set
+from typing import Any, Dict, Set
 
 from src.os_kernel.ui_spec import (
     LayoutType,
@@ -103,6 +103,17 @@ class FeatureCompiler:
         for child in widget.children:
             types.update(self._collect_widget_types(child))
         return types
+
+    @staticmethod
+    def _python_literal(value: Any) -> str:
+        """Render JSON-compatible data as valid deterministic Python syntax."""
+        try:
+            normalized = json.loads(json.dumps(value))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Feature value is not JSON-compatible ({type(value).__name__})"
+            ) from exc
+        return repr(normalized)
 
     def _generate_header(self, feature_name: str, feature_id: str, scene: SceneGraph) -> str:
         return f'''"""
@@ -438,12 +449,16 @@ def get_token(name: str, default: str = "") -> str:
             lines.append(f"{indent_str}# Event handlers for {var_name}")
             for event in widget.events:
                 action = event.action
-                payload = json.dumps(event.payload)
+                payload = self._python_literal(event.payload)
                 lines.append(f'{indent_str}{var_name}.on("{event.event}", lambda d, a="{action}", p={payload}: jaya_dispatch(a, p))')
 
         # Bindings
         if widget.bindings:
-            lines.append(f"{indent_str}{var_name}.bindings = {json.dumps([asdict(b) for b in widget.bindings])}")
+            binding_specs = [asdict(binding) for binding in widget.bindings]
+            lines.append(
+                f"{indent_str}{var_name}.bindings = "
+                f"{self._python_literal(binding_specs)}"
+            )
 
         return "\n".join(lines)
 
@@ -456,7 +471,7 @@ def get_token(name: str, default: str = "") -> str:
 
         if widget.style.to_css():
             style_dict = widget.style.to_css()
-            props["style"] = json.dumps(style_dict)
+            props["style"] = self._python_literal(style_dict)
 
         if widget.layout:
             props["layout"] = f'"{widget.layout.value}"'
@@ -467,19 +482,23 @@ def get_token(name: str, default: str = "") -> str:
             for k, v in rect_dict.items():
                 if hasattr(v, 'value') and hasattr(v, 'unit'):
                     rect_dict[k] = {"value": v.value, "unit": v.unit.value}
-            props["rect"] = json.dumps(rect_dict)
+            props["rect"] = self._python_literal(rect_dict)
 
         props["visible"] = str(widget.visible)
         props["enabled"] = str(widget.enabled)
 
         if widget.metadata:
-            props["metadata"] = json.dumps(widget.metadata)
+            props["metadata"] = self._python_literal(widget.metadata)
 
         if widget.type in (WidgetType.TEXT_INPUT, WidgetType.TEXTAREA, WidgetType.SELECT):
-            props["value"] = json.dumps(widget.value) if widget.value is not None else '""'
+            props["value"] = (
+                self._python_literal(widget.value)
+                if widget.value is not None
+                else '""'
+            )
 
         if widget.type == WidgetType.SELECT:
-            props["options"] = json.dumps(widget.options)
+            props["options"] = self._python_literal(widget.options)
 
         if widget.placeholder:
             props["placeholder"] = f'"{widget.placeholder}"'
@@ -582,14 +601,21 @@ def set_jaya_bridge(bridge: JayaBridge) -> None:
 async def jaya_dispatch(action: str, payload: Dict = None) -> Any:
     """Dispatch a JAYA action through the bridge."""
     if _jaya_bridge is None:
-        print(f"Warning: No JAYA bridge set, action {action} dropped")
-        return None
+        return {
+            "success": False,
+            "error_code": "BRIDGE_UNAVAILABLE",
+            "action": action,
+        }
 
     try:
         return await _jaya_bridge.dispatch(action, payload or {})
-    except Exception as e:
-        print(f"JAYA dispatch error: {e}")
-        return None
+    except Exception as exc:
+        return {
+            "success": False,
+            "error_code": "BRIDGE_DISPATCH_FAILED",
+            "action": action,
+            "error_type": type(exc).__name__,
+        }
 
 # Standard JAYA Actions
 class JayaActions:

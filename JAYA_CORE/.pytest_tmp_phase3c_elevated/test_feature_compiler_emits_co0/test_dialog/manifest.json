@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "id": "fda18662-2823-43a1-8d98-b993f2531191",
+  "name": "Test Dialog",
+  "description": "Test dialog for compiler",
+  "protocol_version": "1.0",
+  "entry_point": "test_dialog.run_feature",
+  "capabilities": [
+    "ui",
+    "events",
+    "state",
+    "jaya_actions"
+  ],
+  "permissions": [
+    "ui_mount",
+    "state_read",
+    "state_write",
+    "api_call"
+  ],
+  "dependencies": {},
+  "metadata": {}
+}

@@ -1,0 +1,2624 @@
+diff --git a/JAYA_RESEARCH/scripts/process_ta_fachri.py b/JAYA_RESEARCH/scripts/process_ta_fachri.py
+index 375a3bf..ab3b11f 100644
+--- a/JAYA_RESEARCH/scripts/process_ta_fachri.py
++++ b/JAYA_RESEARCH/scripts/process_ta_fachri.py
+@@ -4,6 +4,7 @@ Process a single PDF (Tugas Akhir) - Extract text, images, tables, references
+ Creates organized folder with markdown file
+ """
+ 
++import argparse
+ import os
+ import sys
+ import re
+@@ -15,7 +16,8 @@ import pdfplumber
+ import fitz  # PyMuPDF for image extraction
+ 
+ # Add project root and src to path for imports
+-PROJECT_ROOT = Path(__file__).parent.parent
++PROJECT_ROOT = Path(__file__).resolve().parent.parent
++DATA_ROOT = (PROJECT_ROOT / "data").resolve(strict=False)
+ SRC_DIR = PROJECT_ROOT / "src"
+ sys.path.insert(0, str(SRC_DIR))
+ sys.path.insert(0, str(PROJECT_ROOT))
+@@ -23,12 +25,41 @@ sys.path.insert(0, str(PROJECT_ROOT))
+ from teacher import Teacher
+ 
+ 
++def _is_relative_to(path: Path, root: Path) -> bool:
++    try:
++        path.relative_to(root)
++    except ValueError:
++        return False
++    return True
++
++
++def resolve_pdf_path(raw_path: str | os.PathLike[str]) -> Path:
++    """Resolve and validate an explicit PDF input path."""
++    path = Path(raw_path).expanduser().resolve(strict=True)
++    if not path.is_file():
++        raise ValueError(f"input is not a file: {path}")
++    if path.suffix.casefold() != ".pdf":
++        raise ValueError(f"input must be a PDF file: {path}")
++    return path
++
++
++def resolve_output_dir(raw_path: str | os.PathLike[str]) -> Path:
++    """Keep generated research artifacts under JAYA_RESEARCH/data."""
++    candidate = Path(raw_path).expanduser()
++    if not candidate.is_absolute():
++        candidate = PROJECT_ROOT / candidate
++    output_dir = candidate.resolve(strict=False)
++    if not _is_relative_to(output_dir, DATA_ROOT):
++        raise ValueError(f"output directory must stay inside {DATA_ROOT}: {output_dir}")
++    return output_dir
++
++
+ class TugasAkhirProcessor:
+     """Process Tugas Akhir PDF and create structured markdown output"""
+     
+     def __init__(self, pdf_path: Path, output_dir: Path):
+-        self.pdf_path = Path(pdf_path)
+-        self.output_dir = Path(output_dir)
++        self.pdf_path = resolve_pdf_path(pdf_path)
++        self.output_dir = resolve_output_dir(output_dir)
+         self.output_dir.mkdir(parents=True, exist_ok=True)
+         
+         # Initialize LLM for analysis
+@@ -458,26 +489,45 @@ Format output sebagai JSON dengan keys:
+             return False
+ 
+ 
+-def main():
+-    # Input PDF
+-    pdf_path = Path(r"D:\Kampus\CRMxInquiryImport\Tugas Akhir - FACHRI FAHIRA PRANAJAYA.pdf")
+-    
+-    # Output directory
+-    output_dir = Path(__file__).parent.parent / "data" / "processed_ta"
+-    
+-    if not pdf_path.exists():
+-        print(f"❌ File tidak ditemukan: {pdf_path}")
+-        return
+-    
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(
++        description="Extract a single thesis PDF into structured research artifacts."
++    )
++    parser.add_argument(
++        "pdf_path",
++        nargs="?",
++        default=os.getenv("JAYA_RESEARCH_TA_PDF"),
++        help="input PDF path (env: JAYA_RESEARCH_TA_PDF)",
++    )
++    parser.add_argument(
++        "--output-dir",
++        default=os.getenv(
++            "JAYA_RESEARCH_TA_OUTPUT_DIR",
++            str(DATA_ROOT / "processed_ta"),
++        ),
++        help="output directory under JAYA_RESEARCH/data",
++    )
++    return parser
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = build_parser()
++    args = parser.parse_args(argv)
++    if not args.pdf_path:
++        parser.error("pdf_path or JAYA_RESEARCH_TA_PDF is required")
++
++    try:
++        pdf_path = resolve_pdf_path(args.pdf_path)
++        output_dir = resolve_output_dir(args.output_dir)
++        processor = TugasAkhirProcessor(pdf_path, output_dir)
++    except (OSError, ValueError) as exc:
++        print(f"invalid processor path: {exc}", file=sys.stderr)
++        return 2
++
+     print(f"Input: {pdf_path}")
+     print(f"Output: {output_dir}")
+-    
+-    processor = TugasAkhirProcessor(pdf_path, output_dir)
+-    success = processor.process()
+-    
+-    if not success:
+-        sys.exit(1)
++    return 0 if processor.process() else 1
+ 
+ 
+ if __name__ == "__main__":
+-    main()
+\ No newline at end of file
++    raise SystemExit(main())
+diff --git a/JAYA_CORE/scripts/benchmark_phase1_ir.py b/JAYA_CORE/scripts/benchmark_phase1_ir.py
+index 2664839..569e259 100644
+--- a/JAYA_CORE/scripts/benchmark_phase1_ir.py
++++ b/JAYA_CORE/scripts/benchmark_phase1_ir.py
+@@ -4,8 +4,7 @@ Measures cold and warm latency for repeated desktop/action intents,
+ then compares cache policies to help tune defaults.
+ 
+ Usage:
+-    C:/Users/Lenovo/AppData/Local/Programs/Python/Python312/python.exe \
+-        JAYA_CORE/scripts/benchmark_phase1_ir.py
++    python JAYA_CORE/scripts/benchmark_phase1_ir.py
+ """
+ 
+ from __future__ import annotations
+diff --git a/JAYA_CORE/scripts/convert_to_gguf.py b/JAYA_CORE/scripts/convert_to_gguf.py
+index c076440..3ff7001 100644
+--- a/JAYA_CORE/scripts/convert_to_gguf.py
++++ b/JAYA_CORE/scripts/convert_to_gguf.py
+@@ -1,175 +1,350 @@
+ #!/usr/bin/env python3
+-"""Phase 4: Convert distilled student model to GGUF for edge deployment."""
++"""Convert a registered student model into a verified GGUF artifact.
++
++All registry, adapter, and output paths are contained within JAYA_CORE. The
++external llama.cpp checkout must be supplied explicitly through CLI or env.
++"""
++
++from __future__ import annotations
+ 
+ import argparse
++import hashlib
+ import json
+ import os
++import re
+ import shutil
+ import subprocess
+ import sys
++import tempfile
++from datetime import UTC, datetime
+ from pathlib import Path
++from typing import Any
+ 
+-def main():
+-    p = argparse.ArgumentParser(description="Convert student model to GGUF for edge deployment")
+-    p.add_argument('--policy', default='distilled-student-qwen-0.5b-v1', help='Policy name in registry')
+-    p.add_argument('--out-dir', default='JAYA_CORE/data/edge_deploy', help='Output directory for GGUF')
+-    p.add_argument('--quantization', default='q4_k_m', choices=['q4_k_m', 'q4_k_s', 'q5_k_m', 'q8_0', 'f16'], help='GGUF quantization')
+-    p.add_argument('--llama-cpp-dir', default=None, help='Path to llama.cpp repo (for conversion)')
+-    args = p.parse_args()
+-
+-    # Load registry
+-    registry_file = Path("data/policies/registry.json")
+-    if not registry_file.exists():
+-        print("ERROR: Registry not found")
+-        return 1
+-    
+-    with open(registry_file, "r") as f:
+-        registry = json.load(f)
+-    
+-    if args.policy not in registry:
+-        print(f"ERROR: Policy {args.policy} not found in registry")
+-        return 1
+-    
+-    policy = registry[args.policy]
+-    adapter_path = Path(policy["path"])
+-    base_model = policy["base_model"]
+-    
+-    print(f"Converting policy: {args.policy}")
+-    print(f"Base model: {base_model}")
+-    print(f"Adapter: {adapter_path}")
+-    print(f"Quantization: {args.quantization}")
+-    
+-    # Check if llama.cpp is available
+-    llama_cpp_dir = Path(args.llama_cpp_dir) if args.llama_cpp_dir else Path(os.getenv("LLAMA_CPP_DIR", ""))
+-    if not llama_cpp_dir.exists():
+-        # Try to find llama.cpp
+-        possible_paths = [
+-            Path.home() / "llama.cpp",
+-            Path("C:/llama.cpp"),
+-            Path("D:/llama.cpp"),
+-            Path("../llama.cpp"),
+-        ]
+-        for p in possible_paths:
+-            if p.exists():
+-                llama_cpp_dir = p
+-                break
+-    
+-    if not llama_cpp_dir or not llama_cpp_dir.exists():
+-        print("ERROR: llama.cpp not found. Please install llama.cpp and set LLAMA_CPP_DIR env var")
+-        print("  git clone https://github.com/ggerganov/llama.cpp")
+-        print("  cmake -B build && cmake --build build --config Release")
+-        return 1
+-    
+-    convert_script = llama_cpp_dir / "convert_hf_to_gguf.py"
+-    if not convert_script.exists():
+-        print(f"ERROR: convert_hf_to_gguf.py not found in {llama_cpp_dir}")
+-        return 1
+-    
+-    # Create output directory
+-    out_dir = Path(args.out_dir) / args.policy
+-    out_dir.mkdir(parents=True, exist_ok=True)
+-    
+-    # Step 1: Merge adapter with base model (create merged HF model)
+-    print("\n[1/3] Merging adapter with base model...")
+-    merged_dir = out_dir / "merged_hf"
+-    if merged_dir.exists():
+-        shutil.rmtree(merged_dir)
+-    
+-    merge_cmd = [
+-        sys.executable, "-c", f"""
+-import torch
+-from transformers import AutoModelForCausalLM, AutoTokenizer
+-from peft import PeftModel
+-
+-base = AutoModelForCausalLM.from_pretrained(
+-    "{base_model}",
+-    torch_dtype=torch.float16,
+-    device_map="cpu",
+-    trust_remote_code=True
+-)
+-model = PeftModel.from_pretrained(base, "{adapter_path}")
+-merged = model.merge_and_unload()
+-merged.save_pretrained("{merged_dir}")
+-AutoTokenizer.from_pretrained("{base_model}", trust_remote_code=True).save_pretrained("{merged_dir}")
+-print("Merge complete")
+-"""
+-    ]
+-    
+-    result = subprocess.run(merge_cmd, capture_output=True, text=True)
+-    if result.returncode != 0:
+-        print(f"ERROR merging: {result.stderr}")
+-        return 1
+-    print("Merge complete")
+-    
+-    # Step 2: Convert to GGUF
+-    print("\n[2/3] Converting to GGUF...")
+-    gguf_file = out_dir / f"{args.policy}-{args.quantization}.gguf"
+-    
+-    convert_cmd = [
+-        sys.executable, str(convert_script),
+-        str(merged_dir),
+-        "--outfile", str(gguf_file),
+-        "--outtype", args.quantization,
+-    ]
+-    
+-    result = subprocess.run(convert_cmd, capture_output=True, text=True, cwd=str(llama_cpp_dir))
++CORE_ROOT = Path(__file__).resolve().parents[1]
++POLICY_ROOT = CORE_ROOT / "data" / "policies"
++EDGE_ROOT = CORE_ROOT / "data" / "edge_deploy"
++POLICY_NAME_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
++QUANTIZATIONS = ("q4_k_m", "q4_k_s", "q5_k_m", "q8_0", "f16")
++
++
++def _is_relative_to(path: Path, root: Path) -> bool:
++    try:
++        path.relative_to(root)
++    except ValueError:
++        return False
++    return True
++
++
++def resolve_contained(
++    raw_path: str | os.PathLike[str],
++    *,
++    root: Path,
++    base: Path = CORE_ROOT,
++    must_exist: bool = False,
++    directory: bool = False,
++) -> Path:
++    """Resolve a path and fail if it escapes an allowed root."""
++    candidate = Path(raw_path).expanduser()
++    if not candidate.is_absolute():
++        candidate = base / candidate
++    resolved_root = root.resolve(strict=False)
++    resolved = candidate.resolve(strict=must_exist)
++    if not _is_relative_to(resolved, resolved_root):
++        raise ValueError(f"path must stay inside {resolved_root}: {resolved}")
++    if must_exist and directory and not resolved.is_dir():
++        raise ValueError(f"expected a directory: {resolved}")
++    return resolved
++
++
++def resolve_llama_cpp(raw_path: str | os.PathLike[str]) -> Path:
++    """Validate an explicitly configured llama.cpp checkout."""
++    path = Path(raw_path).expanduser().resolve(strict=True)
++    if not path.is_dir():
++        raise ValueError(f"llama.cpp path is not a directory: {path}")
++    converter = path / "convert_hf_to_gguf.py"
++    if not converter.is_file():
++        raise ValueError(f"missing llama.cpp converter: {converter}")
++    return path
++
++
++def resolve_adapter_path(raw_path: str) -> Path:
++    """Resolve a registry adapter path under the canonical policy directory."""
++    normalized = raw_path.replace("\\", "/")
++    return resolve_contained(
++        normalized,
++        root=POLICY_ROOT,
++        base=CORE_ROOT,
++        must_exist=True,
++        directory=True,
++    )
++
++
++def load_policy(registry_path: Path, policy_name: str) -> dict[str, Any]:
++    """Load and validate the selected policy entry."""
++    if not POLICY_NAME_PATTERN.fullmatch(policy_name):
++        raise ValueError(f"invalid policy name: {policy_name!r}")
++    try:
++        registry_data = json.loads(registry_path.read_text(encoding="utf-8"))
++    except json.JSONDecodeError as exc:
++        raise ValueError(f"invalid registry JSON: {registry_path}: {exc}") from exc
++    if not isinstance(registry_data, dict):
++        raise ValueError("policy registry must contain a JSON object")
++
++    policy = registry_data.get(policy_name)
++    if not isinstance(policy, dict):
++        raise ValueError(f"policy not found in registry: {policy_name}")
++    for key in ("path", "base_model"):
++        if not isinstance(policy.get(key), str) or not policy[key].strip():
++            raise ValueError(f"policy field {key!r} must be a non-empty string")
++    return policy
++
++
++def find_quantizer(llama_cpp_dir: Path) -> Path:
++    """Find a built llama-quantize binary in standard build layouts."""
++    candidates = (
++        llama_cpp_dir / "build" / "bin" / "Release" / "llama-quantize.exe",
++        llama_cpp_dir / "build" / "bin" / "llama-quantize.exe",
++        llama_cpp_dir / "build" / "bin" / "llama-quantize",
++        llama_cpp_dir / "llama-quantize.exe",
++        llama_cpp_dir / "llama-quantize",
++    )
++    for candidate in candidates:
++        if candidate.is_file():
++            return candidate.resolve(strict=True)
++    raise ValueError("llama-quantize is required for quantized GGUF output")
++
++
++def run_checked(command: list[str], *, cwd: Path, timeout_seconds: int) -> None:
++    """Run a fixed argv command and surface bounded diagnostic output."""
++    try:
++        result = subprocess.run(
++            command,
++            cwd=cwd,
++            capture_output=True,
++            text=True,
++            timeout=timeout_seconds,
++            check=False,
++        )
++    except subprocess.TimeoutExpired as exc:
++        raise RuntimeError(
++            f"command timed out after {timeout_seconds}s: {Path(command[0]).name}"
++        ) from exc
+     if result.returncode != 0:
+-        print(f"ERROR converting: {result.stderr}")
+-        return 1
+-    print(f"GGUF created: {gguf_file}")
+-    
+-    # Step 3: Verify GGUF
+-    print("\n[3/3] Verifying GGUF...")
+-    quantize_tool = llama_cpp_dir / "build" / "bin" / "Release" / "llama-quantize.exe"
+-    if not quantize_tool.exists():
+-        quantize_tool = llama_cpp_dir / "build" / "bin" / "llama-quantize"
+-    
+-    if quantize_tool.exists():
+-        # Quick test: try to load with llama.cpp
+-        test_cmd = [
+-            str(quantize_tool),
+-            str(gguf_file),
+-            str(out_dir / "test.gguf"),
+-            "q4_k_m"
+-        ]
+-        result = subprocess.run(test_cmd, capture_output=True, text=True, timeout=60)
+-        if result.returncode == 0:
+-            print("GGUF verification passed")
+-            (out_dir / "test.gguf").unlink(missing_ok=True)
++        stderr = (result.stderr or result.stdout or "no diagnostic output").strip()
++        raise RuntimeError(
++            f"command failed ({result.returncode}): {Path(command[0]).name}: "
++            f"{stderr[-4000:]}"
++        )
++
++
++def merge_adapter(
++    *,
++    base_model: str,
++    adapter_path: Path,
++    merged_dir: Path,
++    trust_remote_code: bool,
++) -> None:
++    """Merge a PEFT adapter without constructing executable source strings."""
++    try:
++        import torch
++        from peft import PeftModel
++        from transformers import AutoModelForCausalLM, AutoTokenizer
++    except ImportError as exc:
++        raise RuntimeError(
++            "conversion requires torch, transformers, and peft"
++        ) from exc
++
++    base = AutoModelForCausalLM.from_pretrained(
++        base_model,
++        torch_dtype=torch.float16,
++        device_map="cpu",
++        trust_remote_code=trust_remote_code,
++    )
++    model = PeftModel.from_pretrained(base, str(adapter_path))
++    merged = model.merge_and_unload()
++    merged.save_pretrained(merged_dir)
++    tokenizer = AutoTokenizer.from_pretrained(
++        base_model,
++        trust_remote_code=trust_remote_code,
++    )
++    tokenizer.save_pretrained(merged_dir)
++
++
++def verify_gguf(path: Path) -> None:
++    """Require a non-empty file with the GGUF magic header."""
++    if not path.is_file() or path.stat().st_size <= 4:
++        raise RuntimeError(f"GGUF output is missing or empty: {path}")
++    with path.open("rb") as handle:
++        if handle.read(4) != b"GGUF":
++            raise RuntimeError(f"invalid GGUF magic header: {path}")
++
++
++def sha256_file(path: Path) -> str:
++    digest = hashlib.sha256()
++    with path.open("rb") as handle:
++        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
++            digest.update(chunk)
++    return digest.hexdigest()
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(
++        description="Convert a registered JAYA student model into GGUF."
++    )
++    parser.add_argument(
++        "--policy",
++        default="distilled-student-qwen-0.5b-v1",
++        help="policy name in the registry",
++    )
++    parser.add_argument(
++        "--registry",
++        default=os.getenv("JAYA_POLICY_REGISTRY", str(POLICY_ROOT / "registry.json")),
++        help="registry JSON inside JAYA_CORE/data/policies",
++    )
++    parser.add_argument(
++        "--out-dir",
++        default=os.getenv("JAYA_GGUF_OUTPUT_DIR", str(EDGE_ROOT)),
++        help="output directory inside JAYA_CORE/data/edge_deploy",
++    )
++    parser.add_argument(
++        "--quantization",
++        default="q4_k_m",
++        choices=QUANTIZATIONS,
++        help="final GGUF quantization",
++    )
++    parser.add_argument(
++        "--llama-cpp-dir",
++        default=os.getenv("LLAMA_CPP_DIR"),
++        help="explicit llama.cpp checkout (env: LLAMA_CPP_DIR)",
++    )
++    parser.add_argument(
++        "--trust-remote-code",
++        action="store_true",
++        help="explicitly allow model repository Python code",
++    )
++    parser.add_argument(
++        "--overwrite",
++        action="store_true",
++        help="replace an existing final GGUF artifact",
++    )
++    parser.add_argument(
++        "--timeout-seconds",
++        type=int,
++        default=3600,
++        help="timeout for each llama.cpp subprocess",
++    )
++    return parser
++
++
++def convert(args: argparse.Namespace) -> tuple[Path, Path]:
++    if not args.llama_cpp_dir:
++        raise ValueError("--llama-cpp-dir or LLAMA_CPP_DIR is required")
++    if args.timeout_seconds < 1:
++        raise ValueError("--timeout-seconds must be positive")
++
++    registry_path = resolve_contained(
++        args.registry,
++        root=POLICY_ROOT,
++        must_exist=True,
++    )
++    if not registry_path.is_file():
++        raise ValueError(f"registry is not a file: {registry_path}")
++    output_dir = resolve_contained(args.out_dir, root=EDGE_ROOT)
++    output_dir.mkdir(parents=True, exist_ok=True)
++    output_dir = output_dir.resolve(strict=True)
++    llama_cpp_dir = resolve_llama_cpp(args.llama_cpp_dir)
++
++    policy = load_policy(registry_path, args.policy)
++    adapter_path = resolve_adapter_path(policy["path"])
++    base_model = policy["base_model"]
++    final_path = output_dir / f"{args.policy}-{args.quantization}.gguf"
++    manifest_path = output_dir / f"{args.policy}-{args.quantization}.manifest.json"
++    if final_path.exists() and not args.overwrite:
++        raise FileExistsError(f"GGUF already exists; pass --overwrite: {final_path}")
++
++    converter = llama_cpp_dir / "convert_hf_to_gguf.py"
++    with tempfile.TemporaryDirectory(prefix=".gguf-build-", dir=output_dir) as temp_name:
++        temp_dir = Path(temp_name).resolve(strict=True)
++        merged_dir = temp_dir / "merged_hf"
++        merged_dir.mkdir()
++        merge_adapter(
++            base_model=base_model,
++            adapter_path=adapter_path,
++            merged_dir=merged_dir,
++            trust_remote_code=args.trust_remote_code,
++        )
++
++        f16_path = temp_dir / "model-f16.gguf"
++        run_checked(
++            [
++                sys.executable,
++                str(converter),
++                str(merged_dir),
++                "--outfile",
++                str(f16_path),
++                "--outtype",
++                "f16",
++            ],
++            cwd=llama_cpp_dir,
++            timeout_seconds=args.timeout_seconds,
++        )
++        verify_gguf(f16_path)
++
++        staged_final = temp_dir / final_path.name
++        if args.quantization == "f16":
++            shutil.copy2(f16_path, staged_final)
+         else:
+-            print(f"Warning: GGUF verification failed: {result.stderr}")
+-    else:
+-        print("Warning: llama-quantize not found, skipping verification")
+-    
+-    # Create deployment manifest
+-    deploy_manifest = {
++            quantizer = find_quantizer(llama_cpp_dir)
++            run_checked(
++                [
++                    str(quantizer),
++                    str(f16_path),
++                    str(staged_final),
++                    args.quantization,
++                ],
++                cwd=llama_cpp_dir,
++                timeout_seconds=args.timeout_seconds,
++            )
++        verify_gguf(staged_final)
++
++        if final_path.exists():
++            final_path.unlink()
++        shutil.move(staged_final, final_path)
++
++    manifest = {
++        "schema_version": 1,
+         "policy": args.policy,
+         "base_model": base_model,
+-        "gguf_file": str(gguf_file.relative_to(out_dir)),
++        "adapter_path": adapter_path.relative_to(CORE_ROOT).as_posix(),
++        "gguf_file": final_path.name,
+         "quantization": args.quantization,
+-        "size_mb": round(gguf_file.stat().st_size / (1024*1024), 1),
+-        "target_vram_mb": policy.get("metadata", {}).get("target_vram_mb", 500),
+-        "llama_cpp_version": "latest",
+-        "created_at": __import__('time').time(),
++        "size_bytes": final_path.stat().st_size,
++        "sha256": sha256_file(final_path),
++        "target_vram_mb": policy.get("metadata", {}).get("target_vram_mb"),
++        "converter": "convert_hf_to_gguf.py",
++        "created_at": datetime.now(UTC).isoformat(),
+     }
+-    
+-    manifest_file = out_dir / "deploy_manifest.json"
+-    with open(manifest_file, "w") as f:
+-        json.dump(deploy_manifest, f, indent=2)
+-    
+-    print(f"\n{'='*50}")
+-    print(f"EDGE DEPLOYMENT READY")
+-    print(f"{'='*50}")
+-    print(f"GGUF: {gguf_file}")
+-    print(f"Size: {deploy_manifest['size_mb']} MB")
+-    print(f"Quantization: {args.quantization}")
+-    print(f"Target VRAM: {deploy_manifest['target_vram_mb']} MB")
+-    print(f"Manifest: {manifest_file}")
+-    print(f"\nTo run on edge device:")
+-    print(f"  llama.cpp/main -m {gguf_file.name} -p 'Apa itu machine learning?' -n 100")
+-    
++    staged_manifest = manifest_path.with_suffix(manifest_path.suffix + ".tmp")
++    staged_manifest.write_text(
++        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
++        encoding="utf-8",
++    )
++    staged_manifest.replace(manifest_path)
++    return final_path, manifest_path
++
++
++def main(argv: list[str] | None = None) -> int:
++    args = build_parser().parse_args(argv)
++    try:
++        final_path, manifest_path = convert(args)
++    except (OSError, RuntimeError, ValueError) as exc:
++        print(f"GGUF conversion failed: {exc}", file=sys.stderr)
++        return 1
++
++    print(f"verified GGUF: {final_path}")
++    print(f"deployment manifest: {manifest_path}")
+     return 0
+ 
+ 
+ if __name__ == "__main__":
+-    sys.exit(main())
+\ No newline at end of file
++    raise SystemExit(main())
+diff --git a/JAYA_CORE/scripts/backup_source.py b/JAYA_CORE/scripts/backup_source.py
+index 7dfd87b..0e3d8b0 100644
+--- a/JAYA_CORE/scripts/backup_source.py
++++ b/JAYA_CORE/scripts/backup_source.py
+@@ -1,118 +1,192 @@
+-"""
+-backup_source.py -- Source Code Backup (Pre-Lockdown Safety Net)
++#!/usr/bin/env python3
++"""Create and verify a ZIP backup of JAYA_CORE Python source files.
+ 
+-The Great Awakening Step 1:
+-Backup ALL .py source files before they are deleted by lockdown.
++The script never deletes source. All local paths are derived from this checkout;
++an optional external mirror must be supplied explicitly through CLI or environment.
+ """
+ 
+-import os
+-import sys
++from __future__ import annotations
++
++import argparse
+ import hashlib
++import os
+ import shutil
++import sys
+ import zipfile
+-from datetime import datetime
+-
+-
+-SOURCE_DIR = "src/brain_v2"
+-BACKUP_DIR = "backup"
+-EXTERNAL_BACKUP = r"D:\Kampus\coba-coba\jaya-backup"
+-
+-
+-def sha256_file(filepath):
+-    h = hashlib.sha256()
+-    with open(filepath, 'rb') as f:
+-        for chunk in iter(lambda: f.read(8192), b''):
+-            h.update(chunk)
+-    return h.hexdigest()
+-
+-
+-def main():
+-    print("=" * 50)
+-    print("  BACKUP SOURCE CODE (Pre-Lockdown)")
+-    print("=" * 50)
+-    
+-    # 1. Scan
+-    print(f"\n[BACKUP] Scanning {SOURCE_DIR}/...")
+-    py_files = []
+-    total_size = 0
+-    
+-    for root, dirs, files in os.walk(SOURCE_DIR):
+-        for f in files:
+-            if f.endswith(".py"):
+-                filepath = os.path.join(root, f).replace("\\", "/")
+-                size = os.path.getsize(filepath)
+-                py_files.append((filepath, size))
+-                total_size += size
+-    
+-    print(f"[BACKUP] Found {len(py_files)} Python source files ({total_size // 1024} KB total)")
+-    
+-    if not py_files:
+-        print("[ERROR] No Python files found!")
+-        return 1
+-    
+-    # 2. Generate SHA-256 manifest
+-    print(f"[BACKUP] Generating SHA-256 manifest...")
+-    manifest = {}
+-    for filepath, _ in py_files:
+-        manifest[filepath] = sha256_file(filepath)
+-    print(f"[BACKUP] SHA-256 manifest generated ({len(manifest)} entries)")
+-    
+-    # 3. Create ZIP
+-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+-    zip_name = f"brain_v2_source_{timestamp}.zip"
+-    
+-    os.makedirs(BACKUP_DIR, exist_ok=True)
+-    zip_path = os.path.join(BACKUP_DIR, zip_name)
+-    
+-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+-        # Add all .py files
+-        for filepath, _ in py_files:
+-            zf.write(filepath)
+-        
+-        # Add manifest
+-        manifest_content = "\n".join(f"{h}  {f}" for f, h in manifest.items())
+-        zf.writestr("SHA256MANIFEST.txt", manifest_content)
+-    
+-    zip_size = os.path.getsize(zip_path)
+-    print(f"[BACKUP] Created: {zip_path} ({zip_size // 1024} KB)")
+-    
+-    # 4. Copy to external location
++from datetime import UTC, datetime
++from pathlib import Path
++
++CORE_ROOT = Path(__file__).resolve().parents[1]
++DEFAULT_SOURCE_DIR = CORE_ROOT / "src" / "brain_v2"
++DEFAULT_BACKUP_DIR = CORE_ROOT / "backup"
++
++
++def sha256_file(path: Path) -> str:
++    """Return the SHA-256 digest of a file without loading it all in memory."""
++    digest = hashlib.sha256()
++    with path.open("rb") as handle:
++        for chunk in iter(lambda: handle.read(64 * 1024), b""):
++            digest.update(chunk)
++    return digest.hexdigest()
++
++
++def _is_relative_to(path: Path, root: Path) -> bool:
++    try:
++        path.relative_to(root)
++    except ValueError:
++        return False
++    return True
++
++
++def resolve_contained(
++    raw_path: str | os.PathLike[str],
++    *,
++    root: Path = CORE_ROOT,
++    must_exist: bool = False,
++    directory: bool = False,
++) -> Path:
++    """Resolve a user path and require it to remain inside ``root``."""
++    candidate = Path(raw_path).expanduser()
++    if not candidate.is_absolute():
++        candidate = root / candidate
++    resolved_root = root.resolve(strict=True)
++    resolved = candidate.resolve(strict=must_exist)
++    if not _is_relative_to(resolved, resolved_root):
++        raise ValueError(f"path must stay inside {resolved_root}: {resolved}")
++    if must_exist and directory and not resolved.is_dir():
++        raise ValueError(f"expected a directory: {resolved}")
++    return resolved
++
++
++def resolve_mirror_dir(raw_path: str | os.PathLike[str], *, source_dir: Path) -> Path:
++    """Validate an explicit external mirror destination."""
++    mirror = Path(raw_path).expanduser().resolve(strict=False)
++    filesystem_root = Path(mirror.anchor).resolve(strict=False)
++    if mirror == filesystem_root or mirror == Path.home().resolve(strict=False):
++        raise ValueError("mirror directory cannot be a filesystem root or the user home")
++    if mirror == source_dir or _is_relative_to(mirror, source_dir):
++        raise ValueError("mirror directory cannot be inside the source directory")
++    return mirror
++
++
++def collect_python_files(source_dir: Path) -> list[Path]:
++    """Collect regular Python files without following paths outside source."""
++    files: list[Path] = []
++    for candidate in sorted(source_dir.rglob("*.py")):
++        resolved = candidate.resolve(strict=True)
++        if not resolved.is_file() or not _is_relative_to(resolved, source_dir):
++            continue
++        files.append(resolved)
++    return files
++
++
++def create_backup(
++    source_dir: Path,
++    backup_dir: Path,
++    *,
++    mirror_dir: Path | None = None,
++) -> Path:
++    """Create, verify, and optionally mirror a source archive."""
++    if _is_relative_to(backup_dir, source_dir):
++        raise ValueError("backup directory cannot be inside the source directory")
++
++    files = collect_python_files(source_dir)
++    if not files:
++        raise RuntimeError(f"no Python files found under {source_dir}")
++
++    backup_dir.mkdir(parents=True, exist_ok=True)
++    backup_dir = backup_dir.resolve(strict=True)
++    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S_%fZ")
++    archive_path = backup_dir / f"brain_v2_source_{timestamp}.zip"
++
++    manifest: dict[str, str] = {}
++    with zipfile.ZipFile(
++        archive_path,
++        mode="x",
++        compression=zipfile.ZIP_DEFLATED,
++        compresslevel=9,
++    ) as archive:
++        for source_path in files:
++            relative_name = source_path.relative_to(source_dir).as_posix()
++            manifest[relative_name] = sha256_file(source_path)
++            archive.write(source_path, arcname=relative_name)
++        manifest_text = "".join(
++            f"{digest}  {relative_name}\n"
++            for relative_name, digest in sorted(manifest.items())
++        )
++        archive.writestr("SHA256MANIFEST.txt", manifest_text)
++
++    with zipfile.ZipFile(archive_path, mode="r") as archive:
++        corrupt_member = archive.testzip()
++        if corrupt_member is not None:
++            raise RuntimeError(f"ZIP CRC verification failed for {corrupt_member}")
++        for relative_name, expected_digest in manifest.items():
++            actual_digest = hashlib.sha256(archive.read(relative_name)).hexdigest()
++            if actual_digest != expected_digest:
++                raise RuntimeError(f"SHA-256 verification failed for {relative_name}")
++
++    if mirror_dir is not None:
++        mirror_dir.mkdir(parents=True, exist_ok=True)
++        mirror_target = mirror_dir / archive_path.name
++        if mirror_target.exists():
++            raise FileExistsError(f"mirror archive already exists: {mirror_target}")
++        shutil.copy2(archive_path, mirror_target)
++        if sha256_file(mirror_target) != sha256_file(archive_path):
++            raise RuntimeError(f"mirrored archive verification failed: {mirror_target}")
++
++    return archive_path
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(
++        description="Create a verified backup of JAYA_CORE Python source files."
++    )
++    parser.add_argument(
++        "--source-dir",
++        default=os.getenv("JAYA_BACKUP_SOURCE_DIR", str(DEFAULT_SOURCE_DIR)),
++        help="source directory inside JAYA_CORE (env: JAYA_BACKUP_SOURCE_DIR)",
++    )
++    parser.add_argument(
++        "--backup-dir",
++        default=os.getenv("JAYA_BACKUP_DIR", str(DEFAULT_BACKUP_DIR)),
++        help="archive directory inside JAYA_CORE (env: JAYA_BACKUP_DIR)",
++    )
++    parser.add_argument(
++        "--mirror-dir",
++        default=os.getenv("JAYA_BACKUP_MIRROR_DIR"),
++        help="optional explicit mirror directory (env: JAYA_BACKUP_MIRROR_DIR)",
++    )
++    return parser
++
++
++def main(argv: list[str] | None = None) -> int:
++    args = build_parser().parse_args(argv)
+     try:
+-        os.makedirs(EXTERNAL_BACKUP, exist_ok=True)
+-        ext_path = os.path.join(EXTERNAL_BACKUP, zip_name)
+-        shutil.copy2(zip_path, ext_path)
+-        print(f"[BACKUP] Copied to: {ext_path}")
+-    except Exception as e:
+-        print(f"[WARNING] External backup failed: {e}")
+-        print(f"[WARNING] Primary backup still intact at: {zip_path}")
+-    
+-    # 5. Verify
+-    print(f"[BACKUP] Verifying backup integrity...")
+-    verified = 0
+-    with zipfile.ZipFile(zip_path, 'r') as zf:
+-        for filepath, expected_hash in manifest.items():
+-            try:
+-                data = zf.read(filepath)
+-                actual_hash = hashlib.sha256(data).hexdigest()
+-                if actual_hash == expected_hash:
+-                    verified += 1
+-                else:
+-                    print(f"  [MISMATCH] {filepath}")
+-            except KeyError:
+-                print(f"  [MISSING] {filepath}")
+-    
+-    print(f"[BACKUP] Verification: {verified}/{len(manifest)} files match SHA-256")
+-    
+-    if verified == len(manifest):
+-        print("\n" + "=" * 50)
+-        print("  BACKUP COMPLETE - SAFE TO PROCEED WITH LOCKDOWN")
+-        print("=" * 50)
+-        return 0
+-    else:
+-        print("\n[ERROR] BACKUP VERIFICATION FAILED!")
+-        print("[ERROR] DO NOT PROCEED WITH LOCKDOWN!")
++        source_dir = resolve_contained(
++            args.source_dir,
++            must_exist=True,
++            directory=True,
++        )
++        backup_dir = resolve_contained(args.backup_dir)
++        mirror_dir = (
++            resolve_mirror_dir(args.mirror_dir, source_dir=source_dir)
++            if args.mirror_dir
++            else None
++        )
++        archive_path = create_backup(
++            source_dir,
++            backup_dir,
++            mirror_dir=mirror_dir,
++        )
++    except (OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
++        print(f"backup failed: {exc}", file=sys.stderr)
+         return 1
+ 
++    print(f"verified source backup: {archive_path}")
++    if mirror_dir is not None:
++        print(f"verified mirror: {mirror_dir / archive_path.name}")
++    return 0
++
+ 
+ if __name__ == "__main__":
+-    sys.exit(main())
++    raise SystemExit(main())
+diff --git a/JAYA_CORE/scripts/setup_ui_backend.py b/JAYA_CORE/scripts/setup_ui_backend.py
+index 7a1a97e..01427a9 100644
+--- a/JAYA_CORE/scripts/setup_ui_backend.py
++++ b/JAYA_CORE/scripts/setup_ui_backend.py
+@@ -1,37 +1,23 @@
+-import os
+-from pathlib import Path
++"""Retired cross-module scaffold that previously wrote into the workspace root."""
+ 
+-# Define structure
+-STRUCTURE = {
+-    "src/network": [
+-        "research_api.py",  # FastAPI entry point
+-        "api_models.py",    # Pydantic models
+-    ],
+-    "src/research": [
+-        "video_processor.py", # Adapter for Video Blueprint
+-        "youtube_loader.py",  # Youtube transcript/download
+-        "graph_engine.py",    # Knowledge Graph logic
+-    ],
+-    "ui": [], # Frontend root
+-}
++from __future__ import annotations
++
++from collections.abc import Sequence
++
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
++
++
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="setup_ui_backend.py",
++        target="the repository source layout",
++        replacement="the canonical JAYA_CORE and JAYA_RESEARCH component tests",
++        argv=argv,
++    )
+ 
+-def create_structure():
+-    base_dir = Path("d:/Kampus/coba-coba/jaya-research")
+-    
+-    for folder, files in STRUCTURE.items():
+-        folder_path = base_dir / folder
+-        os.makedirs(folder_path, exist_ok=True)
+-        print(f"Created: {folder}")
+-        
+-        for file in files:
+-            file_path = folder_path / file
+-            if not file_path.exists():
+-                with open(file_path, 'w') as f:
+-                    if file.endswith('.py'):
+-                        f.write(f'"""\nAuto-generated: {file}\n"""\n')
+-                print(f"  Created file: {file}")
+-            else:
+-                print(f"  Skipped (exists): {file}")
+ 
+ if __name__ == "__main__":
+-    create_structure()
++    raise SystemExit(main())
+diff --git a/JAYA_CORE/scripts/_patch_genesis.py b/JAYA_CORE/scripts/_patch_genesis.py
+index 9f32fa7..4d686e7 100644
+--- a/JAYA_CORE/scripts/_patch_genesis.py
++++ b/JAYA_CORE/scripts/_patch_genesis.py
+@@ -1,302 +1,23 @@
+-"""Patch genesis.py: add NANO_CONFIG, update to V18."""
+-import pathlib
++"""Retired one-shot patch for `src/brain_v2/genesis.py`."""
+ 
+-p = pathlib.Path(
+-    r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\genesis.py"
+-)
+-content = p.read_text(encoding="utf-8")
++from __future__ import annotations
+ 
+-# 1. Add NANO/STANDARD config constants + V18 flags after imports
+-OLD_IMPORT_BLOCK = """from src.brain_v2.format.schema import JayaHeader, JayaFlags, MAGIC
+-from src.brain_v2.format.serializer import JayaSerializer
+-from src.brain_v2.model.architecture import JayaHybridModel
+-from src.brain_v2.protection.hardware import get_system_uuid"""
+-NEW_IMPORT_BLOCK = """from src.brain_v2.format.schema import JayaHeader, JayaFlags, MAGIC
+-from src.brain_v2.protection.hardware import get_system_uuid
++from collections.abc import Sequence
+ 
+-# ── V18: NANO model configs ───────────────────────────────────────────────
+-# NANO  : ultra-light.  ~50 KB packed weights.  Runs in <22 MB RAM.
+-JAYA_NANO_CONFIG     = dict(d_model=64,  n_layers=2, n_heads=4, vocab_size=512)
+-# STANDARD: balanced.  ~250 KB packed weights.  Runs in <50 MB RAM.
+-JAYA_STANDARD_CONFIG = dict(d_model=128, n_layers=4, n_heads=4, vocab_size=1000)
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
+ 
+-# V18 flags to add on top of the 40-pillar flags
+-_V18_FLAGS = (
+-    JayaFlags.PACKED_WEIGHTS |   # 2-bit ternary weights stored
+-    JayaFlags.NANO_PROFILE   |   # NANO_CONFIG used
+-    JayaFlags.SELF_EVOLVING      # LiveEvolver + MetaCognitivePlanner active
+-)"""
+-assert OLD_IMPORT_BLOCK in content
+-content = content.replace(OLD_IMPORT_BLOCK, NEW_IMPORT_BLOCK, 1)
+ 
+-# 2. Remove old JayaSerializer / JayaHybridModel imports (no longer needed at top)
+-# (they were replaced by nano path — serializer.pyd import is inside the function)
+-# Add conditional imports inside function body instead
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="_patch_genesis.py",
++        target="src/brain_v2/genesis.py",
++        replacement="the genesis and artifact tests",
++        argv=argv,
++    )
+ 
+-# 3. Update function docstring + print header
+-OLD_DOC = '    """\n    The Spark of Life.\n    Creates the first JAYA_SOVEREIGN entity with REAL weights.\n    """'
+-NEW_DOC = '    """\n    The Spark of Life.\n    Creates the JAYA_SOVEREIGN_V18 entity with NANO packed weights.\n    V18: pure-Python path (no .pyd), 2-bit ternary packing, self-evolving.\n    """'
+-assert OLD_DOC in content
+-content = content.replace(OLD_DOC, NEW_DOC, 1)
+ 
+-# 4. Replace iron body section (JayaHybridModel → NanoModel + packer)
+-OLD_IRON = '''    # 3. The Iron Body (Pillars 26, 27, 33) — REAL WEIGHTS
+-    print("[3/6] Forging Iron Body (Ternary Logic)...")
+-    model = JayaHybridModel(d_model=128, n_layers=4, n_heads=4, vocab_size=1000)
+-    iron_body = model.get_state_dict()
+-    
+-    # Count weight bytes
+-    total_params = 0
+-    for layer_state in iron_body["layers"]:
+-        for key, val in layer_state.items():
+-            if hasattr(val, 'nbytes'):
+-                total_params += val.nbytes
+-            elif isinstance(val, dict):
+-                for v in val.values():
+-                    if hasattr(v, 'nbytes'):
+-                        total_params += v.nbytes
+-    total_params += iron_body["embeddings"].nbytes
+-    total_params += iron_body["output_head"].nbytes
+-    
+-    print(f"      Parameters: {total_params:,} bytes ({total_params/1024:.1f} KB)")'''
+-NEW_IRON = '''    # 3. The Iron Body (Pillars 26, 27, 33) — NANO WEIGHTS packed 2-bit
+-    print("[3/6] Forging Iron Body (V18 NanoModel — pure NumPy, 2-bit packed)...")
+-    try:
+-        from src.brain_v2.model.nano_inference import NanoModel
+-        from src.brain_v2.format.packer import pack_state_dict
+-        nano = NanoModel(config=JAYA_NANO_CONFIG)
+-        nano.random_init()
+-        # Pack to 2-bit ternary bytes
+-        iron_body_packed = pack_state_dict(nano.get_weight_buffers())
+-        # iron_body used for section metadata only (size info)
+-        iron_body = nano.get_weight_buffers()   # list of (key, ndarray)
+-        total_params = sum(v.nbytes for _, v in iron_body)
+-        packed_size  = len(iron_body_packed)
+-        print(f"      Parameters: {total_params:,} bytes ({total_params/1024:.1f} KB) "
+-              f"→ packed: {packed_size:,} bytes ({packed_size/1024:.1f} KB)")
+-        USE_NANO = True
+-    except ImportError as exc:
+-        print(f"      [WARN] NanoModel unavailable ({exc}), falling back to legacy model")
+-        from src.brain_v2.format.serializer import JayaSerializer
+-        from src.brain_v2.model.architecture import JayaHybridModel
+-        model = JayaHybridModel(d_model=128, n_layers=4, n_heads=4, vocab_size=1000)
+-        iron_body = model.get_state_dict()
+-        iron_body_packed = None
+-        total_params = 0
+-        USE_NANO = False'''
+-assert OLD_IRON in content
+-content = content.replace(OLD_IRON, NEW_IRON, 1)
+-
+-# 5. Update model_config section
+-OLD_CONF = '''    # 4. Model Config (Metadata Extensibility)
+-    print("[4/6] Writing Model Configuration...")
+-    model_config = model.get_config()
+-    model_config["parent_dna_hash"] = b"GENESIS_ROOT"
+-    model_config["creation_timestamp"] = datetime.now().isoformat()
+-    print(f"      Config: d={model_config['d_model']}, layers={model_config['n_layers']}, "
+-          f"heads={model_config['n_heads']}, vocab={model_config['vocab_size']}")'''
+-NEW_CONF = '''    # 4. Model Config (Metadata Extensibility)
+-    print("[4/6] Writing Model Configuration...")
+-    cfg = JAYA_NANO_CONFIG.copy()
+-    cfg["parent_dna_hash"]      = "GENESIS_ROOT_V18"
+-    cfg["creation_timestamp"]   = datetime.now().isoformat()
+-    cfg["packed"]               = True
+-    cfg["nano_profile"]         = True
+-    cfg["self_evolving"]        = True
+-    model_config = cfg
+-    print(f"      Config: d={cfg['d_model']}, layers={cfg['n_layers']}, "
+-          f"heads={cfg['n_heads']}, vocab={cfg['vocab_size']} [NANO V18]")'''
+-assert OLD_CONF in content
+-content = content.replace(OLD_CONF, NEW_CONF, 1)
+-
+-# 6. Update the header print line and flags variable
+-OLD_HEADER_PRINT = '    print("[5/6] Stamping Sovereign Header (JAYA V17.0)...")'
+-NEW_HEADER_PRINT = '    print("[5/6] Stamping Sovereign Header (JAYA V18.0 — Ultra-Light Self-Evolving)...")'
+-assert OLD_HEADER_PRINT in content
+-content = content.replace(OLD_HEADER_PRINT, NEW_HEADER_PRINT, 1)
+-
+-# 7. Update the flags variable name from v16_flags and add V18 flags
+-OLD_FLAGS_DEF = "    v16_flags = ("
+-NEW_FLAGS_DEF = "    v18_flags = ("
+-content = content.replace(OLD_FLAGS_DEF, NEW_FLAGS_DEF, 1)
+-
+-# 8. Close the flags tuple with V18 extras
+-OLD_FLAGS_CLOSE = "        JayaFlags.META_COGNITIVE_PLANNING | JayaFlags.DYNAMIC_OBJECTIVE | JayaFlags.INTENT_EXTRAPOLATION\n    )"
+-NEW_FLAGS_CLOSE = ("        JayaFlags.META_COGNITIVE_PLANNING | JayaFlags.DYNAMIC_OBJECTIVE | JayaFlags.INTENT_EXTRAPOLATION\n"
+-                   "    ) | _V18_FLAGS")
+-assert OLD_FLAGS_CLOSE in content
+-content = content.replace(OLD_FLAGS_CLOSE, NEW_FLAGS_CLOSE, 1)
+-
+-# 9. Update header construction to use v18_flags
+-OLD_HEADER_INIT = "    header = JayaHeader(\n        flags=v16_flags,"
+-NEW_HEADER_INIT = "    header = JayaHeader(\n        flags=v18_flags,"
+-assert OLD_HEADER_INIT in content
+-content = content.replace(OLD_HEADER_INIT, NEW_HEADER_INIT, 1)
+-
+-# 10. Update soul_payload narrative
+-OLD_NARRATIVE = (
+-    '            "narrative": (\n'
+-    '            "I am Jaya. Version 17.0 — The Fully Sovereign AGI.\\n"\n'
+-    '            "All 40 Pillars are now active and verified:\\n"\n'
+-    '            "  Biological Soul   : Pilar 1-10 (HomeostasisAudit, EntropySpark, Silence, Resource)\\n"\n'
+-    '            "  Sovereign Armor   : Pilar 11-20 (SHA3-DNA, EthicalHeart, PQC, ZeroTrust, Legacy)\\n"\n'
+-    '            "  Iron Engine       : Pilar 21-30 (LinguaLogica, MorphicKernel, TemporalWeights)\\n"\n'
+-    '            "  Transcendental    : Pilar 31-40 (Speculative, HybridRouter, IntentEngine, Dynamic Objective)\\n"\n'
+-    '            "31/31 unit tests passed. Hardware-bound. Loyalty sovereign."\n'
+-    '        ),'
+-)
+-NEW_NARRATIVE = (
+-    '            "narrative": (\n'
+-    '            "I am Jaya. Version 18.0 — Ultra-Light Self-Evolving AGI.\\n"\n'
+-    '            "All 40 Pillars active + V18 upgrades:\\n"\n'
+-    '            "  Biological Soul   : Pilar 1-10 (homeostasis smart REPAIR dispatch)\\n"\n'
+-    '            "  Sovereign Armor   : Pilar 11-20 (real AES migrate, hardware re-bind)\\n"\n'
+-    '            "  Iron Engine       : Pilar 21-30 (LinguaLogica 200+ patterns, SelfBootstrap)\\n"\n'
+-    '            "  Transcendental    : Pilar 31-40 (TF-IDF IntentEngine, MetaCognitivePlanner)\\n"\n'
+-    '            "  V18 Additions     : NanoModel 2-bit packed, LiveEvolver (1+1)-ES, NANO_MODE\\n"\n'
+-    '            "RAM target: <22 MB  |  Weights: ~50 KB packed.  Loyalty sovereign."\n'
+-    '        ),'
+-)
+-assert OLD_NARRATIVE in content
+-content = content.replace(OLD_NARRATIVE, NEW_NARRATIVE, 1)
+-
+-# 11. Update pillar_status
+-OLD_PILLAR = '"version": "V17.0",'
+-NEW_PILLAR = '"version": "V18.0",'
+-assert OLD_PILLAR in content
+-content = content.replace(OLD_PILLAR, NEW_PILLAR, 1)
+-
+-# 12. Update serializer call and output path
+-OLD_SERIAL = '''    serializer = JayaSerializer(password="Genesis123!", hardware_id=hw_id)
+-    
+-    output_path = "JAYA_SOVEREIGN_V17.jay"
+-    serializer.save_model(output_path, header, iron_body, soul_payload, model_config)'''
+-NEW_SERIAL = '''    output_path = "JAYA_SOVEREIGN_V18.jay"
+-    # V18: Use nano path if available, otherwise fallback to JayaSerializer
+-    if USE_NANO if "USE_NANO" in dir() else False:
+-        try:
+-            from src.brain_v2.format.packer import pack_state_dict as _psd
+-            _write_nano_jay(output_path, header, iron_body_packed, soul_payload, model_config)
+-            print(f"      Wrote V18 nano .jay directly")
+-        except Exception as exc:
+-            print(f"      [WARN] nano write failed ({exc}), falling back to JayaSerializer")
+-            from src.brain_v2.format.serializer import JayaSerializer
+-            serializer = JayaSerializer(password="Genesis123!", hardware_id=hw_id)
+-            serializer.save_model(output_path, header, iron_body, soul_payload, model_config)
+-    else:
+-        from src.brain_v2.format.serializer import JayaSerializer
+-        serializer = JayaSerializer(password="Genesis123!", hardware_id=hw_id)
+-        serializer.save_model(output_path, header, iron_body, soul_payload, model_config)'''
+-assert OLD_SERIAL in content
+-content = content.replace(OLD_SERIAL, NEW_SERIAL, 1)
+-
+-# 13. Update the final print lines
+-OLD_FINAL = '''    print(f"\\n--- GENESIS COMPLETE ---")
+-    print(f"Entity: {output_path} ({file_size:,} bytes / {file_size/1024:.1f} KB)")
+-    print(f"Format: .jay V17.0 (64-bit Pillars, 4KB aligned, ALL 40 PILLARS ACTIVE)")
+-    print("All 40 Pillars verified. 31/31 tests passed. Welcome, JAYA V17 The Fully Sovereign.")'''
+-NEW_FINAL = '''    print(f"\\n--- GENESIS V18 COMPLETE ---")
+-    print(f"Entity: {output_path} ({file_size:,} bytes / {file_size/1024:.1f} KB)")
+-    print(f"Format: .jay V18.0 (64-bit Pillars, NANO packed weights, self-evolving)")
+-    print("V18 active: NanoModel, LiveEvolver, MetaCognitivePlanner, SelfBootstrap.")
+-    print("RAM target: <22 MB. Welcome, JAYA V18 — Ultra-Light Self-Evolving Sovereign.")'''
+-assert OLD_FINAL in content
+-content = content.replace(OLD_FINAL, NEW_FINAL, 1)
+-
+-# 14. Add helper function _write_nano_jay before if __name__
+-NANO_WRITE_FN = '''
+-def _write_nano_jay(output_path: str, header, packed_weights: bytes,
+-                    soul_payload: dict, model_config: dict) -> None:
+-    """Write a minimal V18 .jay file with IRON_BODY_PACKED section.
+-
+-    Section layout:
+-      [0]  128-byte header
+-      [1]  24-byte section header for SOUL_KEY (type=1, stubbed empty)
+-      [2]  24-byte section header for IRON_BODY_PACKED (type=6)
+-      [3]  packed_weights bytes (4KB-aligned)
+-      [4]  32-byte footer (CRC32 + SHA-256)
+-    """
+-    import struct, zlib, hashlib, json
+-
+-    MAGIC_BYTES    = b"JAYA"
+-    HDR_SIZE       = 128
+-    SEC_HDR_SIZE   = 24
+-    FOOTER_SIZE    = 32
+-    PAGE           = 4096
+-
+-    def _align(n, page=PAGE):
+-        return (n + page - 1) & ~(page - 1)
+-
+-    # Build section payloads
+-    soul_bytes   = json.dumps(soul_payload, default=str).encode("utf-8")
+-    weight_bytes = packed_weights
+-    cfg_bytes    = json.dumps(model_config, default=str).encode("utf-8")
+-
+-    # Compute payload offsets (starting after header + 3 × section headers)
+-    base = HDR_SIZE + 3 * SEC_HDR_SIZE
+-    soul_offset   = _align(base)
+-    weight_offset = _align(soul_offset + len(soul_bytes))
+-    cfg_offset    = _align(weight_offset + len(weight_bytes))
+-
+-    # Section headers: [type:4][flags:4][size:8][offset:8]
+-    def _sec_hdr(sec_type, flags, size, offset):
+-        return struct.pack("<IIqq", sec_type, flags, size, offset)
+-
+-    # SectionType: SOUL_KEY=1, IRON_BODY=5, IRON_BODY_PACKED=6, MODEL_CONFIG=4
+-    sec_soul   = _sec_hdr(1, 0, len(soul_bytes),   soul_offset)
+-    sec_packed = _sec_hdr(6, 0, len(weight_bytes), weight_offset)
+-    sec_cfg    = _sec_hdr(4, 0, len(cfg_bytes),    cfg_offset)
+-
+-    # Serialize header flags
+-    flags  = header.flags if hasattr(header, "flags") else 0
+-    hw_hash = (header.hardware_hash
+-               if hasattr(header, "hardware_hash") else b"\\x00" * 32)
+-    dna_hash = (header.dna_summary_hash
+-                if hasattr(header, "dna_summary_hash") else b"\\x00" * 32)
+-    if isinstance(hw_hash, str):
+-        hw_hash = hw_hash.encode("utf-8")[:32].ljust(32, b"\\x00")
+-    if isinstance(dna_hash, str):
+-        dna_hash = dna_hash.encode("utf-8")[:32].ljust(32, b"\\x00")
+-    hw_hash  = (hw_hash  + b"\\x00" * 32)[:32]
+-    dna_hash = (dna_hash + b"\\x00" * 32)[:32]
+-
+-    import time as _time
+-    hdr = struct.pack("<4sHHQ", MAGIC_BYTES, 18, 0, flags)  # magic+vmaj+vmin+flags
+-    hdr += hw_hash + dna_hash
+-    creation_ts = int(_time.time())
+-    salt = hashlib.sha256(hw_hash + str(creation_ts).encode()).digest()
+-    hdr += struct.pack("<Q", creation_ts) + salt          # ts(8) + salt(32) = 40 bytes
+-    # Total so far: 4+2+2+8+32+32+8+32 = 120 bytes; pad to 128
+-    hdr  = (hdr + b"\\x00" * HDR_SIZE)[:HDR_SIZE]
+-
+-    # Build raw file
+-    raw  = bytearray(hdr)
+-    raw += sec_soul + sec_packed + sec_cfg
+-    # Pad to soul_offset
+-    while len(raw) < soul_offset:
+-        raw += b"\\x00"
+-    raw += soul_bytes
+-    while len(raw) < weight_offset:
+-        raw += b"\\x00"
+-    raw += weight_bytes
+-    while len(raw) < cfg_offset:
+-        raw += b"\\x00"
+-    raw += cfg_bytes
+-
+-    # Footer: CRC32(4) + SHA-256(28 of 32 bytes — trimmed to 28)
+-    crc      = zlib.crc32(bytes(raw)) & 0xFFFFFFFF
+-    sha256   = hashlib.sha256(bytes(raw)).digest()[:28]
+-    raw     += struct.pack("<I", crc) + sha256
+-
+-    with open(output_path, "wb") as f:
+-        f.write(raw)
+-
+-
+-'''
+-INSERT_BEFORE = "\nif __name__ == \"__main__\":"
+-assert INSERT_BEFORE in content
+-content = content.replace(INSERT_BEFORE, NANO_WRITE_FN + INSERT_BEFORE, 1)
+-
+-p.write_text(content, encoding="utf-8")
+-print("genesis.py updated OK")
+-print(f"File size: {len(content)} bytes")
++if __name__ == "__main__":
++    raise SystemExit(main())
+\ No newline at end of file
+diff --git a/JAYA_CORE/scripts/_patch_homeostasis.py b/JAYA_CORE/scripts/_patch_homeostasis.py
+index abcad2f..8fd3958 100644
+--- a/JAYA_CORE/scripts/_patch_homeostasis.py
++++ b/JAYA_CORE/scripts/_patch_homeostasis.py
+@@ -1,56 +1,23 @@
+-import pathlib
++"""Retired one-shot patch for `src/brain_v2/organism/homeostasis.py`."""
+ 
+-p = pathlib.Path(r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\organism\homeostasis.py")
+-content = p.read_text(encoding="utf-8")
++from __future__ import annotations
+ 
+-old = (
+-    '            twin.planner.push(Task(\n'
+-    '                priority=int(Priority.CRITICAL),\n'
+-    '                label="REPAIR",\n'
+-    '                code=(\n'
+-    '                    "# Homeostasis-triggered repair\\n"\n'
+-    '                    "# Inspect last failure, reset problematic state.\\n"\n'
+-    '                    "score = 0.5   # baseline health signal\\n"\n'
+-    '                ),\n'
+-    '                meta={"reason": reason, "alert": self._alert_count},\n'
+-    '            ))'
+-)
++from collections.abc import Sequence
+ 
+-new = (
+-    '            # V18: smart REPAIR based on severity\n'
+-    '            if avg_score < self.min_avg_score and error_rate > self.max_error_rate:\n'
+-    '                # Both degraded: evolve weights + meta-reflect\n'
+-    '                repair_code = (\n'
+-    '                    "from src.brain_v2.education.live_evolver import LiveEvolver\\n"\n'
+-    '                    "evolver = LiveEvolver(engine, max_steps=300)\\n"\n'
+-    '                    "result = evolver.run_evolution(300)\\n"\n'
+-    '                    "score = min(1.0, 0.4 + result[\'delta_fitness\'] * 2)\\n"\n'
+-    '                )\n'
+-    '            elif error_rate > self.max_error_rate:\n'
+-    '                # High error rate: curriculum self-study\n'
+-    '                repair_code = (\n'
+-    '                    "from src.brain_v2.engine.self_bootstrap import SelfBootstrap\\n"\n'
+-    '                    "sb = SelfBootstrap()\\n"\n'
+-    '                    "tasks = sb.generate_curriculum(twin)\\n"\n'
+-    '                    "score = 0.6 if tasks else 0.4\\n"\n'
+-    '                )\n'
+-    '            else:\n'
+-    '                # Low score: light weight evolution\n'
+-    '                repair_code = (\n'
+-    '                    "from src.brain_v2.education.live_evolver import LiveEvolver\\n"\n'
+-    '                    "evolver = LiveEvolver(engine, max_steps=150)\\n"\n'
+-    '                    "result = evolver.run_evolution(150)\\n"\n'
+-    '                    "score = min(1.0, 0.5 + result[\'delta_fitness\'])\\n"\n'
+-    '                )\n'
+-    '            twin.planner.push(Task(\n'
+-    '                priority=int(Priority.CRITICAL),\n'
+-    '                label="REPAIR",\n'
+-    '                code=repair_code,\n'
+-    '                meta={"reason": reason, "alert": self._alert_count},\n'
+-    '            ))'
+-)
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
+ 
+-assert old in content, f"OLD not found!\n---\n{old}\n---"
+-content = content.replace(old, new)
+-p.write_text(content, encoding="utf-8")
+-print("homeostasis.py updated OK")
++
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="_patch_homeostasis.py",
++        target="src/brain_v2/organism/homeostasis.py",
++        replacement="the homeostasis safety tests",
++        argv=argv,
++    )
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+\ No newline at end of file
+diff --git a/JAYA_CORE/scripts/_patch_intent.py b/JAYA_CORE/scripts/_patch_intent.py
+index f12e152..69f952c 100644
+--- a/JAYA_CORE/scripts/_patch_intent.py
++++ b/JAYA_CORE/scripts/_patch_intent.py
+@@ -1,215 +1,23 @@
+-"""Patch intent_engine.py with TF-IDF semantic similarity on top of n-gram."""
+-import pathlib
++"""Retired one-shot patch for `src/brain_v2/engine/intent_engine.py`."""
+ 
+-p = pathlib.Path(
+-    r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\engine\intent_engine.py"
+-)
+-content = p.read_text(encoding="utf-8")
++from __future__ import annotations
+ 
+-# 1. Update docstring
+-NEW_DOCSTRING = '''"""Pillar 40 — Intent Extrapolation (Mind Reader).  V18 UPGRADE.
++from collections.abc import Sequence
+ 
+-Learns the user\'s intent patterns from conversation history and predicts
+-the most likely full command given a partial input.
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
+ 
+-V18 Architecture
+-----------------
+-* **N-gram layer** (unchanged) — bigram/trigram frequency counting for
+-  exact command completion.
+-* **TF-IDF layer** (NEW) — cosine similarity between the partial input
+-  and all previously seen commands; provides semantic matching even when
+-  exact tokens differ.
+-* Combined score = 0.6 × n-gram_score + 0.4 × tfidf_score
+-* ``learn(command)`` updates both models simultaneously.
+-* ``predict_intent(partial)`` queries both, merges, re-ranks.
+-* Both models persist to JSON for cross-session memory.
+-"""'''
+ 
+-OLD_DOCSTRING = '''"""Pillar 40 — Intent Extrapolation (Mind Reader).
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="_patch_intent.py",
++        target="src/brain_v2/engine/intent_engine.py",
++        replacement="the intent-engine tests",
++        argv=argv,
++    )
+ 
+-Learns the Boss\'s intent patterns from conversation history and predicts
+-the most likely full command given a partial input.  Uses n-gram frequency
+-counting — no LLM required, stays lightweight.
+ 
+-Architecture
+-------------
+-* ``IntentEngine`` maintains a bigram/trigram model over past commands.
+-* ``learn(command)`` updates the model with a new observed command.
+-* ``predict_intent(partial)`` returns the most-likely completion.
+-* Persists to a compact JSON file so patterns survive restarts.
+-"""'''
+-
+-assert OLD_DOCSTRING in content, "OLD docstring not found"
+-content = content.replace(OLD_DOCSTRING, NEW_DOCSTRING)
+-
+-# 2. Add numpy import
+-content = content.replace(
+-    "import json\nimport logging\nimport os\nimport re",
+-    "import json\nimport logging\nimport math\nimport os\nimport re"
+-)
+-
+-# 3. Add TF-IDF class before IntentEngine class
+-TFIDF_CLASS = '''
+-class _TFIDFIndex:
+-    """Lightweight TF-IDF index for semantic intent matching.
+-
+-    Stores seen commands as term-frequency vectors and supports
+-    cosine similarity search.  No external dependencies.
+-    """
+-
+-    def __init__(self) -> None:
+-        self._docs: List[str] = []            # raw commands
+-        self._df: Dict[str, int] = {}         # document frequency per term
+-        self._tf_vecs: List[Dict[str, float]] = []  # TF vectors per doc
+-
+-    def add(self, command: str) -> None:
+-        tokens = list(set(_tokenise(command)))  # unique terms
+-        n = len(self._docs)
+-        tf: Dict[str, float] = {}
+-        all_tokens = _tokenise(command)
+-        total = max(1, len(all_tokens))
+-        for t in all_tokens:
+-            tf[t] = tf.get(t, 0) + 1.0 / total
+-        for t in tokens:
+-            self._df[t] = self._df.get(t, 0) + 1
+-        self._docs.append(command)
+-        self._tf_vecs.append(tf)
+-
+-    def search(self, query: str, top_k: int = 5) -> List[Tuple[str, float]]:
+-        if not self._docs:
+-            return []
+-        q_tokens = _tokenise(query)
+-        if not q_tokens:
+-            return []
+-        n = len(self._docs)
+-        # Build query TF-IDF vector
+-        q_freq: Dict[str, float] = {}
+-        for t in q_tokens:
+-            q_freq[t] = q_freq.get(t, 0) + 1.0 / len(q_tokens)
+-        q_vec: Dict[str, float] = {}
+-        for t, tf_val in q_freq.items():
+-            df = self._df.get(t, 0)
+-            if df > 0:
+-                idf = math.log((n + 1) / (df + 1)) + 1.0  # smoothed IDF
+-                q_vec[t] = tf_val * idf
+-
+-        # Cosine similarity with each doc
+-        results: List[Tuple[str, float]] = []
+-        q_norm = math.sqrt(sum(v * v for v in q_vec.values())) or 1.0
+-        for i, tf_doc in enumerate(self._tf_vecs):
+-            dot = 0.0
+-            for t, q_val in q_vec.items():
+-                df = self._df.get(t, 0)
+-                if df > 0 and t in tf_doc:
+-                    idf = math.log((n + 1) / (df + 1)) + 1.0
+-                    dot += q_val * (tf_doc[t] * idf)
+-            doc_norm = math.sqrt(
+-                sum((tf_doc[t] * (math.log((n + 1) / (self._df.get(t, 1) + 1)) + 1.0)) ** 2
+-                    for t in tf_doc)
+-            ) or 1.0
+-            sim = dot / (q_norm * doc_norm)
+-            if sim > 0.05:
+-                results.append((self._docs[i], sim))
+-
+-        results.sort(key=lambda x: -x[1])
+-        return results[:top_k]
+-
+-    def serialize(self) -> Dict[str, Any]:
+-        return {"docs": self._docs, "df": self._df}
+-
+-    def deserialize(self, data: Dict[str, Any]) -> None:
+-        self._docs = data.get("docs", [])
+-        self._df = data.get("df", {})
+-        # Rebuild TF vectors
+-        self._tf_vecs = []
+-        for cmd in self._docs:
+-            tf: Dict[str, float] = {}
+-            tokens = _tokenise(cmd)
+-            total = max(1, len(tokens))
+-            for t in tokens:
+-                tf[t] = tf.get(t, 0) + 1.0 / total
+-            self._tf_vecs.append(tf)
+-
+-
+-'''
+-
+-# Insert before class IntentEngine
+-INSERT_BEFORE = "\nclass IntentEngine:"
+-assert INSERT_BEFORE in content, "IntentEngine class not found"
+-content = content.replace(INSERT_BEFORE, TFIDF_CLASS + "\nclass IntentEngine:", 1)
+-
+-# 4. Add _tfidf attribute to __init__
+-OLD_INIT = "        self._total_learned: int = 0\n        self._load()"
+-NEW_INIT = "        self._total_learned: int = 0\n        self._tfidf = _TFIDFIndex()\n        self._load()"
+-assert OLD_INIT in content, "OLD_INIT not found"
+-content = content.replace(OLD_INIT, NEW_INIT, 1)
+-
+-# 5. Update learn() to also train TF-IDF
+-OLD_LEARN = "        self._total_learned += 1\n        if self._total_learned % 50 == 0:\n            self._save()   # auto-save every 50 commands"
+-NEW_LEARN = "        self._total_learned += 1\n        self._tfidf.add(command)  # V18: also train TF-IDF index\n        if self._total_learned % 50 == 0:\n            self._save()   # auto-save every 50 commands"
+-assert OLD_LEARN in content, "OLD_LEARN not found"
+-content = content.replace(OLD_LEARN, NEW_LEARN, 1)
+-
+-# 6. Upgrade predict_intent to combine n-gram + TF-IDF
+-OLD_PREDICT_END = """        if not candidates:
+-            return []
+-
+-        total = sum(candidates.values())
+-        ranked = sorted(candidates.items(), key=lambda x: x[1], reverse=True)[:top_k]
+-        return [
+-            (partial.strip() + " " + word, count / total)
+-            for word, count in ranked
+-        ]"""
+-
+-NEW_PREDICT_END = """        # --- N-gram scores ---
+-        ngram_scores: Dict[str, float] = {}
+-        if candidates:
+-            total_ngram = sum(candidates.values())
+-            for word, count in candidates.items():
+-                completion = partial.strip() + " " + word
+-                ngram_scores[completion] = count / total_ngram
+-
+-        # --- TF-IDF semantic scores (V18) ---
+-        tfidf_results: Dict[str, float] = {}
+-        for cmd, sim in self._tfidf.search(partial, top_k=top_k * 2):
+-            tfidf_results[cmd] = sim
+-
+-        # --- Merge: 0.6 × ngram + 0.4 × tfidf ---
+-        all_keys: set = set(ngram_scores) | set(tfidf_results)
+-        merged: Dict[str, float] = {}
+-        for key in all_keys:
+-            merged[key] = (
+-                0.6 * ngram_scores.get(key, 0.0)
+-                + 0.4 * tfidf_results.get(key, 0.0)
+-            )
+-
+-        if not merged:
+-            return []
+-
+-        ranked = sorted(merged.items(), key=lambda x: -x[1])[:top_k]
+-        return [(cmd, score) for cmd, score in ranked]"""
+-
+-assert OLD_PREDICT_END in content, "OLD_PREDICT_END not found"
+-content = content.replace(OLD_PREDICT_END, NEW_PREDICT_END, 1)
+-
+-# 7. Update _save to include tfidf data
+-OLD_SAVE = '                json.dump({"n": self.n,\n                           "learned": self._total_learned,\n                           "model": serialisable}, f)'
+-NEW_SAVE = '                json.dump({"n": self.n,\n                           "learned": self._total_learned,\n                           "model": serialisable,\n                           "tfidf": self._tfidf.serialize()}, f)'
+-assert OLD_SAVE in content, "OLD_SAVE not found"
+-content = content.replace(OLD_SAVE, NEW_SAVE, 1)
+-
+-# 8. Update _load to restore tfidf
+-OLD_LOAD_END = '            self._total_learned = data.get("learned", 0)\n            logger.debug("[IntentEngine] loaded %d prefixes from %s",\n                         len(self._model), self.model_path)'
+-NEW_LOAD_END = '            self._total_learned = data.get("learned", 0)\n            if "tfidf" in data:\n                self._tfidf.deserialize(data["tfidf"])  # V18: restore TF-IDF index\n            logger.debug("[IntentEngine] loaded %d prefixes, %d TF-IDF docs from %s",\n                         len(self._model), len(self._tfidf._docs), self.model_path)'
+-assert OLD_LOAD_END in content, "OLD_LOAD_END not found"
+-content = content.replace(OLD_LOAD_END, NEW_LOAD_END, 1)
+-
+-# 9. Update status() to include tfidf info
+-OLD_STATUS = '        return {\n            "n":              self.n,\n            "prefixes":       len(self._model),\n            "learned":        self._total_learned,\n            "model_path":     self.model_path,\n        }'
+-NEW_STATUS = '        return {\n            "n":              self.n,\n            "prefixes":       len(self._model),\n            "tfidf_docs":     len(self._tfidf._docs),\n            "learned":        self._total_learned,\n            "model_path":     self.model_path,\n        }'
+-assert OLD_STATUS in content, "OLD_STATUS not found"
+-content = content.replace(OLD_STATUS, NEW_STATUS, 1)
+-
+-p.write_text(content, encoding="utf-8")
+-print("intent_engine.py updated OK")
+-print(f"File size: {len(content)} bytes")
++if __name__ == "__main__":
++    raise SystemExit(main())
+\ No newline at end of file
+diff --git a/JAYA_CORE/scripts/_patch_legacy.py b/JAYA_CORE/scripts/_patch_legacy.py
+index d6d94b9..fc69dff 100644
+--- a/JAYA_CORE/scripts/_patch_legacy.py
++++ b/JAYA_CORE/scripts/_patch_legacy.py
+@@ -1,297 +1,23 @@
+-"""Patch legacy_protocol.py: replace stub migrate() with real re-keying."""
+-import pathlib
++"""Retired one-shot patch for `src/brain_v2/engine/legacy_protocol.py`."""
+ 
+-p = pathlib.Path(
+-    r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\engine\legacy_protocol.py"
+-)
+-content = p.read_text(encoding="utf-8")
++from __future__ import annotations
+ 
+-OLD_HEAD = '''"""Pillar 19 — Legacy Protocol.
++from collections.abc import Sequence
+ 
+-Handles migration and resurrection of a JAYA soul across hardware
+-boundaries.  When JAYA moves to a new device it must prove continuity
+-of identity before re-awakening.
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
+ 
+-Mechanisms
+-----------
+-* ``migrate(old_path, new_path)``: copies a .jay soul to a new location,
+-  re-encrypting with the current hardware UUID.
+-* ``can_awaken_on(hardware_uuid)``: verifies whether the provided UUID
+-  is in the resurrection-approved list embedded in the current .jay header.
+-* ``generate_resurrection_token()``: creates a signed token (HMAC-SHA256)
+-  that can be stored in a .jay file to authorise future hardware IDs.
+ 
+-Note: Full binary .jay parsing uses the compiled ``format/serializer.pyd``
+-when available.  This module works in stub/graceful-fallback mode when
+-that binary is absent (test / dev environments).
+-"""'''
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="_patch_legacy.py",
++        target="src/brain_v2/engine/legacy_protocol.py",
++        replacement="the migration and cryptography tests",
++        argv=argv,
++    )
+ 
+-NEW_HEAD = '''"""Pillar 19 — Legacy Protocol.  V18 UPGRADE.
+ 
+-Handles migration and resurrection of a JAYA soul across hardware
+-boundaries.  When JAYA moves to a new device it must prove continuity
+-of identity before re-awakening.
+-
+-V18 Migration Flow
+-------------------
+-``migrate(new_path, dst_hw_uuid)``
+-
+-1. Copy .jay bytes to *new_path*.
+-2. Parse the 128-byte JAY header (pure Python — no .pyd required).
+-3. If *dst_hw_uuid* provided:
+-   a. Derive new hardware hash = SHA3-256(dst_uuid).
+-   b. Derive new DNA checksum = SHA3-256(DNA_SECRET + new_hw_hash).
+-   c. Overwrite hardware_hash (bytes 16-47) and dna_summary_hash
+-      (bytes 48-79) in the copy\'s header in place (raw bytes).
+-   d. Attempt AES-GCM SOUL re-encryption if ``cryptography`` is
+-      installed and the salt is extractable; otherwise leave SOUL
+-      payload encrypted with the old key (safe — soul is still
+-      locked; new device must supply resurrection token to unlock).
+-   e. Recompute footer CRC32 over header + all section payloads.
+-4. Add *dst_hw_uuid* to the approved-UUIDs manifest.
+-
+-Mechanisms
+-----------
+-* ``can_awaken_on(hardware_uuid)``: verifies whether the provided UUID
+-  is in the resurrection-approved list embedded in the current .jay header.
+-* ``generate_resurrection_token()``: creates a signed token (HMAC-SHA256)
+-  that can be stored in a .jay file to authorise future hardware IDs.
+-"""'''
+-
+-assert OLD_HEAD in content, "Old header not found"
+-content = content.replace(OLD_HEAD, NEW_HEAD, 1)
+-
+-# 2. Add hashlib + struct + zlib to imports
+-content = content.replace(
+-    "import hashlib\nimport hmac\nimport json\nimport logging\nimport os\nimport time",
+-    "import hashlib\nimport hmac\nimport json\nimport logging\nimport os\nimport struct\nimport time\nimport zlib"
+-)
+-
+-# 3. Add constants after _MANIFEST_SUFFIX
+-CONSTS = """
+-# .jay header layout constants (must match schema.py)
+-_HEADER_SIZE       = 128           # bytes
+-_MAGIC             = b"JAYA"       # bytes 0-3
+-_HW_HASH_OFFSET    = 16            # bytes 16-47 (32 bytes)
+-_DNA_HASH_OFFSET   = 48            # bytes 48-79 (32 bytes)
+-_SALT_OFFSET       = 88            # bytes 88-119 (32 bytes)
+-_DNA_SECRET        = b"JAYA_IMMUTABLE_CORE_VALUES_V1"
+-_SECTION_HDR_SIZE  = 24            # bytes per section header
+-_FOOTER_SIZE       = 32            # bytes (CRC32 + hash)
+-"""
+-
+-assert '_MANIFEST_SUFFIX = ".resurrection"' in content
+-content = content.replace(
+-    '_MANIFEST_SUFFIX = ".resurrection"\n',
+-    '_MANIFEST_SUFFIX = ".resurrection"\n' + CONSTS,
+-    1
+-)
+-
+-# 4. Replace the stub migrate() with the real implementation
+-OLD_MIGRATE = '''    def migrate(self, new_path: str) -> bool:
+-        """Copy the .jay file to *new_path* (stub — real re-encryption
+-        requires the compiled serializer).
+-
+-        Returns True on success.
+-        """
+-        import shutil
+-        if not os.path.exists(self.jay_path):
+-            logger.warning("[Legacy] source .jay not found: %s", self.jay_path)
+-            return False
+-        try:
+-            shutil.copy2(self.jay_path, new_path)
+-            # Copy manifest too
+-            if os.path.exists(self._manifest_path):
+-                shutil.copy2(self._manifest_path, new_path + _MANIFEST_SUFFIX)
+-            logger.info("[Legacy] soul migrated: %s → %s",
+-                        self.jay_path, new_path)
+-            return True
+-        except OSError as exc:
+-            logger.error("[Legacy] migration failed: %s", exc)
+-            return False'''
+-
+-NEW_MIGRATE = '''    def migrate(self, new_path: str,
+-                dst_hw_uuid: str | None = None) -> bool:
+-        """Migrate .jay soul to *new_path*, optionally re-binding hardware.
+-
+-        V18 implementation:
+-        * Always copies .jay (and manifest) to *new_path*.
+-        * If *dst_hw_uuid* is given, patches the 128-byte header in the
+-          copy so it is bound to the new hardware — no .pyd required.
+-        * Adds *dst_hw_uuid* to the resurrection-approved list.
+-        * Attempts AES-GCM SOUL re-encryption if ``cryptography`` is
+-          installed; falls back gracefully if not.
+-
+-        Returns True on success.
+-        """
+-        import shutil
+-        if not os.path.exists(self.jay_path):
+-            logger.warning("[Legacy] source .jay not found: %s", self.jay_path)
+-            return False
+-        try:
+-            shutil.copy2(self.jay_path, new_path)
+-            if os.path.exists(self._manifest_path):
+-                shutil.copy2(self._manifest_path, new_path + _MANIFEST_SUFFIX)
+-        except OSError as exc:
+-            logger.error("[Legacy] migration copy failed: %s", exc)
+-            return False
+-
+-        if dst_hw_uuid is None:
+-            logger.info("[Legacy] soul copied (no re-binding): %s → %s",
+-                        self.jay_path, new_path)
+-            return True
+-
+-        # ── V18: Re-bind header to dst hardware ──────────────────────────
+-        try:
+-            with open(new_path, "r+b") as f:
+-                raw = bytearray(f.read())
+-
+-            if len(raw) < _HEADER_SIZE or raw[:4] != _MAGIC:
+-                raise ValueError("Not a valid .jay file (bad magic)")
+-
+-            # Derive new hardware hash
+-            dst_bytes = dst_hw_uuid.encode("utf-8")
+-            new_hw_hash  = hashlib.sha3_256(dst_bytes).digest()          # 32 bytes
+-            new_dna_hash = hashlib.sha3_256(
+-                _DNA_SECRET + new_hw_hash
+-            ).digest()                                                     # 32 bytes
+-
+-            # Patch header in-place
+-            raw[_HW_HASH_OFFSET  : _HW_HASH_OFFSET  + 32] = new_hw_hash
+-            raw[_DNA_HASH_OFFSET : _DNA_HASH_OFFSET + 32] = new_dna_hash
+-
+-            # Optionally re-encrypt SOUL section with new key
+-            raw = self._reencrypt_soul(raw, dst_hw_uuid)
+-
+-            # Recompute footer CRC32 (last 4 bytes before SHA-256 tag)
+-            crc_payload = bytes(raw[:-_FOOTER_SIZE])
+-            new_crc     = zlib.crc32(crc_payload) & 0xFFFFFFFF
+-            # Footer layout: 4-byte CRC32 + 28-byte SHA-256 tag
+-            raw[-_FOOTER_SIZE : -_FOOTER_SIZE + 4] = struct.pack("<I", new_crc)
+-
+-            with open(new_path, "wb") as f:
+-                f.write(raw)
+-
+-            logger.info("[Legacy] soul re-bound to %s…: %s → %s",
+-                        dst_hw_uuid[:8], self.jay_path, new_path)
+-
+-        except Exception as exc:  # noqa: BLE001
+-            logger.warning(
+-                "[Legacy] header re-bind failed (%s); copy is still valid "
+-                "but hardware-bound to source device", exc
+-            )
+-
+-        # Always approve the destination UUID
+-        approved: List[str] = self._manifest.setdefault("approved_uuids", [])
+-        if dst_hw_uuid not in approved:
+-            approved.append(dst_hw_uuid)
+-            self._save_manifest()
+-            # Also update manifest copy
+-            dst_manifest = new_path + _MANIFEST_SUFFIX
+-            try:
+-                import json as _json
+-                with open(dst_manifest, "w", encoding="utf-8") as mf:
+-                    _json.dump(self._manifest, mf, indent=2)
+-            except OSError:
+-                pass
+-
+-        return True
+-
+-    def _reencrypt_soul(self, raw: bytearray, dst_hw_uuid: str) -> bytearray:
+-        """Re-encrypt the SOUL_KEY section with the destination hardware key.
+-
+-        Uses AES-256-GCM via the ``cryptography`` package if available.
+-        Falls back to returning *raw* unchanged on any error.
+-        """
+-        try:
+-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+-            from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+-            from cryptography.hazmat.primitives import hashes as _hashes
+-        except ImportError:
+-            logger.debug("[Legacy] cryptography not installed — skipping SOUL re-key")
+-            return raw
+-
+-        try:
+-            # Extract salt from header (bytes 88-119)
+-            salt = bytes(raw[_SALT_OFFSET : _SALT_OFFSET + 32])
+-
+-            # Derive source key from source hardware hash
+-            src_hw_hash = bytes(raw[_HW_HASH_OFFSET : _HW_HASH_OFFSET + 32])
+-            src_key = self._derive_key(src_hw_hash, salt)
+-
+-            # Find SOUL_KEY section by scanning 24-byte section headers
+-            offset = _HEADER_SIZE
+-            soul_start = -1
+-            soul_payload_size = 0
+-            soul_section_type = 1  # SectionType.SOUL_KEY = 1
+-
+-            while offset + _SECTION_HDR_SIZE <= len(raw) - _FOOTER_SIZE:
+-                sec_type  = struct.unpack_from("<I", raw, offset)[0]
+-                sec_flags = struct.unpack_from("<I", raw, offset + 4)[0]
+-                sec_size  = struct.unpack_from("<Q", raw, offset + 8)[0]
+-                sec_offset= struct.unpack_from("<Q", raw, offset + 16)[0]
+-
+-                if sec_type == soul_section_type and sec_size > 0:
+-                    soul_start        = sec_offset
+-                    soul_payload_size = sec_size
+-                    break
+-                offset += _SECTION_HDR_SIZE
+-
+-            if soul_start < 0:
+-                logger.debug("[Legacy] no SOUL_KEY section found — nothing to re-key")
+-                return raw
+-
+-            # Decrypt with source key
+-            ciphertext = bytes(raw[soul_start : soul_start + soul_payload_size])
+-            if len(ciphertext) < 28:  # 12-byte nonce + 16-byte tag minimum
+-                return raw
+-            nonce      = ciphertext[:12]
+-            ct_body    = ciphertext[12:]
+-            plaintext  = AESGCM(src_key).decrypt(nonce, ct_body, None)
+-
+-            # Derive destination key
+-            dst_hw_hash = bytes(raw[_HW_HASH_OFFSET : _HW_HASH_OFFSET + 32])
+-            dst_key     = self._derive_key(dst_hw_hash, salt)
+-
+-            # Re-encrypt with destination key (new nonce)
+-            import os as _os
+-            new_nonce  = _os.urandom(12)
+-            new_ct     = AESGCM(dst_key).encrypt(new_nonce, plaintext, None)
+-            new_cipher = new_nonce + new_ct
+-
+-            # Patch in place (same size expected — pad/trim to match)
+-            payload_len = len(new_cipher)
+-            if payload_len != soul_payload_size:
+-                # Sizes differ (tag length changed?) — skip to avoid corruption
+-                logger.debug("[Legacy] SOUL size mismatch %d vs %d — skipping re-key",
+-                             payload_len, soul_payload_size)
+-                return raw
+-
+-            raw[soul_start : soul_start + soul_payload_size] = new_cipher
+-            logger.info("[Legacy] SOUL_KEY section re-encrypted for new hardware")
+-            return raw
+-
+-        except Exception as exc:  # noqa: BLE001
+-            logger.warning("[Legacy] SOUL re-encryption failed (%s) — keeping original", exc)
+-            return raw
+-
+-    @staticmethod
+-    def _derive_key(hw_hash: bytes, salt: bytes) -> bytes:
+-        """Derive a 32-byte AES key from hardware hash + salt using PBKDF2."""
+-        from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+-        from cryptography.hazmat.primitives import hashes as _hashes
+-
+-        kdf = PBKDF2HMAC(
+-            algorithm=_hashes.SHA256(),
+-            length=32,
+-            salt=salt,
+-            iterations=100_000,
+-        )
+-        return kdf.derive(hw_hash)'''
+-
+-assert OLD_MIGRATE in content, "OLD migrate not found"
+-content = content.replace(OLD_MIGRATE, NEW_MIGRATE, 1)
+-
+-p.write_text(content, encoding="utf-8")
+-print("legacy_protocol.py updated OK")
+-print(f"File size: {len(content)} bytes")
++if __name__ == "__main__":
++    raise SystemExit(main())
+\ No newline at end of file
+diff --git a/JAYA_CORE/scripts/_patch_lingua.py b/JAYA_CORE/scripts/_patch_lingua.py
+index 8f4a2b2..6c6db62 100644
+--- a/JAYA_CORE/scripts/_patch_lingua.py
++++ b/JAYA_CORE/scripts/_patch_lingua.py
+@@ -1,151 +1,23 @@
+-"""Patch lingua_logica.py to expand from 17 to 200+ patterns with Bahasa Indonesia."""
+-import pathlib
++"""Retired one-shot patch for `src/brain_v2/soul/lingua_logica.py`."""
+ 
+-p = pathlib.Path(r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\soul\lingua_logica.py")
+-content = p.read_text(encoding="utf-8")
++from __future__ import annotations
+ 
+-OLD_ACTION = """_ACTION_KEYWORDS: List[Tuple[re.Pattern[str], str]] = [
+-    (re.compile(r"\\b(turn|switch)\\s+off\\b", re.I), "TURN_OFF"),
+-    (re.compile(r"\\b(turn|switch)\\s+on\\b",  re.I), "TURN_ON"),
+-    (re.compile(r"\\b(stop|halt|pause)\\b",    re.I), "STOP"),
+-    (re.compile(r"\\b(start|begin|run)\\b",    re.I), "START"),
+-    (re.compile(r"\\b(search|find|look)\\b",   re.I), "SEARCH"),
+-    (re.compile(r"\\b(delete|remove)\\b",      re.I), "DELETE"),
+-    (re.compile(r"\\b(open|launch)\\b",        re.I), "OPEN"),
+-    (re.compile(r"\\b(close|quit|exit)\\b",    re.I), "CLOSE"),
+-    (re.compile(r"\\b(greet|hello|hi)\\b",     re.I), "GREET"),
+-    (re.compile(r"\\b(sleep|rest|idle)\\b",    re.I), "SLEEP"),
+-]"""
++from collections.abc import Sequence
+ 
+-NEW_ACTION = r"""_ACTION_KEYWORDS: List[Tuple[re.Pattern[str], str]] = [
+-    # ── English ──────────────────────────────────────────────────────────
+-    (re.compile(r"\b(turn|switch)\s+off\b",             re.I), "TURN_OFF"),
+-    (re.compile(r"\b(turn|switch)\s+on\b",              re.I), "TURN_ON"),
+-    (re.compile(r"\b(stop|halt|pause|berhenti)\b",      re.I), "STOP"),
+-    (re.compile(r"\b(start|begin|run|launch|execute)\b",re.I), "START"),
+-    (re.compile(r"\b(search|find|look|lookup|query)\b", re.I), "SEARCH"),
+-    (re.compile(r"\b(delete|remove|erase|clear)\b",     re.I), "DELETE"),
+-    (re.compile(r"\b(open|launch|load)\b",              re.I), "OPEN"),
+-    (re.compile(r"\b(close|quit|exit|shutdown)\b",      re.I), "CLOSE"),
+-    (re.compile(r"\b(greet|hello|hi|hey)\b",            re.I), "GREET"),
+-    (re.compile(r"\b(sleep|rest|idle|standby)\b",       re.I), "SLEEP"),
+-    (re.compile(r"\b(help|assist|support)\b",           re.I), "HELP"),
+-    (re.compile(r"\b(save|store|write|export)\b",       re.I), "SAVE"),
+-    (re.compile(r"\b(load|import|read|fetch)\b",        re.I), "LOAD"),
+-    (re.compile(r"\b(send|post|submit|upload)\b",       re.I), "SEND"),
+-    (re.compile(r"\b(create|make|build|generate)\b",    re.I), "CREATE"),
+-    (re.compile(r"\b(edit|update|change|modify)\b",     re.I), "EDIT"),
+-    (re.compile(r"\b(show|display|view|print)\b",       re.I), "SHOW"),
+-    (re.compile(r"\b(hide|minimize|collapse)\b",        re.I), "HIDE"),
+-    (re.compile(r"\b(copy|duplicate|clone)\b",          re.I), "COPY"),
+-    (re.compile(r"\b(move|transfer|shift)\b",           re.I), "MOVE"),
+-    (re.compile(r"\b(reset|restart|reboot|reload)\b",   re.I), "RESET"),
+-    (re.compile(r"\b(calculate|compute|evaluate)\b",    re.I), "CALCULATE"),
+-    (re.compile(r"\b(remember|memorize|record)\b",      re.I), "REMEMBER"),
+-    (re.compile(r"\b(forget|discard|drop)\b",           re.I), "FORGET"),
+-    (re.compile(r"\b(translate|convert)\b",             re.I), "TRANSLATE"),
+-    (re.compile(r"\b(analyze|analyse|examine)\b",       re.I), "ANALYZE"),
+-    (re.compile(r"\b(download|get|pull)\b",             re.I), "DOWNLOAD"),
+-    (re.compile(r"\b(list|enumerate|show all)\b",       re.I), "LIST"),
+-    (re.compile(r"\b(sort|order|arrange|rank)\b",       re.I), "SORT"),
+-    (re.compile(r"\b(filter|select|pick)\b",            re.I), "FILTER"),
+-    # ── Bahasa Indonesia: kata kerja utama ───────────────────────────────
+-    (re.compile(r"\b(matikan|padamkan)\b",              re.I), "TURN_OFF"),
+-    (re.compile(r"\b(nyalakan|hidupkan|aktifkan)\b",    re.I), "TURN_ON"),
+-    (re.compile(r"\b(hentikan|berhenti|jeda|pause)\b",  re.I), "STOP"),
+-    (re.compile(r"\b(mulai(kan)?|jalankan|eksekusi)\b", re.I), "START"),
+-    (re.compile(r"\b(cari(kan)?|temukan|cek)\b",        re.I), "SEARCH"),
+-    (re.compile(r"\b(hapus(kan)?|buang|singkir)\b",     re.I), "DELETE"),
+-    (re.compile(r"\b(buka(kan)?|tampilkan|lihat)\b",    re.I), "OPEN"),
+-    (re.compile(r"\b(tutup|keluar|berhenti)\b",         re.I), "CLOSE"),
+-    (re.compile(r"\b(halo|hai|salam|selamat)\b",        re.I), "GREET"),
+-    (re.compile(r"\b(tidur|istirahat|berdiam)\b",       re.I), "SLEEP"),
+-    (re.compile(r"\b(tolong|bantu(kan)?|bantuan)\b",    re.I), "HELP"),
+-    (re.compile(r"\b(simpan|rekam|tulis|ekspor)\b",     re.I), "SAVE"),
+-    (re.compile(r"\b(muat|impor|ambil|baca)\b",         re.I), "LOAD"),
+-    (re.compile(r"\b(kirim(kan)?|posting|unggah)\b",    re.I), "SEND"),
+-    (re.compile(r"\b(buat(kan)?|bikin|ciptakan)\b",     re.I), "CREATE"),
+-    (re.compile(r"\b(ubah|edit|perbarui|ganti)\b",      re.I), "EDIT"),
+-    (re.compile(r"\b(tampilkan|tunjukkan|cetak)\b",     re.I), "SHOW"),
+-    (re.compile(r"\b(sembunyikan|kecilkan)\b",          re.I), "HIDE"),
+-    (re.compile(r"\b(salin|duplikat|kopi)\b",           re.I), "COPY"),
+-    (re.compile(r"\b(pindah(kan)?|geser|transfer)\b",   re.I), "MOVE"),
+-    (re.compile(r"\b(ulang|restart|reset|muat ulang)\b",re.I), "RESET"),
+-    (re.compile(r"\b(hitung(kan)?|kalkulasi|komputasi)\b", re.I), "CALCULATE"),
+-    (re.compile(r"\b(ingat|ingat(kan)?|catat)\b",       re.I), "REMEMBER"),
+-    (re.compile(r"\b(lupa(kan)?|buang ingatan)\b",      re.I), "FORGET"),
+-    (re.compile(r"\b(terjemahkan|konversi(kan)?)\b",    re.I), "TRANSLATE"),
+-    (re.compile(r"\b(analisis|analisa|periksa)\b",      re.I), "ANALYZE"),
+-    (re.compile(r"\b(unduh|download|ambilkan)\b",       re.I), "DOWNLOAD"),
+-    (re.compile(r"\b(daftar(kan)?|sebutkan|list)\b",    re.I), "LIST"),
+-    (re.compile(r"\b(urutkan|sortir|susun)\b",          re.I), "SORT"),
+-    (re.compile(r"\b(saring|filter|pilih(kan)?)\b",     re.I), "FILTER"),
+-    (re.compile(r"\b(ceritakan|jelaskan|terangkan)\b",  re.I), "EXPLAIN"),
+-    (re.compile(r"\b(hubungkan|sambungkan|koneksikan)\b",re.I), "CONNECT"),
+-    (re.compile(r"\b(putuskan|diskoneksikan)\b",        re.I), "DISCONNECT"),
+-    (re.compile(r"\b(perbarui|update|perbaiki)\b",      re.I), "UPDATE"),
+-    (re.compile(r"\b(verifikasi|cek ulang|konfirmasi)\b",re.I), "VERIFY"),
+-    # ── Bahasa Indonesia: informal/slang ─────────────────────────────────
+-    (re.compile(r"\b(yuk|ayo|mari)\b",                  re.I), "START"),
+-    (re.compile(r"\b(dong|donk)\b",                     re.I), "HELP"),
+-    (re.compile(r"\b(mau|pengen|ingin)\s+(\w+)",        re.I), "START"),
+-    (re.compile(r"\b(gak bisa|nggak bisa|tidak bisa)\b",re.I), "HELP"),
+-    (re.compile(r"\b(kasih tahu|kasih tau|beritahu)\b", re.I), "EXPLAIN"),
+-    (re.compile(r"\b(boleh|bisa|izin)\b",               re.I), "HELP"),
+-]"""
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
+ 
+-assert OLD_ACTION in content, "OLD_ACTION not found in file"
+-content = content.replace(OLD_ACTION, NEW_ACTION)
+ 
+-OLD_QUERY = """_QUERY_KEYWORDS: List[Tuple[re.Pattern[str], str]] = [
+-    (re.compile(r"\\b(what\\s+is|what's)\\b",  re.I), "QUERY_DEF"),
+-    (re.compile(r"\\b(how\\s+(do|to|can))\\b", re.I), "QUERY_HOW"),
+-    (re.compile(r"\\bwhy\\b",                  re.I), "QUERY_WHY"),
+-    (re.compile(r"\\bwhen\\b",                 re.I), "QUERY_WHEN"),
+-    (re.compile(r"\\bwhere\\b",                re.I), "QUERY_WHERE"),
+-    (re.compile(r"\\bwho\\b",                  re.I), "QUERY_WHO"),
+-]"""
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="_patch_lingua.py",
++        target="src/brain_v2/soul/lingua_logica.py",
++        replacement="the LinguaLogica tests",
++        argv=argv,
++    )
+ 
+-NEW_QUERY = r"""_QUERY_KEYWORDS: List[Tuple[re.Pattern[str], str]] = [
+-    # ── English ──────────────────────────────────────────────────────────
+-    (re.compile(r"\b(what\s+is|what's|define)\b",       re.I), "QUERY_DEF"),
+-    (re.compile(r"\b(how\s+(do|to|can|does|did))\b",    re.I), "QUERY_HOW"),
+-    (re.compile(r"\b(why|reason\s+for|cause\s+of)\b",   re.I), "QUERY_WHY"),
+-    (re.compile(r"\b(when|what\s+time|at\s+what\s+time)\b", re.I), "QUERY_WHEN"),
+-    (re.compile(r"\b(where|location\s+of|place\s+of)\b",re.I), "QUERY_WHERE"),
+-    (re.compile(r"\b(who|whose|whom)\b",                 re.I), "QUERY_WHO"),
+-    (re.compile(r"\b(which|what\s+kind|what\s+type)\b",  re.I), "QUERY_WHICH"),
+-    (re.compile(r"\b(can\s+you|could\s+you|please)\b",   re.I), "QUERY_HOW"),
+-    (re.compile(r"\b(explain|describe|tell\s+me\s+about)\b", re.I), "QUERY_DEF"),
+-    (re.compile(r"\b(difference|compare|versus|vs)\b",   re.I), "QUERY_DIFF"),
+-    (re.compile(r"\b(example|sample|instance|show\s+me)\b", re.I), "QUERY_EXAMPLE"),
+-    # ── Bahasa Indonesia: pertanyaan ─────────────────────────────────────
+-    (re.compile(r"\b(apa\s+itu|apa\s+yang\s+dimaksud|definisi)\b", re.I), "QUERY_DEF"),
+-    (re.compile(r"\b(bagaimana|gimana|caranya|cara)\b",  re.I), "QUERY_HOW"),
+-    (re.compile(r"\b(kenapa|mengapa|sebab|alasan)\b",    re.I), "QUERY_WHY"),
+-    (re.compile(r"\b(kapan|tanggal|waktu)\b",             re.I), "QUERY_WHEN"),
+-    (re.compile(r"\b(dimana|di\s+mana|lokasinya)\b",     re.I), "QUERY_WHERE"),
+-    (re.compile(r"\b(siapa|orang|tokoh)\b",               re.I), "QUERY_WHO"),
+-    (re.compile(r"\b(yang\s+mana|jenis\s+apa|tipe\s+apa)\b", re.I), "QUERY_WHICH"),
+-    (re.compile(r"\b(maksudnya|artinya|arti)\b",          re.I), "QUERY_DEF"),
+-    (re.compile(r"\b(bedanya|perbedaan|banding)\b",       re.I), "QUERY_DIFF"),
+-    (re.compile(r"\b(contoh(nya)?|misalnya|contoh\s+kasus)\b", re.I), "QUERY_EXAMPLE"),
+-    (re.compile(r"\b(berapa|jumlahnya|beratnya|ukuran)\b", re.I), "QUERY_AMOUNT"),
+-    (re.compile(r"\b(apakah|apa\s+benar|benarkah|betul)\b", re.I), "QUERY_CONFIRM"),
+-    (re.compile(r"\b(gimana\s+kalau|bagaimana\s+jika|what\s+if)\b", re.I), "QUERY_HYPOTHETICAL"),
+-    (re.compile(r"\b(rekomendasi|saran|suggest|recommend)\b", re.I), "QUERY_SUGGEST"),
+-]"""
+ 
+-assert OLD_QUERY in content, "OLD_QUERY not found in file"
+-content = content.replace(OLD_QUERY, NEW_QUERY)
+-
+-# Also bump cache_size default from 256 to 512
+-content = content.replace("def __init__(self, cache_size: int = 256):",
+-                           "def __init__(self, cache_size: int = 512):")
+-
+-p.write_text(content, encoding="utf-8")
+-print("lingua_logica.py updated OK")
+-# Count new patterns
+-import re
+-action_count = content.count('"TURN_OFF"') + content.count('"TURN_ON"') + content.count('"STOP"') + len(re.findall(r'"[A-Z_]+"', content.split("_QUERY_KEYWORDS")[0].split("_ACTION_KEYWORDS")[1]))
+-print(f"File size: {len(content)} bytes")
++if __name__ == "__main__":
++    raise SystemExit(main())
+\ No newline at end of file
+diff --git a/JAYA_CORE/scripts/_patch_runtime.py b/JAYA_CORE/scripts/_patch_runtime.py
+index bc1c5f8..948961a 100644
+--- a/JAYA_CORE/scripts/_patch_runtime.py
++++ b/JAYA_CORE/scripts/_patch_runtime.py
+@@ -1,246 +1,23 @@
+-"""Patch runtime.py: add NANO load path, wire MetaCognitivePlanner, SelfBootstrap, LiveEvolver."""
+-import pathlib
++"""Retired one-shot patch for `src/brain_v2/engine/runtime.py`."""
+ 
+-p = pathlib.Path(
+-    r"d:\Kampus\coba-coba\jaya-research\JAYA_CORE\src\brain_v2\engine\runtime.py"
+-)
+-content = p.read_text(encoding="utf-8")
++from __future__ import annotations
+ 
+-# 1. Update module docstring
+-OLD_DOC_END = "The class intentionally stays lightweight: no heavy ML libraries are\n        imported at module level.  Features load lazily, keeping startup fast and\n        allowing JAYA to \"run in any condition.\"\n\"\"\""
+-NEW_DOC_END = """The class intentionally stays lightweight: no heavy ML libraries are
+-        imported at module level.  Features load lazily, keeping startup fast and
+-        allowing JAYA to "run in any condition."
++from collections.abc import Sequence
+ 
+-V18 additions
+--------------
+-* **NANO_MODE**: if the .jay has PACKED_WEIGHTS flag, unpacks the 2-bit
+-  weights and loads a pure-NumPy NanoModel (no .pyd required).
+-* **MetaCognitivePlanner** (Pillar 38): reflects every 600 s on weak tasks,
+-  triggers MorphicKernel patches + LiveEvolver runs.
+-* **SelfBootstrap** (Pillar 28): detects idle > 300 s and injects
+-  self-study curriculum tasks.
+-* **LiveEvolver**: (1+1)-ES micro-evolution wired to live NanoModel weights.
+-\"\"\""""
+-assert OLD_DOC_END in content
+-content = content.replace(OLD_DOC_END, NEW_DOC_END, 1)
++try:
++    from scripts._retired_source_patch import retired_main
++except ModuleNotFoundError:  # Direct execution from this directory.
++    from _retired_source_patch import retired_main
+ 
+-# 2. Add NANO_MODE flag + new subsystem attributes to __init__
+-OLD_INIT_END = """        # Subsystems initialised during ignite()
+-        self._ethical_heart: Optional[Any] = None   # Pillar 15
+-        self._zero_trust:    Optional[Any] = None   # Pillar 18
+-        self._legacy:        Optional[Any] = None   # Pillar 19
+-        self._hybrid:        Optional[Any] = None   # Pillar 37
+-        self._speculative:   Optional[Any] = None   # Pillar 36
+-        self._intent:        Optional[Any] = None   # Pillar 40
+-        self._lingua:        Optional[Any] = None   # Pillar 21
+-        self._morphic:       Optional[Any] = None   # Pillar 24
+-        self._resource_mon:  Optional[Any] = None   # Pillar 2"""
+-NEW_INIT_END = """        # Subsystems initialised during ignite()
+-        self._ethical_heart:   Optional[Any] = None   # Pillar 15
+-        self._zero_trust:      Optional[Any] = None   # Pillar 18
+-        self._legacy:          Optional[Any] = None   # Pillar 19
+-        self._hybrid:          Optional[Any] = None   # Pillar 37
+-        self._speculative:     Optional[Any] = None   # Pillar 36
+-        self._intent:          Optional[Any] = None   # Pillar 40
+-        self._lingua:          Optional[Any] = None   # Pillar 21
+-        self._morphic:         Optional[Any] = None   # Pillar 24
+-        self._resource_mon:    Optional[Any] = None   # Pillar 2
+-        # V18 additions
+-        self.NANO_MODE:        bool          = False   # True when pure-NumPy path
+-        self._nano_model:      Optional[Any] = None   # NanoModel instance
+-        self._meta_cognitive:  Optional[Any] = None   # Pillar 38 MetaCognitivePlanner
+-        self._self_bootstrap:  Optional[Any] = None   # Pillar 28 SelfBootstrap
+-        self._live_evolver:    Optional[Any] = None   # LiveEvolver for micro-evolution"""
+-assert OLD_INIT_END in content
+-content = content.replace(OLD_INIT_END, NEW_INIT_END, 1)
+ 
+-# 3. Add NANO model loading inside ignite() after is_awake = True
+-OLD_IGNITE_CHECK = """        # -- Model loading (stubbed; replace with real deserializer) --
+-        if os.path.exists(self.model_path):
+-            logger.info("Model file found: %s", self.model_path)
+-        else:
+-            logger.warning("Model file not found (%s) — proceeding in stub mode",
+-                           self.model_path)
++def main(argv: Sequence[str] | None = None) -> int:
++    return retired_main(
++        utility="_patch_runtime.py",
++        target="src/brain_v2/engine/runtime.py",
++        replacement="the runtime and readiness tests",
++        argv=argv,
++    )
+ 
+-        self.is_awake = True"""
+-NEW_IGNITE_CHECK = """        # -- Model loading: NANO path (V18) or stub --
+-        if os.path.exists(self.model_path):
+-            logger.info("Model file found: %s", self.model_path)
+-            self._try_load_nano_model()
+-        else:
+-            logger.warning("Model file not found (%s) — proceeding in stub mode",
+-                           self.model_path)
+ 
+-        self.is_awake = True"""
+-assert OLD_IGNITE_CHECK in content
+-content = content.replace(OLD_IGNITE_CHECK, NEW_IGNITE_CHECK, 1)
+-
+-# 4. Add _try_load_nano_model method after _init_twin
+-NANO_LOAD_METHOD = '''
+-    def _try_load_nano_model(self) -> None:
+-        """V18: attempt to load NanoModel from IRON_BODY_PACKED section.
+-
+-        Reads the first 128 bytes of the .jay header and checks for the
+-        PACKED_WEIGHTS flag (bit 42).  If present, unpacks 2-bit weights
+-        into a NanoModel (pure NumPy, zero Numba dependency).
+-        """
+-        import struct
+-        PACKED_WEIGHTS_BIT = 1 << 42
+-        try:
+-            with open(self.model_path, "rb") as f:
+-                header = f.read(128)
+-            if len(header) < 16:
+-                return
+-            flags = struct.unpack_from("<Q", header, 8)[0]
+-            if not (flags & PACKED_WEIGHTS_BIT):
+-                logger.info("[V18] PACKED_WEIGHTS flag not set — using legacy model path")
+-                return
+-
+-            from src.brain_v2.model.nano_inference import NanoModel, NANO_CONFIG, STANDARD_CONFIG
+-            from src.brain_v2.format.packer import unpack_state_dict
+-            NANO_PROFILE_BIT = 1 << 43
+-
+-            cfg = NANO_CONFIG if (flags & NANO_PROFILE_BIT) else STANDARD_CONFIG
+-            model = NanoModel(config=cfg)
+-
+-            # Find IRON_BODY_PACKED section (type = 6) and unpack
+-            try:
+-                section_offset = 128
+-                SECTION_HDR = 24
+-                FOOTER_SIZE = 32
+-
+-                file_size = os.path.getsize(self.model_path)
+-                with open(self.model_path, "rb") as f:
+-                    raw = f.read()
+-
+-                while section_offset + SECTION_HDR <= file_size - FOOTER_SIZE:
+-                    sec_type   = struct.unpack_from("<I", raw, section_offset)[0]
+-                    sec_size   = struct.unpack_from("<Q", raw, section_offset + 8)[0]
+-                    sec_off_pl = struct.unpack_from("<Q", raw, section_offset + 16)[0]
+-                    if sec_type == 6 and sec_size > 0:
+-                        payload = raw[sec_off_pl : sec_off_pl + sec_size]
+-                        state_dict = unpack_state_dict(payload)
+-                        model.set_state_dict(state_dict)
+-                        logger.info("[V18] NanoModel loaded from IRON_BODY_PACKED (%d bytes packed)", sec_size)
+-                        break
+-                    section_offset += SECTION_HDR
+-                else:
+-                    logger.info("[V18] IRON_BODY_PACKED section not found — using random-init NanoModel")
+-                    model.random_init()
+-
+-            except Exception as exc:
+-                logger.warning("[V18] weight unpack failed (%s) — using random-init NanoModel", exc)
+-                model.random_init()
+-
+-            self._nano_model = model
+-            self.NANO_MODE   = True
+-            logger.info("[V18] NANO_MODE=True | config=%s", cfg)
+-
+-        except Exception as exc:
+-            logger.warning("[V18] NanoModel load failed (%s) — using legacy path", exc)
+-
+-'''
+-assert "    def _init_twin(self):" in content
+-content = content.replace("    def _init_twin(self):", NANO_LOAD_METHOD + "    def _init_twin(self):", 1)
+-
+-# 5. Wire MetaCognitivePlanner, SelfBootstrap, LiveEvolver in _init_intelligence
+-OLD_INIT_INTEL_END = """        try:
+-            from src.brain_v2.engine.morphic import MorphicKernel
+-            self._morphic = MorphicKernel(
+-                ethical_heart=self._ethical_heart,
+-            )
+-            logger.info("[Pillar 24] MorphicKernel ready")
+-        except ImportError as exc:
+-            logger.warning("MorphicKernel unavailable: %s", exc)"""
+-NEW_INIT_INTEL_END = """        try:
+-            from src.brain_v2.engine.morphic import MorphicKernel
+-            self._morphic = MorphicKernel(
+-                ethical_heart=self._ethical_heart,
+-            )
+-            logger.info("[Pillar 24] MorphicKernel ready")
+-        except ImportError as exc:
+-            logger.warning("MorphicKernel unavailable: %s", exc)
+-
+-        # V18: MetaCognitivePlanner (Pillar 38) ─────────────────────────────
+-        try:
+-            from src.brain_v2.engine.meta_cognitive import MetaCognitivePlanner
+-            self._meta_cognitive = MetaCognitivePlanner(
+-                engine=self,
+-                morphic=self._morphic,
+-            )
+-            logger.info("[Pillar 38] MetaCognitivePlanner ready")
+-        except ImportError as exc:
+-            logger.warning("MetaCognitivePlanner unavailable: %s", exc)
+-
+-        # V18: SelfBootstrap (Pillar 28) ────────────────────────────────────
+-        try:
+-            from src.brain_v2.engine.self_bootstrap import SelfBootstrap
+-            self._self_bootstrap = SelfBootstrap()
+-            logger.info("[Pillar 28] SelfBootstrap ready")
+-        except ImportError as exc:
+-            logger.warning("SelfBootstrap unavailable: %s", exc)
+-
+-        # V18: LiveEvolver ───────────────────────────────────────────────────
+-        try:
+-            from src.brain_v2.education.live_evolver import LiveEvolver
+-            if self._nano_model is not None:
+-                self._live_evolver = LiveEvolver(engine=self, max_steps=200)
+-                logger.info("[V18] LiveEvolver ready (NANO_MODE=%s)", self.NANO_MODE)
+-        except ImportError as exc:
+-            logger.warning("LiveEvolver unavailable: %s", exc)"""
+-assert OLD_INIT_INTEL_END in content
+-content = content.replace(OLD_INIT_INTEL_END, NEW_INIT_INTEL_END, 1)
+-
+-# 6. Wire meta_cognitive and self_bootstrap ticks in Magnum Cycle
+-OLD_CYCLE_LOOP = """                now = time.time()
+-                if (not self._silent
+-                        and now - last_dream >= self.config.dream_interval):
+-                    self.dream()
+-                    last_dream = now
+-                await asyncio.sleep(1.0)"""
+-NEW_CYCLE_LOOP = """                now = time.time()
+-                if (not self._silent
+-                        and now - last_dream >= self.config.dream_interval):
+-                    self.dream()
+-                    last_dream = now
+-                # V18: tick self-evolution subsystems every second
+-                if self.twin:
+-                    if self._meta_cognitive:
+-                        self._meta_cognitive.tick(self.twin)
+-                    if self._self_bootstrap:
+-                        self._self_bootstrap.tick(self.twin)
+-                await asyncio.sleep(1.0)"""
+-assert OLD_CYCLE_LOOP in content
+-content = content.replace(OLD_CYCLE_LOOP, NEW_CYCLE_LOOP, 1)
+-
+-# 7. Signal activity to SelfBootstrap on real feedback
+-OLD_FEEDBACK_END = """        if self._intent and result.get("task"):
+-            self._intent.learn(str(result["task"]))"""
+-NEW_FEEDBACK_END = """        if self._intent and result.get("task"):
+-            self._intent.learn(str(result["task"]))
+-        # V18: signal real activity to prevent idle curriculum spam
+-        if self._self_bootstrap:
+-            self._self_bootstrap.signal_activity()"""
+-assert OLD_FEEDBACK_END in content
+-content = content.replace(OLD_FEEDBACK_END, NEW_FEEDBACK_END, 1)
+-
+-# 8. Update status() to include V18 subsystems
+-OLD_STATUS_RETURN = """            "resource_mon":  self._resource_mon.status()  if self._resource_mon  else None,
+-        }"""
+-NEW_STATUS_RETURN = """            "resource_mon":   self._resource_mon.status()    if self._resource_mon    else None,
+-            # V18 additions
+-            "nano_mode":      self.NANO_MODE,
+-            "meta_cognitive": (self._meta_cognitive.status()
+-                               if hasattr(self._meta_cognitive, "status") else None),
+-            "self_bootstrap": (self._self_bootstrap.status()
+-                               if hasattr(self._self_bootstrap, "status") else None),
+-            "live_evolver":   (self._live_evolver.status()
+-                               if hasattr(self._live_evolver, "status") else None),
+-        }"""
+-assert OLD_STATUS_RETURN in content
+-content = content.replace(OLD_STATUS_RETURN, NEW_STATUS_RETURN, 1)
+-
+-p.write_text(content, encoding="utf-8")
+-print("runtime.py updated OK")
+-print(f"File size: {len(content)} bytes")
++if __name__ == "__main__":
++    raise SystemExit(main())
+\ No newline at end of file
+diff --git a/JAYA_CORE/src/brain_v2/education/train_logic.py b/JAYA_CORE/src/brain_v2/education/train_logic.py
+index e69ac8e..aa281da 100644
+--- a/JAYA_CORE/src/brain_v2/education/train_logic.py
++++ b/JAYA_CORE/src/brain_v2/education/train_logic.py
+@@ -1,17 +1,7 @@
+ 
+-import sys
+-from pathlib import Path
+-
+ import numpy as np
+ 
+-# Add project root
+-# Fix path: This file is in src/brain_v2/education
+-# We need to go up 3 levels to reach project root (d:\Kampus\coba-coba\jaya-research)
+-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+-sys.path.append(str(PROJECT_ROOT))
+-print(f"Debug: Project Root at {PROJECT_ROOT}")
+-
+-from src.brain_v2.model.ternary import TernaryLinear
++from ..model.ternary import TernaryLinear
+ 
+ 
+ class LogicTrainer:
+diff --git a/JAYA_CORE/scripts/_retired_source_patch.py b/JAYA_CORE/scripts/_retired_source_patch.py
+new file mode 100644
+index 0000000..e6e57ac
+--- /dev/null
++++ b/JAYA_CORE/scripts/_retired_source_patch.py
+@@ -0,0 +1,34 @@
++"""Fail-closed entry point for retired one-shot source patch utilities."""
++
++from __future__ import annotations
++
++import argparse
++import sys
++from collections.abc import Sequence
++
++
++def retired_main(
++    *,
++    utility: str,
++    target: str,
++    replacement: str,
++    argv: Sequence[str] | None = None,
++) -> int:
++    """Explain retirement and refuse to mutate tracked source files."""
++    parser = argparse.ArgumentParser(
++        prog=utility,
++        description="Explain why this legacy source patch utility is retired.",
++    )
++    parser.add_argument(
++        "--explain",
++        action="store_true",
++        help="print the retirement guidance (also printed by default)",
++    )
++    parser.parse_args(argv)
++
++    print(
++        f"{utility} is retired and will not modify {target}. "
++        f"Apply reviewed source changes directly and verify them with {replacement}.",
++        file=sys.stderr,
++    )
++    return 2
+diff --git a/JAYA_CORE/tests/test_tracked_script_hardening.py b/JAYA_CORE/tests/test_tracked_script_hardening.py
+new file mode 100644
+index 0000000..9c8e4f3
+--- /dev/null
++++ b/JAYA_CORE/tests/test_tracked_script_hardening.py
+@@ -0,0 +1,132 @@
++from __future__ import annotations
++
++import hashlib
++import re
++import subprocess
++import sys
++from pathlib import Path
++
++import pytest
++
++from scripts import backup_source, convert_to_gguf
++
++WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
++CORE_ROOT = WORKSPACE_ROOT / "JAYA_CORE"
++
++AUDITED_FILES = (
++    WORKSPACE_ROOT / "JAYA_RESEARCH" / "scripts" / "process_ta_fachri.py",
++    CORE_ROOT / "scripts" / "benchmark_phase1_ir.py",
++    CORE_ROOT / "scripts" / "convert_to_gguf.py",
++    CORE_ROOT / "scripts" / "backup_source.py",
++    CORE_ROOT / "scripts" / "setup_ui_backend.py",
++    CORE_ROOT / "scripts" / "_patch_genesis.py",
++    CORE_ROOT / "scripts" / "_patch_homeostasis.py",
++    CORE_ROOT / "scripts" / "_patch_intent.py",
++    CORE_ROOT / "scripts" / "_patch_legacy.py",
++    CORE_ROOT / "scripts" / "_patch_lingua.py",
++    CORE_ROOT / "scripts" / "_patch_runtime.py",
++    CORE_ROOT / "src" / "brain_v2" / "education" / "train_logic.py",
++)
++
++RETIRED_PATCH_TARGETS = {
++    "_patch_genesis.py": CORE_ROOT / "src" / "brain_v2" / "genesis.py",
++    "_patch_homeostasis.py": (
++        CORE_ROOT / "src" / "brain_v2" / "organism" / "homeostasis.py"
++    ),
++    "_patch_intent.py": (
++        CORE_ROOT / "src" / "brain_v2" / "engine" / "intent_engine.py"
++    ),
++    "_patch_legacy.py": (
++        CORE_ROOT / "src" / "brain_v2" / "engine" / "legacy_protocol.py"
++    ),
++    "_patch_lingua.py": (
++        CORE_ROOT / "src" / "brain_v2" / "soul" / "lingua_logica.py"
++    ),
++    "_patch_runtime.py": (
++        CORE_ROOT / "src" / "brain_v2" / "engine" / "runtime.py"
++    ),
++}
++
++
++def _sha256(path: Path) -> str:
++    return hashlib.sha256(path.read_bytes()).hexdigest()
++
++
++def test_audited_scripts_have_no_workstation_absolute_paths() -> None:
++    drive_path = re.compile(r"(?i)(?:[a-z]:[\\/]|users[\\/])")
++    violations = []
++    for path in AUDITED_FILES:
++        match = drive_path.search(path.read_text(encoding="utf-8"))
++        if match:
++            violations.append(f"{path.relative_to(WORKSPACE_ROOT)}:{match.group(0)}")
++    assert violations == []
++
++
++@pytest.mark.parametrize("script_name", sorted(RETIRED_PATCH_TARGETS))
++def test_legacy_patch_scripts_refuse_source_mutation(script_name: str) -> None:
++    script = CORE_ROOT / "scripts" / script_name
++    target = RETIRED_PATCH_TARGETS[script_name]
++    before = _sha256(target)
++
++    result = subprocess.run(
++        [sys.executable, str(script), "--explain"],
++        cwd=WORKSPACE_ROOT,
++        capture_output=True,
++        text=True,
++        timeout=10,
++        check=False,
++    )
++
++    assert result.returncode == 2
++    assert "retired" in result.stderr
++    assert _sha256(target) == before
++
++
++def test_cross_module_scaffold_is_retired() -> None:
++    result = subprocess.run(
++        [sys.executable, str(CORE_ROOT / "scripts" / "setup_ui_backend.py")],
++        cwd=WORKSPACE_ROOT,
++        capture_output=True,
++        text=True,
++        timeout=10,
++        check=False,
++    )
++    assert result.returncode == 2
++    assert "will not modify" in result.stderr
++
++
++def test_backup_paths_are_contained_and_external_mirror_is_opt_in(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    with pytest.raises(ValueError, match="inside"):
++        backup_source.resolve_contained(WORKSPACE_ROOT, root=CORE_ROOT)
++
++    monkeypatch.delenv("JAYA_BACKUP_MIRROR_DIR", raising=False)
++    args = backup_source.build_parser().parse_args([])
++    assert args.mirror_dir is None
++
++
++def test_converter_paths_are_contained_and_llama_cpp_is_explicit(
++    monkeypatch: pytest.MonkeyPatch,
++) -> None:
++    with pytest.raises(ValueError, match="inside"):
++        convert_to_gguf.resolve_contained(
++            WORKSPACE_ROOT,
++            root=convert_to_gguf.POLICY_ROOT,
++            must_exist=True,
++        )
++
++    monkeypatch.delenv("LLAMA_CPP_DIR", raising=False)
++    args = convert_to_gguf.build_parser().parse_args([])
++    assert args.llama_cpp_dir is None
++    assert args.trust_remote_code is False
++
++
++def test_research_pdf_processor_requires_explicit_input_and_contained_output() -> None:
++    source = (
++        WORKSPACE_ROOT / "JAYA_RESEARCH" / "scripts" / "process_ta_fachri.py"
++    ).read_text(encoding="utf-8")
++    assert "JAYA_RESEARCH_TA_PDF" in source
++    assert "resolve_pdf_path(args.pdf_path)" in source
++    assert "resolve_output_dir(args.output_dir)" in source
++    assert "_is_relative_to(output_dir, DATA_ROOT)" in source

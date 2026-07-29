@@ -1,0 +1,149 @@
+diff --git a/JAYA_RESEARCH/src/network/research_api.py b/JAYA_RESEARCH/src/network/research_api.py
+index d2b2370..bb774f7 100644
+--- a/JAYA_RESEARCH/src/network/research_api.py
++++ b/JAYA_RESEARCH/src/network/research_api.py
+@@ -8,7 +8,7 @@ try:
+ except Exception:
+     pass
+ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+-from config import config
++from config import config, get_settings
+ """
+ JAYA Research API Server (FastAPI)
+ The backbone of the Research UI.
+@@ -24,6 +24,7 @@ import secrets
+ import shutil
+ import tempfile
+ import json
++import importlib
+ from pathlib import Path
+ 
+ from fastapi import (
+@@ -47,10 +48,11 @@ SRC_DIR = ROOT_DIR / "src"
+ sys.path.insert(0, str(SRC_DIR))
+ sys.path.insert(0, str(ROOT_DIR))
+ 
+-from research.agent import ResearchAgent
+-from research.nvidia_rag_client import NVIDIARAGClient
+-from research.graph_rag import GraphRAGEngine
+-from research.meta_analysis import MetaAnalyst
++# Heavy provider/model dependencies are resolved only when their capability runs.
++ResearchAgent = None
++NVIDIARAGClient = None
++GraphRAGEngine = None
++MetaAnalyst = None
+ from network.api_models import (
+     ResearchRequest,
+     ChatRequest,
+@@ -84,12 +86,13 @@ from network.model_registry import (
+     NVIDIARegistryService,
+     validate_model_id,
+ )
++from network.route_audit import validate_route_contract
+ # VideoProcessor dimuat secara lazy (saat endpoint digunakan) karena membutuhkan cv2/ffmpeg opsional
+ VideoProcessor = None  # akan dimuat on-demand di endpoint /ingest/video
+ from research.workspace_manager import WorkspaceManager
+-from research.academic.journal_processor import JournalProcessor
+ 
+-from research.academic.tracker import ExperimentTracker
++JournalProcessor = None
++ExperimentTracker = None
+ from research.academic.thesis_session_repository import (
+     PersistentThesisSessions,
+     ThesisSessionError,
+@@ -97,22 +100,12 @@ from research.academic.thesis_session_repository import (
+ )
+ import traceback
+ from fastapi.responses import FileResponse
+-from evolution.twin import DigitalTwin
++DigitalTwin = None
+ 
+-_job_repository = DurableJobRepository(
+-    Path(
+-        os.getenv(
+-            "JAYA_RESEARCH_JOB_DB",
+-            str(ROOT_DIR / "data" / "research_jobs.db"),
+-        )
+-    )
+-)
+-
+-# Global Managers
+-workspace_manager = WorkspaceManager()
++_job_repository = None
++workspace_manager = None
+ meta_analyst = None
+-active_sessions = {} # workspace_id -> {rag, graph}
+-# DigitalTwin may require external config/env — initialize safely
++active_sessions = {}  # workspace_id -> {rag, graph}
+ digital_twin = None
+ _digital_twin_task = None
+ _digital_twin_max_cycles = None
+@@ -120,23 +113,64 @@ _digital_twin_startup_status = {
+     "status": "DISABLED_BY_DEFAULT",
+     "candidate_only": True,
+ }
+-if os.getenv("JAYA_ENABLE_DIGITAL_TWIN", "").strip() == "1":
++
++
++def _load_optional_dependency(global_name: str, module: str, attribute: str):
++    """Resolve an optional/heavy capability without eager import side effects."""
++    dependency = globals().get(global_name)
++    if dependency is not None:
++        return dependency
++    try:
++        dependency = getattr(importlib.import_module(module), attribute)
++    except (ImportError, AttributeError) as exc:
++        raise RuntimeError(
++            f"Research capability {global_name!r} is unavailable"
++        ) from exc
++    globals()[global_name] = dependency
++    return dependency
++
++
++def _job_repository_runtime():
++    global _job_repository
++    if _job_repository is None:
++        settings = get_settings()
++        _job_repository = DurableJobRepository(
++            settings.paths["JAYA_RESEARCH_JOB_DB"]
++        )
++    return _job_repository
++
++
++def _workspace_manager_runtime() -> WorkspaceManager:
++    global workspace_manager
++    if workspace_manager is None:
++        workspace_manager = WorkspaceManager(base_dir=config.WORKSPACES_DIR)
++    return workspace_manager
++
++
++def _configure_digital_twin() -> None:
++    """Initialize the bounded legacy twin only after startup validation."""
++    global digital_twin, _digital_twin_max_cycles, _digital_twin_startup_status
++    if os.getenv("JAYA_ENABLE_DIGITAL_TWIN", "").strip() != "1":
++        return
+     try:
++        twin_type = _load_optional_dependency(
++            "DigitalTwin", "evolution.twin", "DigitalTwin"
++        )
+         raw_max_cycles = os.getenv("JAYA_DIGITAL_TWIN_MAX_CYCLES", "").strip()
+         if not raw_max_cycles:
+             raise ValueError(
+                 "JAYA_DIGITAL_TWIN_MAX_CYCLES is required when the twin is enabled"
+             )
+-        _digital_twin_max_cycles = DigitalTwin._validate_cycle_bound(
++        _digital_twin_max_cycles = twin_type._validate_cycle_bound(
+             int(raw_max_cycles)
+         )
+-        digital_twin = DigitalTwin()
++        digital_twin = twin_type()
+         _digital_twin_startup_status = {
+             "status": "READY_BOUNDED_CANDIDATE_ONLY",
+             "candidate_only": True,
+             "max_cycles": _digital_twin_max_cycles,
+         }
+-    except (OSError, TypeError, ValueError) as exc:
++    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+         _digital_twin_startup_status = {
+             "status": "MISCONFIGURED_FAIL_CLOSED",
+             "candidate_only": True,

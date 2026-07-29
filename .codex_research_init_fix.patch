@@ -1,0 +1,16 @@
+diff --git a/JAYA_RESEARCH/src/research/__init__.py b/JAYA_RESEARCH/src/research/__init__.py
+index 34db55c..931ebb9 100644
+--- a/JAYA_RESEARCH/src/research/__init__.py
++++ b/JAYA_RESEARCH/src/research/__init__.py
+@@ -21,9 +21,6 @@ def __getattr__(name: str) -> Any:
+     if target is None:
+         raise AttributeError(name)
+     module_name, attribute = target
+-    try:
+-        value = getattr(import_module(module_name, __name__), attribute)
+-    except (ImportError, AttributeError) as exc:
+-        raise RuntimeError(f"Research capability {name!r} is unavailable") from exc
++    value = getattr(import_module(module_name, __name__), attribute)
+     globals()[name] = value
+     return value
+\ No newline at end of file

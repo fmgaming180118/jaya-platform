@@ -39,7 +39,7 @@ class DashboardViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         val database = AppDatabase.getDatabase(application)
-        repository = ChatRepository(database.chatDao(), application.filesDir)
+        repository = ChatRepository(database.chatDao(), application)
         
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(application).apply {
             setRecognitionListener(this@DashboardViewModel)

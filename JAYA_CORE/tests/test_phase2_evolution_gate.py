@@ -71,7 +71,7 @@ class TestPhase2EvolutionGate(unittest.TestCase):
             "report_type": report_type,
             "candidate_id": "cand-1",
             "source_hash": "abc123",
-            "commit": "abcdef1234567890",
+            "commit": "a" * 40,
             "runner": runner,
             "created_at": created_at,
             "dataset_digest": f"sha256:{'d' * 64}",
@@ -245,17 +245,13 @@ class TestPhase2EvolutionGate(unittest.TestCase):
             benchmark_path = Path(temp_dir) / "benchmark.json"
             test_path.write_text(
                 json.dumps(
-                    report_signer.sign_report(
-                        self._report("test", created_at=now)
-                    )
+                    report_signer.sign_report(self._report("test", created_at=now))
                 ),
                 encoding="utf-8",
             )
             benchmark_path.write_text(
                 json.dumps(
-                    report_signer.sign_report(
-                        self._report("benchmark", created_at=now)
-                    )
+                    report_signer.sign_report(self._report("benchmark", created_at=now))
                 ),
                 encoding="utf-8",
             )
@@ -263,7 +259,7 @@ class TestPhase2EvolutionGate(unittest.TestCase):
                 test_path,
                 benchmark_path,
                 candidate=cand,
-                expected_commit="abcdef1234567890",
+                expected_commit="a" * 40,
             )
 
         decision = gate.evaluate(cand, evidence)
@@ -285,9 +281,7 @@ class TestPhase2EvolutionGate(unittest.TestCase):
         report_signer = EvidenceReceiptVerifier(evidence_key)
         now = time.time()
         cand = self._candidate()
-        test_report = report_signer.sign_report(
-            self._report("test", created_at=now)
-        )
+        test_report = report_signer.sign_report(self._report("test", created_at=now))
         test_report["result"]["passed"] = False
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -296,9 +290,7 @@ class TestPhase2EvolutionGate(unittest.TestCase):
             test_path.write_text(json.dumps(test_report), encoding="utf-8")
             benchmark_path.write_text(
                 json.dumps(
-                    report_signer.sign_report(
-                        self._report("benchmark", created_at=now)
-                    )
+                    report_signer.sign_report(self._report("benchmark", created_at=now))
                 ),
                 encoding="utf-8",
             )

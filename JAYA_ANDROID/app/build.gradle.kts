@@ -1,3 +1,4 @@
+import java.net.URI
 import java.util.Properties
 
 plugins {
@@ -12,6 +13,46 @@ val localProps = Properties().also { props ->
     if (f.exists()) f.inputStream().use { props.load(it) }
 }
 
+fun validateApiUrl(value: String, allowLocalCleartext: Boolean): String {
+    val uri = try {
+        URI(value)
+    } catch (error: Exception) {
+        throw GradleException("Invalid JAYA API URL", error)
+    }
+    val host = uri.host ?: throw GradleException("JAYA API URL must include a host")
+    val secure = uri.scheme.equals("https", ignoreCase = true)
+    val localDebug = allowLocalCleartext &&
+        uri.scheme.equals("http", ignoreCase = true) &&
+        host.lowercase() in setOf("10.0.2.2", "127.0.0.1", "localhost")
+
+    if (!secure && !localDebug) {
+        throw GradleException(
+            "JAYA API URL must use HTTPS; cleartext is limited to loopback debug builds"
+        )
+    }
+    if (uri.userInfo != null || uri.fragment != null) {
+        throw GradleException("JAYA API URL cannot contain credentials or fragments")
+    }
+    return if (value.endsWith('/')) value else "$value/"
+}
+
+fun String.asBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
+val debugJayaApiUrl = validateApiUrl(
+    localProps.getProperty("JAYA_DEBUG_API_URL") ?: "http://10.0.2.2:8000/",
+    allowLocalCleartext = true,
+)
+val releaseJayaApiUrl = validateApiUrl(
+    localProps.getProperty("JAYA_API_URL") ?: "https://127.0.0.1:8443/",
+    allowLocalCleartext = false,
+)
+val modelSha256 = localProps.getProperty("JAYA_MODEL_SHA256")?.trim().orEmpty().also { digest ->
+    if (digest.isNotEmpty() && !digest.matches(Regex("[a-fA-F0-9]{64}"))) {
+        throw GradleException("JAYA_MODEL_SHA256 must be a 64-character SHA-256 digest")
+    }
+}
+
 android {
     namespace = "com.example.jaya"
     compileSdk = 37
@@ -22,18 +63,19 @@ android {
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
-
-        val jayaApiUrl = localProps.getProperty("JAYA_API_URL") ?: "http://10.0.2.2:8000/"
-        buildConfigField("String", "JAYA_API_URL", "\"$jayaApiUrl\"")
-
+        buildConfigField("String", "JAYA_MODEL_SHA256", modelSha256.asBuildConfigString())
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
+            buildConfigField("String", "JAYA_API_URL", releaseJayaApiUrl.asBuildConfigString())
             optimization {
                 enable = false
             }
+        }
+        debug {
+            buildConfigField("String", "JAYA_API_URL", debugJayaApiUrl.asBuildConfigString())
         }
     }
     compileOptions {

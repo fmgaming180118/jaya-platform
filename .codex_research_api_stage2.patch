@@ -1,0 +1,295 @@
+diff --git a/JAYA_RESEARCH/src/network/research_api.py b/JAYA_RESEARCH/src/network/research_api.py
+index bb774f7..7002fe5 100644
+--- a/JAYA_RESEARCH/src/network/research_api.py
++++ b/JAYA_RESEARCH/src/network/research_api.py
+@@ -177,13 +177,29 @@ def _configure_digital_twin() -> None:
+             "error": str(exc),
+         }
+ 
++def validate_startup_contract(app_instance: FastAPI):
++    """Validate configuration and routes before any runtime resource is created."""
++    settings = get_settings()
++    routes = validate_route_contract(app_instance)
++    return settings, routes
++
++
+ @asynccontextmanager
+ async def lifespan(app_instance: FastAPI):
+     """Lifespan handler — replaces deprecated @app.on_event for FastAPI 0.115+"""
+     global _is_autonomous_loop_running, _auto_loop_task, _digital_twin_task
+     # ── STARTUP ──────────────────────────────────────────────────────────────
++    settings, route_inventory = validate_startup_contract(app_instance)
++    settings.ensure_runtime_directories()
++    _ensure_settings_table()
++    repository = _job_repository_runtime()
++    _workspace_manager_runtime()
++    _configure_digital_twin()
++    app_instance.state.research_settings = settings.redacted()
++    app_instance.state.route_inventory = route_inventory
++
+     print("[API] Starting JAYA Research Backend...")
+-    recovered_jobs = _job_repository.recover_expired()
++    recovered_jobs = repository.recover_expired()
+     if recovered_jobs:
+         print(
+             f"[API] Recovered {recovered_jobs} expired job lease(s) to a "
+@@ -244,24 +260,23 @@ app.add_middleware(
+ 
+ # ─── LOOP STATE PERSISTENCE HELPERS ─────────────────
+ def _get_settings_db_path() -> Path:
+-    """Returns path to agentic_jarvis.db for settings persistence."""
+-    return Path(__file__).resolve().parent.parent.parent / "data" / "agentic_jarvis.db"
++    """Return the validated, data-root-contained settings database path."""
++    return get_settings().paths["JAYA_RESEARCH_SETTINGS_DB"]
++
++
++def _ensure_settings_table() -> None:
++    """Create the settings table or fail startup without leaking path details."""
++    import sqlite3 as _sq
+ 
+-def _ensure_settings_table():
+-    """Create jaya_settings table if not exists."""
+     try:
+-        import sqlite3 as _sq
+         db = _get_settings_db_path()
+-        db.parent.mkdir(parents=True, exist_ok=True)
+-        conn = _sq.connect(str(db))
+-        conn.execute(
+-            "CREATE TABLE IF NOT EXISTS jaya_settings "
+-            "(key TEXT PRIMARY KEY, value TEXT, updated_at REAL)"
+-        )
+-        conn.commit()
+-        conn.close()
+-    except Exception as e:
+-        print(f"[SETTINGS] Could not create settings table: {e}")
++        with _sq.connect(str(db)) as connection:
++            connection.execute(
++                "CREATE TABLE IF NOT EXISTS jaya_settings "
++                "(key TEXT PRIMARY KEY, value TEXT, updated_at REAL)"
++            )
++    except (OSError, _sq.Error) as exc:
++        raise RuntimeError("Unable to initialize Research settings store") from exc
+ 
+ def _save_loop_state(running: bool):
+     """Persist autonomous loop enabled/disabled to SQLite."""
+@@ -293,8 +308,6 @@ def _read_loop_state() -> bool:
+     except Exception:
+         return False
+ 
+-_ensure_settings_table()
+-
+ # NOTE: startup/shutdown logic telah dipindah ke lifespan() di atas.
+ 
+ # Session State (In-Memory for MVP - ideal: Redis)
+@@ -308,14 +321,22 @@ def get_engines(workspace_id: str = "default"):
+     """
+     if workspace_id not in active_sessions:
+         print(f"[API] Loading engines for workspace: {workspace_id}")
+-        paths = workspace_manager.get_or_create_paths(workspace_id)
++        paths = _workspace_manager_runtime().get_or_create_paths(workspace_id)
+         
+-        # Initialize engines with specific paths
+-        rag = NVIDIARAGClient(
+-            vector_store_path=paths['vector_store'],
++        # Initialize engines with specific paths only when this capability is used.
++        rag_type = _load_optional_dependency(
++            "NVIDIARAGClient",
++            "research.nvidia_rag_client",
++            "NVIDIARAGClient",
++        )
++        graph_type = _load_optional_dependency(
++            "GraphRAGEngine", "research.graph_rag", "GraphRAGEngine"
++        )
++        rag = rag_type(
++            vector_store_path=paths["vector_store"],
+             workspace_id=workspace_id,
+         )
+-        graph = GraphRAGEngine(storage_path=paths['knowledge_graph'])
++        graph = graph_type(storage_path=paths["knowledge_graph"])
+         
+         active_sessions[workspace_id] = {
+             "rag": rag,
+@@ -447,14 +468,14 @@ def _run_research_job(job_id: str) -> None:
+     """Run one durable research job under an expiring worker lease."""
+     worker_id = f"api-worker-{os.getpid()}"
+     try:
+-        job = _job_repository.start(
++        job = _job_repository_runtime().start(
+             job_id,
+             worker_id=worker_id,
+             lease_seconds=300.0,
+         )
+         if job.state is JobState.CANCELED:
+             return
+-        _job_repository.update_progress(
++        _job_repository_runtime().update_progress(
+             job_id,
+             worker_id=worker_id,
+             progress=0.05,
+@@ -464,7 +485,7 @@ def _run_research_job(job_id: str) -> None:
+         focus = str(job.payload.get("focus_areas") or "")
+         max_queries = int(job.payload.get("max_queries") or 5)
+         _, graph_engine = get_engines(job.workspace_id)
+-        agent = ResearchAgent(
++        agent_type = _load_optional_dependency(`r`n            "ResearchAgent", "research.agent", "ResearchAgent"`r`n        )`r`n        agent = agent_type(
+             topic=topic,
+             focus_areas=focus,
+             workspace=job.workspace_id,
+@@ -473,14 +494,14 @@ def _run_research_job(job_id: str) -> None:
+         report = agent.run(human_in_loop=False)
+         if not isinstance(report, str) or not report.strip():
+             raise RuntimeError("Research agent produced no report")
+-        _job_repository.update_progress(
++        _job_repository_runtime().update_progress(
+             job_id,
+             worker_id=worker_id,
+             progress=0.8,
+             lease_seconds=120.0,
+         )
+         graph_engine.ingest_document(report, f"Research: {topic}")
+-        _job_repository.succeed(
++        _job_repository_runtime().succeed(
+             job_id,
+             worker_id=worker_id,
+             result={
+@@ -495,7 +516,7 @@ def _run_research_job(job_id: str) -> None:
+         return
+     except Exception as exc:
+         try:
+-            _job_repository.fail(
++            _job_repository_runtime().fail(
+                 job_id,
+                 worker_id=worker_id,
+                 error_code="RESEARCH_EXECUTION_FAILED",
+@@ -519,7 +540,7 @@ async def start_research(
+ ):
+     """Queue a bounded, durable research job; Core mutation is impossible."""
+     try:
+-        job, created = _job_repository.create(
++        job, created = _job_repository_runtime().create(
+             job_type="research-study",
+             workspace_id=request.workspace_id,
+             idempotency_key=idempotency_key,
+@@ -546,7 +567,7 @@ async def start_research(
+ async def get_research_job(job_id: str, request: Request):
+     """Return persistent job state after workspace authorization."""
+     try:
+-        job = _job_repository.get(job_id)
++        job = _job_repository_runtime().get(job_id)
+     except JobNotFoundError as exc:
+         raise HTTPException(status_code=404, detail="Job not found") from exc
+     require_workspace_identity(
+@@ -554,20 +575,20 @@ async def get_research_job(job_id: str, request: Request):
+         job.workspace_id,
+         required_scopes={"research:read"},
+     )
+-    return {"job": job.to_dict(), "events": _job_repository.events(job_id)}
++    return {"job": job.to_dict(), "events": _job_repository_runtime().events(job_id)}
+ 
+ 
+ @app.post("/jobs/{job_id}/cancel")
+ async def cancel_research_job(job_id: str, request: Request):
+     """Request idempotent cancellation for a queued or running job."""
+     try:
+-        current = _job_repository.get(job_id)
++        current = _job_repository_runtime().get(job_id)
+         require_workspace_identity(
+             request,
+             current.workspace_id,
+             required_scopes={"research:write"},
+         )
+-        job = _job_repository.request_cancel(job_id)
++        job = _job_repository_runtime().request_cancel(job_id)
+     except JobNotFoundError as exc:
+         raise HTTPException(status_code=404, detail="Job not found") from exc
+     return {"job": job.to_dict()}
+@@ -581,7 +602,7 @@ async def resume_research_job(
+ ):
+     """Resume a recovered/retried queued job without creating a duplicate."""
+     try:
+-        job = _job_repository.get(job_id)
++        job = _job_repository_runtime().get(job_id)
+         require_workspace_identity(
+             request,
+             job.workspace_id,
+@@ -667,7 +688,7 @@ async def ingest_pdf_document(
+         - Storage locations
+     """
+     # Get workspace paths
+-    paths = workspace_manager.get_paths(workspace_id)
++    paths = _workspace_manager_runtime().get_paths(workspace_id)
+     workspace_root = Path(paths['vector_store']).parent  # Get workspace root from vector_store path
+     
+     # Create documents directory in workspace
+@@ -1231,7 +1252,7 @@ Format output sebagai JSON dengan keys:
+ @app.get("/documents/processed")
+ def list_processed_documents(workspace_id: str = "default"):
+     """List all processed documents in a workspace"""
+-    paths = workspace_manager.get_paths(workspace_id)
++    paths = _workspace_manager_runtime().get_paths(workspace_id)
+     workspace_root = Path(paths['vector_store']).parent
+     processed_dir = workspace_root / "processed_docs"
+     
+@@ -1256,7 +1277,7 @@ def list_processed_documents(workspace_id: str = "default"):
+ @app.get("/documents/processed/{doc_folder_name}")
+ def get_processed_document(workspace_id: str, doc_folder_name: str):
+     """Get details of a processed document"""
+-    paths = workspace_manager.get_paths(workspace_id)
++    paths = _workspace_manager_runtime().get_paths(workspace_id)
+     workspace_root = Path(paths['vector_store']).parent
+     doc_folder = workspace_root / "processed_docs" / doc_folder_name
+     
+@@ -1286,7 +1307,7 @@ def get_processed_document(workspace_id: str, doc_folder_name: str):
+ @app.delete("/documents/processed/{doc_folder_name}")
+ def delete_processed_document(workspace_id: str, doc_folder_name: str):
+     """Delete a processed document and all its files"""
+-    paths = workspace_manager.get_paths(workspace_id)
++    paths = _workspace_manager_runtime().get_paths(workspace_id)
+     workspace_root = Path(paths['vector_store']).parent
+     doc_folder = workspace_root / "processed_docs" / doc_folder_name
+     
+@@ -1310,7 +1331,7 @@ async def revise_chapter(draft: str, critique: str):
+ @app.get("/academic/experiments/{exp_id}/chart")
+ async def get_experiment_chart(exp_id: str, metric: str):
+     """Generates and serves a chart for an experiment"""
+-    tracker = ExperimentTracker()
++    tracker_type = _load_optional_dependency(`r`n        "ExperimentTracker", "research.academic.tracker", "ExperimentTracker"`r`n    )`r`n    tracker = tracker_type()
+     chart_path = tracker.generate_chart(exp_id, metric)
+     
+     if chart_path and os.path.exists(chart_path):
+@@ -1320,7 +1341,7 @@ async def get_experiment_chart(exp_id: str, metric: str):
+ @app.get("/academic/experiments")
+ def list_experiments():
+     """List recent experiments"""
+-    tracker = ExperimentTracker()
++    tracker_type = _load_optional_dependency(`r`n        "ExperimentTracker", "research.academic.tracker", "ExperimentTracker"`r`n    )`r`n    tracker = tracker_type()
+     # Simple directory listing for MVP
+     exps = []
+     if os.path.exists(tracker.base_dir):
+@@ -1383,7 +1404,7 @@ async def chat_with_knowledge(request: ChatRequest):
+     if any(t in msg_lower for t in triggers):
+         try:
+             print(f"[API] Journal Intent Detected: {request.message}")
+-            processor = JournalProcessor()
++            processor_type = _load_optional_dependency(`r`n                "JournalProcessor",`r`n                "research.academic.journal_processor",`r`n                "JournalProcessor",`r`n            )`r`n            processor = processor_type()
+             # Extract topic roughly (User: "Cari jurnal tentang X" -> "X")
+             # For MVP, just pass the whole message, the searcher handles it well enough
+             journal_result = processor.process_query(request.message, max_papers=1)
+@@ -1728,7 +1749,7 @@ def get_history():
+     """Get past research reports"""
+     global meta_analyst
+     if meta_analyst is None:
+-        meta_analyst = MetaAnalyst()
++        analyst_type = _load_optional_dependency(`r`n            "MetaAnalyst", "research.meta_analysis", "MetaAnalyst"`r`n        )`r`n        meta_analyst = analyst_type()
+     return meta_analyst.get_research_history()
+ 
+ 
+@@ -1916,7 +1937,7 @@ async def upload_thesis(
+     Upload PDF Tugas Akhir. Simpan ke disk, ekstrak teks, dan kembalikan session_id
+     yang bisa digunakan untuk memanggil /thesis/analyze.
+     """
+-    workspace_paths = workspace_manager.get_or_create_paths(workspace_id)
++    workspace_paths = _workspace_manager_runtime().get_or_create_paths(workspace_id)
+     thesis_uploads_dir = Path(workspace_paths["root"]) / "thesis_uploads"
+     try:
+         upload_receipt = store_upload(

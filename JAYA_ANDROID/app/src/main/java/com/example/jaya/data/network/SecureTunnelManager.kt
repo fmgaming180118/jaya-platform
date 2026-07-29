@@ -1,6 +1,8 @@
 package com.example.jaya.data.network
 
 import android.util.Log
+import com.example.jaya.BuildConfig
+import com.example.jaya.data.remote.NetworkModule
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,26 +22,46 @@ data class TunnelSession(
     val connectionState: ConnectionState
 )
 
-class SecureTunnelManager {
+class SecureTunnelManager(
+    initialServerUrl: String = BuildConfig.JAYA_API_URL,
+) {
     private val _sessionState = MutableStateFlow(
         TunnelSession(
-            serverUrl = "http://10.0.2.2:8000/",
-            isPaired = true,
+            serverUrl = NetworkModule.normalizeAndValidateBaseUrl(initialServerUrl),
+            isPaired = false,
             deviceFingerprint = generateDeviceFingerprint(),
-            connectionState = ConnectionState.DISCONNECTED
+            connectionState = ConnectionState.DISCONNECTED,
         )
     )
     val sessionState: StateFlow<TunnelSession> = _sessionState.asStateFlow()
 
     fun updateServerUrl(newUrl: String) {
-        val sanitized = if (newUrl.endsWith("/")) newUrl else "$newUrl/"
-        _sessionState.value = _sessionState.value.copy(serverUrl = sanitized)
-        Log.d("SecureTunnel", "Server URL updated to $sanitized")
+        val sanitized = NetworkModule.normalizeAndValidateBaseUrl(newUrl)
+        _sessionState.value = _sessionState.value.copy(
+            serverUrl = sanitized,
+            isPaired = false,
+            connectionState = ConnectionState.DISCONNECTED,
+        )
+        Log.i("SecureTunnel", "Server endpoint updated; device pairing was reset")
+    }
+
+    fun markPaired(isPaired: Boolean) {
+        _sessionState.value = _sessionState.value.copy(
+            isPaired = isPaired,
+            connectionState = if (isPaired) {
+                _sessionState.value.connectionState
+            } else {
+                ConnectionState.DISCONNECTED
+            },
+        )
     }
 
     fun setConnectionState(state: ConnectionState) {
+        require(state != ConnectionState.CONNECTED_ONLINE || _sessionState.value.isPaired) {
+            "A device must be paired before an online tunnel is marked connected"
+        }
         _sessionState.value = _sessionState.value.copy(connectionState = state)
-        Log.d("SecureTunnel", "Tunnel connection state changed to: $state")
+        Log.i("SecureTunnel", "Tunnel connection state changed to $state")
     }
 
     private fun generateDeviceFingerprint(): String {

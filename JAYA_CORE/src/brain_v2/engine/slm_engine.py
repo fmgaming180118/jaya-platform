@@ -21,11 +21,21 @@ Total disk footprint model + adapter < 200 MB.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import time
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from src.brain_v2.model.readiness import (
+    ModelFailureCode,
+    ModelReadinessReport,
+    ModelReadinessState,
+    ModelUnavailableError,
+    normalize_sha256,
+)
 
 logger = logging.getLogger("SLMEngine")
 
@@ -51,6 +61,35 @@ _MODEL_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 DEFAULT_MODEL_KEY = "smollm2_135m"
+
+
+def digest_model_artifact(path: str | Path) -> str:
+    """Return a deterministic digest for one local model file or directory."""
+
+    artifact = Path(path)
+    digest = hashlib.sha256()
+    if artifact.is_file() and not artifact.is_symlink():
+        files = (artifact,)
+        root = artifact.parent
+    elif artifact.is_dir() and not artifact.is_symlink():
+        files = tuple(
+            candidate
+            for candidate in sorted(artifact.rglob("*"))
+            if candidate.is_file()
+        )
+        root = artifact
+        if not files or any(candidate.is_symlink() for candidate in files):
+            raise ValueError("model artifact directory is empty or contains links")
+    else:
+        raise ValueError("model artifact is missing")
+    for candidate in files:
+        relative = candidate.relative_to(root).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        with candidate.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 # ---------------------------------------------------------------------------
 # Domain LoRA Adapter Registry (< 5 MB per adapter, rank-8)
@@ -241,15 +280,27 @@ class SLMEngine:
         memory_manager: Optional[Any] = None,
         enable_moe: bool = True,
         n_candidates: int = 2,
+        model_artifact_path: Optional[str] = None,
+        expected_artifact_sha256: Optional[str] = None,
+        component_loader: Optional[
+            Callable[[Path, str], tuple[Any, Any]]
+        ] = None,
     ):
         self._model_key = model_key
         self._cache_dir = cache_dir or str(Path.home() / ".cache" / "jaya_models")
         self._device = device
         self._max_new_tokens = max_new_tokens
+        self._model_artifact_path = model_artifact_path
+        self._expected_artifact_sha256 = expected_artifact_sha256
+        self._component_loader = component_loader
 
         self._model = None
         self._tokenizer = None
         self._loaded = False
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.UNAVAILABLE,
+            ModelFailureCode.NOT_LOADED,
+        )
         self._active_domain: Optional[str] = None
         self._load_time: float = 0.0
         self._inference_count: int = 0
@@ -291,77 +342,182 @@ class SLMEngine:
             pass
         return "cpu"
 
-    def load(self) -> bool:
-        """Muat model SLM dari HuggingFace Hub (atau cache lokal)."""
-        if self._loaded:
-            return True
+    @property
+    def readiness(self) -> ModelReadinessReport:
+        return self._readiness
 
-        catalog_entry = _MODEL_CATALOG.get(self._model_key)
-        if not catalog_entry:
-            logger.error("[SLMEngine] Unknown model key: %s", self._model_key)
-            return False
+    def is_ready(self) -> bool:
+        return self._loaded and self._readiness.ready
 
-        hf_id = catalog_entry["hf_id"]
-        est_mb = catalog_entry["est_size_mb"]
-        dtype_str = catalog_entry.get("dtype", "float16")
-        trust_remote = catalog_entry.get("trust_remote", False)
-
-        logger.info("[SLMEngine] Loading %s (~%d MB) ...", hf_id, est_mb)
-        t0 = time.time()
-
-        try:
-            import torch
-            from transformers import AutoModelForCausalLM, AutoTokenizer
-
-            device = self._resolve_device()
-            dtype = torch.float16 if dtype_str == "float16" else torch.bfloat16
-
-            self._tokenizer = AutoTokenizer.from_pretrained(
-                hf_id,
-                cache_dir=self._cache_dir,
-                trust_remote_code=trust_remote,
-            )
-
-            load_kwargs: Dict[str, Any] = {
-                "cache_dir": self._cache_dir,
-                "trust_remote_code": trust_remote,
-                "low_cpu_mem_usage": True,
-            }
-
-            if device == "cuda":
-                load_kwargs["torch_dtype"] = dtype
-                load_kwargs["device_map"] = "auto"
-            else:
-                load_kwargs["torch_dtype"] = torch.float32
-
-            self._model = AutoModelForCausalLM.from_pretrained(hf_id, **load_kwargs)
-
-            if device == "cpu" and self._model is not None:
-                try:
-                    import torch.quantization
-                    self._model = torch.quantization.quantize_dynamic(
-                        self._model, {torch.nn.Linear}, dtype=torch.qint8
-                    )
-                    logger.info("[SLMEngine] INT8 dynamic quantization applied (CPU mode)")
-                except Exception as qex:
-                    logger.warning("[SLMEngine] INT8 quantization skipped: %s", qex)
-
-            self._model.eval()
-            self._device = device
-            self._loaded = True
-            self._load_time = time.time() - t0
-
-            logger.info(
-                "[SLMEngine] Model loaded: %s | device=%s | load_time=%.2fs",
-                hf_id, device, self._load_time
-            )
-            return True
-
-        except ImportError as e:
-            logger.error("[SLMEngine] Missing dependency: %s", e)
-        except Exception as e:
-            logger.error("[SLMEngine] Load failed: %s", e)
+    def _set_failure(
+        self,
+        code: ModelFailureCode,
+        *,
+        state: ModelReadinessState = ModelReadinessState.UNAVAILABLE,
+        artifact_sha256: str | None = None,
+    ) -> bool:
+        self._loaded = False
+        self._readiness = ModelReadinessReport(
+            state,
+            code,
+            artifact_sha256=artifact_sha256,
+        )
+        logger.error("[SLMEngine] unavailable: %s", code.value)
         return False
+
+    def _default_component_loader(
+        self,
+        artifact_path: Path,
+        device: str,
+    ) -> tuple[Any, Any]:
+        import torch
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
+        tokenizer = AutoTokenizer.from_pretrained(
+            str(artifact_path),
+            cache_dir=self._cache_dir,
+            local_files_only=True,
+            trust_remote_code=False,
+        )
+        load_kwargs: Dict[str, Any] = {
+            "cache_dir": self._cache_dir,
+            "local_files_only": True,
+            "trust_remote_code": False,
+            "low_cpu_mem_usage": True,
+        }
+        if device == "cuda":
+            load_kwargs["torch_dtype"] = torch.float16
+            load_kwargs["device_map"] = "auto"
+        else:
+            load_kwargs["torch_dtype"] = torch.float32
+        model = AutoModelForCausalLM.from_pretrained(
+            str(artifact_path),
+            **load_kwargs,
+        )
+        model.eval()
+        return model, tokenizer
+
+    def _probe_loaded_components(self) -> None:
+        if self._model is None or self._tokenizer is None:
+            raise ModelUnavailableError(ModelFailureCode.NOT_LOADED)
+        if not callable(self._tokenizer) or not callable(
+            getattr(self._model, "generate", None)
+        ):
+            raise ModelUnavailableError(ModelFailureCode.TOKENIZER_INVALID)
+        try:
+            inputs = self._tokenizer(
+                "JAYA readiness probe",
+                return_tensors="pt",
+                truncation=True,
+                max_length=64,
+            )
+            if not isinstance(inputs, dict) or "input_ids" not in inputs:
+                raise ModelUnavailableError(ModelFailureCode.TOKENIZER_INVALID)
+            input_ids = inputs["input_ids"]
+            if self._device == "cuda" and hasattr(input_ids, "cuda"):
+                input_ids = input_ids.cuda()
+            input_length = (
+                int(input_ids.shape[-1])
+                if hasattr(input_ids, "shape")
+                else len(input_ids[0])
+            )
+            try:
+                import torch
+
+                guard = torch.no_grad()
+            except ImportError:
+                guard = nullcontext()
+            kwargs: Dict[str, Any] = {
+                "max_new_tokens": 2,
+                "do_sample": False,
+            }
+            eos_token_id = getattr(self._tokenizer, "eos_token_id", None)
+            if eos_token_id is not None:
+                kwargs["pad_token_id"] = eos_token_id
+            with guard:
+                output_ids = self._model.generate(input_ids, **kwargs)
+            generated = output_ids[0][input_length:]
+            if len(generated) == 0:
+                raise ModelUnavailableError(ModelFailureCode.EMPTY_OUTPUT)
+            decoded = self._tokenizer.decode(
+                generated,
+                skip_special_tokens=True,
+            )
+            if not isinstance(decoded, str) or not decoded.strip():
+                raise ModelUnavailableError(ModelFailureCode.EMPTY_OUTPUT)
+        except ModelUnavailableError:
+            raise
+        except Exception as exc:
+            raise ModelUnavailableError(ModelFailureCode.PROBE_FAILED) from exc
+
+    def load(self) -> bool:
+        """Load one local, checksum-bound model and run real inference."""
+
+        if self._loaded:
+            return self._readiness.ready
+        if self._model_key not in _MODEL_CATALOG:
+            return self._set_failure(ModelFailureCode.CONFIG_INVALID)
+        if not self._model_artifact_path:
+            return self._set_failure(ModelFailureCode.ARTIFACT_MISSING)
+        expected_digest = normalize_sha256(self._expected_artifact_sha256)
+        if expected_digest is None:
+            return self._set_failure(
+                ModelFailureCode.CHECKSUM_MISSING,
+                state=ModelReadinessState.DEGRADED,
+            )
+
+        artifact_path = Path(self._model_artifact_path)
+        try:
+            observed_digest = digest_model_artifact(artifact_path)
+        except (OSError, ValueError):
+            return self._set_failure(ModelFailureCode.ARTIFACT_MISSING)
+        if observed_digest != expected_digest:
+            return self._set_failure(ModelFailureCode.CHECKSUM_MISMATCH)
+
+        device = self._resolve_device()
+        loader = self._component_loader or self._default_component_loader
+        started = time.time()
+        try:
+            self._model, self._tokenizer = loader(artifact_path, device)
+            self._device = device
+            self._probe_loaded_components()
+        except ImportError:
+            self._model = None
+            self._tokenizer = None
+            return self._set_failure(
+                ModelFailureCode.DEPENDENCY_MISSING,
+                artifact_sha256=observed_digest,
+            )
+        except ModelUnavailableError as exc:
+            self._model = None
+            self._tokenizer = None
+            return self._set_failure(
+                exc.code,
+                state=ModelReadinessState.DEGRADED,
+                artifact_sha256=observed_digest,
+            )
+        except Exception:
+            self._model = None
+            self._tokenizer = None
+            return self._set_failure(
+                ModelFailureCode.LOAD_FAILED,
+                artifact_sha256=observed_digest,
+            )
+
+        self._load_time = time.time() - started
+        self._loaded = True
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.READY,
+            ModelFailureCode.READY,
+            artifact_sha256=observed_digest,
+            tokenizer_sha256=observed_digest,
+        )
+        logger.info(
+            "[SLMEngine] verified local model ready | device=%s | load_time=%.2fs",
+            device,
+            self._load_time,
+        )
+        return True
 
     def _build_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Bangun prompt string dari messages menggunakan chat template tokenizer."""
@@ -407,11 +563,7 @@ class SLMEngine:
         if not self._loaded:
             loaded = self.load()
             if not loaded:
-                return (
-                    "Maaf Bos, model neural sedang tidak dapat dimuat saat ini.",
-                    "conversation",
-                    None,
-                )
+                raise ModelUnavailableError(self._readiness.code)
 
         domain = domain_hint or detect_domain(prompt)
         if domain != self._active_domain:
@@ -494,6 +646,8 @@ class SLMEngine:
 
             new_ids = output_ids[0][input_ids.shape[-1]:]
             response = self._tokenizer.decode(new_ids, skip_special_tokens=True).strip()
+            if not response:
+                raise ModelUnavailableError(ModelFailureCode.EMPTY_OUTPUT)
 
             tokens_generated = len(new_ids)
             tps = tokens_generated / elapsed if elapsed > 0 else 0
@@ -516,13 +670,22 @@ class SLMEngine:
             return response, domain, tool_call
 
 
-        except Exception as e:
-            logger.error("[SLMEngine] Generation error: %s", e)
-            return (
-                f"Maaf Bos, terjadi kendala pada neural generation: {type(e).__name__}.",
-                domain,
-                None,
+        except ModelUnavailableError as exc:
+            self._loaded = False
+            self._readiness = ModelReadinessReport(
+                ModelReadinessState.DEGRADED,
+                exc.code,
+                artifact_sha256=self._readiness.artifact_sha256,
             )
+            raise
+        except Exception as exc:
+            self._loaded = False
+            self._readiness = ModelReadinessReport(
+                ModelReadinessState.DEGRADED,
+                ModelFailureCode.GENERATION_FAILED,
+                artifact_sha256=self._readiness.artifact_sha256,
+            )
+            raise ModelUnavailableError(ModelFailureCode.GENERATION_FAILED) from exc
 
     def reset_context(self) -> None:
         """Reset sliding context window."""
@@ -532,6 +695,7 @@ class SLMEngine:
     def status(self) -> Dict[str, Any]:
         return {
             "loaded": self._loaded,
+            "readiness": self._readiness.as_dict(),
             "model_key": self._model_key,
             "active_domain": self._active_domain,
             "device": self._device,

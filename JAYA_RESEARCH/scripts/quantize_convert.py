@@ -1,67 +1,136 @@
 #!/usr/bin/env python3
-"""Quantize or convert PyTorch checkpoint into packed NumPy weights suitable for NanoModel packing.
+"""Convert a Research-owned checkpoint into a review-only NumPy candidate."""
 
-This script is a scaffold — it will attempt to load a PyTorch checkpoint, convert tensors to NumPy,
-and call the packer if available in `JAYA_CORE`.
-"""
+from __future__ import annotations
+
 import argparse
-import os
+import sys
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 
-def try_import_packer():
-    try:
-        from src.brain_v2.format.packer import pack_state_dict
-        return pack_state_dict
-    except Exception:
-        return None
+_RESEARCH_ROOT = Path(__file__).resolve().parents[1]
+_DEFAULT_INPUT_ROOT = _RESEARCH_ROOT / "data" / "checkpoints"
+_DEFAULT_OUTBOX = _RESEARCH_ROOT / "data" / "artifact_outbox"
 
-def load_checkpoint(path: str):
+
+class CheckpointConversionError(RuntimeError):
+    """Raised when a checkpoint cannot be converted without crossing a boundary."""
+
+
+def _confined(path: Path | str, root: Path, label: str) -> Path:
+    resolved_root = root.expanduser().resolve()
+    candidate = Path(path).expanduser()
+    if not candidate.is_absolute():
+        candidate = resolved_root / candidate
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise CheckpointConversionError(
+            f"{label} must remain inside {resolved_root}"
+        ) from exc
+    return resolved
+
+
+def load_checkpoint(path: Path) -> Mapping[str, Any]:
+    """Load tensor weights with PyTorch's non-executable weights-only mode."""
     try:
         import torch
+    except ImportError as exc:
+        raise CheckpointConversionError(
+            "torch is required to read checkpoints"
+        ) from exc
+    try:
+        checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    except TypeError as exc:
+        raise CheckpointConversionError(
+            "installed torch lacks safe weights_only checkpoint loading"
+        ) from exc
     except Exception as exc:
-        raise SystemExit('Please install torch to load checkpoints') from exc
-    ckpt = torch.load(path, map_location='cpu')
-    # common patterns: {'model': state_dict} or state_dict directly
-    if 'model' in ckpt and isinstance(ckpt['model'], dict):
-        sd = ckpt['model']
-    elif 'state_dict' in ckpt:
-        sd = ckpt['state_dict']
-    else:
-        sd = ckpt
-    return sd
+        raise CheckpointConversionError("checkpoint loading failed") from exc
 
-def state_dict_to_numpy(sd: dict) -> dict:
-    out = {}
-    for k, v in sd.items():
+    if not isinstance(checkpoint, Mapping):
+        raise CheckpointConversionError("checkpoint must contain a state dictionary")
+    candidate = checkpoint.get("model", checkpoint.get("state_dict", checkpoint))
+    if not isinstance(candidate, Mapping):
+        raise CheckpointConversionError("checkpoint state dictionary is invalid")
+    return candidate
+
+
+def state_dict_to_numpy(state_dict: Mapping[str, Any]) -> dict[str, np.ndarray]:
+    """Convert tensor-like values and reject empty or ambiguous candidates."""
+    converted: dict[str, np.ndarray] = {}
+    for raw_key, value in state_dict.items():
+        key = str(raw_key).replace("/", "__")
+        if not key or key in converted:
+            raise CheckpointConversionError("checkpoint contains duplicate tensor keys")
         try:
-            arr = v.cpu().numpy()
-        except Exception:
+            array = value.detach().cpu().numpy()
+        except AttributeError:
             try:
-                arr = np.array(v)
-            except Exception:
-                continue
-        out[k] = arr
-    return out
+                array = np.asarray(value)
+            except Exception as exc:
+                raise CheckpointConversionError(
+                    f"tensor {key!r} cannot be converted"
+                ) from exc
+        if array.dtype == object:
+            raise CheckpointConversionError(f"tensor {key!r} has unsafe object dtype")
+        converted[key] = array
+    if not converted:
+        raise CheckpointConversionError("checkpoint contains no tensors")
+    return converted
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument('--ckpt', required=True, help='PyTorch checkpoint path')
-    p.add_argument('--out', required=True, help='Packed output bytes file')
-    p.add_argument('--bits', type=int, default=4, help='Target quantization bits (informational)')
-    args = p.parse_args()
 
-    sd = load_checkpoint(args.ckpt)
-    numpy_sd = state_dict_to_numpy(sd)
-    packer = try_import_packer()
-    if packer is None:
-        print('packer not available. Writing raw numpy .npz as fallback.')
-        os.makedirs(os.path.dirname(args.out), exist_ok=True)
-        np.savez_compressed(args.out, **{k.replace('/', '__'): v for k, v in numpy_sd.items()})
-    else:
-        packed = packer(numpy_sd)
-        with open(args.out, 'wb') as f:
-            f.write(packed)
-        print(f'Wrote packed state to {args.out}')
+def convert_checkpoint(
+    checkpoint_path: Path | str,
+    output_path: Path | str,
+    *,
+    input_root: Path = _DEFAULT_INPUT_ROOT,
+    outbox_root: Path = _DEFAULT_OUTBOX,
+) -> Path:
+    """Write a non-executable candidate without importing any Core internals."""
+    source = _confined(checkpoint_path, input_root, "checkpoint")
+    destination = _confined(output_path, outbox_root, "candidate output")
+    if not source.is_file() or source.is_symlink():
+        raise CheckpointConversionError("checkpoint must be a regular file")
+    if destination.suffix.lower() != ".npz":
+        raise CheckpointConversionError("candidate output must use the .npz suffix")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    arrays = state_dict_to_numpy(load_checkpoint(source))
+    np.savez_compressed(destination, **arrays)
+    return destination
 
-if __name__ == '__main__':
-    main()
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Create a review-only NumPy checkpoint candidate"
+    )
+    parser.add_argument(
+        "--ckpt",
+        required=True,
+        help="checkpoint path relative to JAYA_RESEARCH/data/checkpoints",
+    )
+    parser.add_argument(
+        "--out",
+        required=True,
+        help=".npz path relative to JAYA_RESEARCH/data/artifact_outbox",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    arguments = _parser().parse_args(argv)
+    try:
+        output = convert_checkpoint(arguments.ckpt, arguments.out)
+    except CheckpointConversionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    print(f"Candidate written for external review: {output}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,5 +1,6 @@
 # CLI Interface for JAYA Research Assistant
 
+import json
 import os
 import sys
 import argparse

@@ -624,10 +624,13 @@ class FeatureRuntime:
         """Get current feature state."""
         return self.state.copy()
 
-    def _apply_bindings(self, widget: WidgetBase):
-        """Apply state bindings to widget tree."""
-        # This would be implemented based on binding declarations
-        pass
+    def _apply_bindings(self, widget: WidgetBase) -> None:
+        """Apply runtime state to every widget that exposes binding support."""
+        apply_bindings = getattr(widget, "apply_bindings", None)
+        if callable(apply_bindings):
+            apply_bindings(self.state)
+        for child in widget.children:
+            self._apply_bindings(child)
 
     def emit(self, event_type: WidgetEventType, payload: Dict[str, Any] = None):
         """Emit event from feature root."""
@@ -641,24 +644,6 @@ class FeatureRuntime:
         """Stop the feature."""
         self.status = "stopped"
         self.root_widget.unmount()
-
-        # Create event bus
-        event_bus = EventBus()
-
-        # Create runtime
-        runtime = FeatureRuntime(
-            feature_id=feature_id,
-            feature_name=feature_name,
-            mount_point=mount_point,
-            root_widget=root_widget,
-            event_bus=event_bus,
-            config=config,
-        )
-
-        # Mount the widget tree
-        root_widget.mount()
-
-        return runtime
 
 
 # ============================================================
@@ -721,16 +706,26 @@ def create_standard_dispatcher(runtime: FeatureRuntime) -> JayaActionDispatcher:
     dispatcher.register("jaya:update_state", lambda p: runtime.update_state(p))
     dispatcher.register("jaya:get_state", lambda p: runtime.get_state())
 
-    # File actions (would integrate with actual FS)
-    dispatcher.register("jaya:save_file", lambda p: {"saved": True, "path": p.get("path")})
-    dispatcher.register("jaya:load_file", lambda p: {"loaded": True, "content": ""})
+    def unavailable_external_action(action: str) -> Dict[str, Any]:
+        return {
+            "success": False,
+            "error_code": "ACTION_ADAPTER_UNAVAILABLE",
+            "action": action,
+            "message": "A capability-authorized OS adapter is required",
+        }
 
-    # Clipboard
-    dispatcher.register("jaya:copy_to_clipboard", lambda p: {"copied": True, "text": p.get("text")})
-
-    # Navigation
-    dispatcher.register("jaya:navigate", lambda p: {"navigated": True, "url": p.get("url")})
-    dispatcher.register("jaya:open_url", lambda p: {"opened": True, "url": p.get("url")})
+    # External side effects are never simulated by the in-process UI runtime.
+    for action in (
+        "jaya:save_file",
+        "jaya:load_file",
+        "jaya:copy_to_clipboard",
+        "jaya:navigate",
+        "jaya:open_url",
+    ):
+        dispatcher.register(
+            action,
+            lambda _payload, action=action: unavailable_external_action(action),
+        )
 
     return dispatcher
 

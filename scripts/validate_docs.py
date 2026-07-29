@@ -56,6 +56,9 @@ TRACKABILITY_PROBES = (
     Path("JAYA_CORE/src/brain_v2/evolution/_trackability_probe.py"),
     Path("JAYA_CORE/features/_trackability_probe.py"),
     Path("JAYA_RESEARCH/src/experiments/_trackability_probe.py"),
+    Path(
+        "JAYA_ANDROID/app/src/main/java/com/example/jaya/data/_trackability_probe.kt"
+    ),
 )
 
 MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")

@@ -1,97 +1,52 @@
+"""Static verifier for legacy code datasets; execution is intentionally absent."""
 
+from __future__ import annotations
+
+import hashlib
 import json
-import os
-import sys
-from sandbox import Sandbox
+from pathlib import Path
+from typing import Any
 
-# Ensure import path
-sys.path.append(os.path.dirname(__file__))
 
-def test_dataset_execution():
-    path = os.path.join(os.path.dirname(__file__), '..', 'data', 'seed_dataset.json')
-    if not os.path.exists(path):
-        print(f"[!] Data not found at {path}")
-        return
+class DatasetVerificationError(ValueError):
+    """Raised when a legacy code dataset is malformed."""
 
-    with open(path, "r") as f:
-        data = json.load(f)
 
-    sb = Sandbox()
-    
-    print(f"[*] Testing execution of {len(data)} dataset samples...")
-    
-    success_count = 0
-    
-    for i, item in enumerate(data):
-        print(f"\n--- Sample {i+1}: {item['input_logic']} ---")
-        llvm_ir = item['output_llvm']
-        
-        # LLVM IR from NIM often lacks a 'main' function if it's just a library function like 'add'.
-        # We need to wrap it in a C main that calls it, OR try to compile it as an object and link.
-        # But 'run_llvm_ir' expects a standalone executable by default in my simple implementation.
-        
-        # Strategy:
-        # 1. Check if 'define i32 @main' exists.
-        # 2. If not, create a wrapper C file that declares the function and calls it.
-        # 3. Compile wrapper + llvm_ir.
-        
-        # For this test, let's just Try directly. If it fails due to missing main, we know why.
-        # Many LLVM IR examples from LLMs include a main if asked, but I asked for "only the function".
-        
-        # Let's verify what we have.
-        if "define" not in llvm_ir:
-            print("[!] Invalid LLVM IR")
-            continue
-            
-        # Create a simple C wrapper if it's 'add'
-        if "def add" in item['input_logic']:
-             # Create a C wrapper
-             wrapper_c = """
-             #include <stdio.h>
-             // Declare the LLVM function
-             int add(int a, int b);
-             
-             int main() {
-                 int result = add(10, 20);
-                 printf("Result: %d", result);
-                 return 0;
-             }
-             """
-             # Save wrapper
-             wrapper_path = os.path.join(sb.work_dir, "wrapper.c")
-             with open(wrapper_path, "w") as f:
-                 f.write(wrapper_c)
-                 
-             # Save LLVM
-             ll_path = os.path.join(sb.work_dir, "lib.ll")
-             with open(ll_path, "w") as f:
-                 f.write(llvm_ir)
-                 
-             # Compile: clang wrapper.c lib.ll -o out.exe
-             print("[*] Compiling Wrapper + LLVM...")
-             exe_path = os.path.join(sb.work_dir, "test_add.exe")
-             cmd = [sb.clang_path, wrapper_path, ll_path, "-o", exe_path, "-Wno-override-module"]
-             
-             import subprocess
-             res = subprocess.run(cmd, capture_output=True, text=True)
-             
-             if res.returncode != 0:
-                 print(f"[FAIL] Compile Error: {res.stderr}")
-                 continue
-                 
-             # Run
-             run_res = subprocess.run([exe_path], capture_output=True, text=True)
-             print(f"[*] Output: {run_res.stdout}")
-             if "Result: 30" in run_res.stdout:
-                 print("[SUCCESS] Execution Verified!")
-                 success_count += 1
-             else:
-                 print("[FAIL] Wrong Result")
-                 
-        else:
-             print("[*] Skipping non-add test for now (need specific wrappers)")
-             
-    print(f"\n[SUMMARY] Verified {success_count} executable samples.")
+def verify_dataset_without_execution(path: Path | str) -> dict[str, Any]:
+    """Validate and hash dataset samples without compiling or running them."""
+    dataset_path = Path(path).expanduser().resolve()
+    if not dataset_path.is_file() or dataset_path.is_symlink():
+        raise DatasetVerificationError("dataset must be a regular file")
+    try:
+        payload = json.loads(dataset_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise DatasetVerificationError("dataset is not valid UTF-8 JSON") from exc
+    if not isinstance(payload, list):
+        raise DatasetVerificationError("dataset must be a list")
+
+    sample_digests: list[str] = []
+    for index, item in enumerate(payload):
+        if not isinstance(item, dict):
+            raise DatasetVerificationError(f"sample {index} must be an object")
+        input_logic = item.get("input_logic")
+        output_llvm = item.get("output_llvm")
+        if not isinstance(input_logic, str) or not input_logic.strip():
+            raise DatasetVerificationError(f"sample {index} has no input_logic")
+        if not isinstance(output_llvm, str) or not output_llvm.strip():
+            raise DatasetVerificationError(f"sample {index} has no output_llvm")
+        canonical = json.dumps(
+            {"input_logic": input_logic, "output_llvm": output_llvm},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        sample_digests.append(hashlib.sha256(canonical.encode("utf-8")).hexdigest())
+    return {
+        "status": "verified_without_execution",
+        "samples": len(sample_digests),
+        "sample_sha256": sample_digests,
+    }
+
 
 if __name__ == "__main__":
-    test_dataset_execution()
+    default_dataset = Path(__file__).resolve().parents[1] / "data" / "seed_dataset.json"
+    print(json.dumps(verify_dataset_without_execution(default_dataset), indent=2))

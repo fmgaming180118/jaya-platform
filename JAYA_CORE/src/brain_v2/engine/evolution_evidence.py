@@ -17,13 +17,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Mapping, Optional, Tuple
 
-
 REPORT_SCHEMA_VERSION = "jaya-evolution-evidence-report-v1"
 RECEIPT_SCHEMA_VERSION = "jaya-evolution-evidence-receipt-v1"
 SIGNATURE_ALGORITHM = "HMAC-SHA256"
 MAX_REPORT_BYTES = 1_048_576
 
 _SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+_GIT_COMMIT_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+_ZERO_SHA256 = f"sha256:{'0' * 64}"
 
 
 class EvidenceVerificationError(ValueError):
@@ -125,6 +126,22 @@ def _require_sha256(data: Mapping[str, Any], key: str) -> str:
     return value
 
 
+def _require_nonzero_sha256(data: Mapping[str, Any], key: str) -> str:
+    value = _require_sha256(data, key)
+    if value == _ZERO_SHA256:
+        raise EvidenceVerificationError(f"{key} must not be an all-zero digest")
+    return value
+
+
+def _require_git_commit(data: Mapping[str, Any], key: str) -> str:
+    value = _require_text(data, key, max_len=64).lower()
+    if not _GIT_COMMIT_RE.fullmatch(value) or set(value) == {"0"}:
+        raise EvidenceVerificationError(
+            f"{key} must be a full non-zero Git SHA-1 or SHA-256 commit"
+        )
+    return value
+
+
 class EvidenceReceiptVerifier:
     """Authenticate evidence reports and issue candidate-bound receipts."""
 
@@ -135,6 +152,7 @@ class EvidenceReceiptVerifier:
         max_age_s: float = 3600.0,
         future_skew_s: float = 300.0,
         trusted_runners: Optional[Iterable[str]] = None,
+        trusted_signers: Optional[Mapping[str, Iterable[str]]] = None,
         clock: Callable[[], float] = time.time,
     ) -> None:
         if not isinstance(signing_secret, bytes) or len(signing_secret) < 32:
@@ -152,6 +170,23 @@ class EvidenceReceiptVerifier:
             for runner in (trusted_runners or ())
             if isinstance(runner, str) and runner.strip()
         }
+        normalized_signers: dict[str, frozenset[str]] = {}
+        for raw_runner, raw_key_ids in (trusted_signers or {}).items():
+            if not isinstance(raw_runner, str) or not raw_runner.strip():
+                raise ValueError("trusted evidence runner identities must be non-empty")
+            if isinstance(raw_key_ids, (str, bytes)):
+                raise ValueError("trusted evidence signer key IDs must be an iterable")
+            key_ids = frozenset(
+                key_id.strip()
+                for key_id in raw_key_ids
+                if isinstance(key_id, str) and key_id.strip()
+            )
+            if not key_ids:
+                raise ValueError(
+                    f"trusted evidence runner {raw_runner!r} has no key IDs"
+                )
+            normalized_signers[raw_runner.strip()] = key_ids
+        self._trusted_signers = normalized_signers
         self._clock = clock
 
     def sign_report(self, report: Mapping[str, Any]) -> Dict[str, Any]:
@@ -188,6 +223,9 @@ class EvidenceReceiptVerifier:
     ) -> CandidateEvidence:
         """Read, authenticate, and combine test and benchmark report JSON."""
 
+        if expected_commit is not None:
+            _require_git_commit({"expected_commit": expected_commit}, "expected_commit")
+
         test_report = self._load_report(test_report_path)
         benchmark_report = self._load_report(benchmark_report_path)
 
@@ -209,6 +247,14 @@ class EvidenceReceiptVerifier:
         if verified_test["commit"] != verified_benchmark["commit"]:
             raise EvidenceVerificationError(
                 "test and benchmark reports reference different commits"
+            )
+        if verified_test["report_digest"] == verified_benchmark["report_digest"]:
+            raise EvidenceVerificationError(
+                "test and benchmark reports must be distinct"
+            )
+        if verified_test["nonce"] == verified_benchmark["nonce"]:
+            raise EvidenceVerificationError(
+                "test and benchmark report nonces must differ"
             )
 
         test_result = verified_test["result"]
@@ -257,6 +303,8 @@ class EvidenceReceiptVerifier:
                 "commit": verified_test["commit"],
                 "test_runner": verified_test["runner"],
                 "benchmark_runner": verified_benchmark["runner"],
+                "test_key_id": verified_test["key_id"],
+                "benchmark_key_id": verified_benchmark["key_id"],
                 "test_report_digest": verified_test["report_digest"],
                 "benchmark_report_digest": verified_benchmark["report_digest"],
             },
@@ -340,7 +388,9 @@ class EvidenceReceiptVerifier:
                 f"cannot read evidence report {path}: {exc}"
             ) from exc
         if not isinstance(loaded, dict):
-            raise EvidenceVerificationError(f"evidence report must be an object: {path}")
+            raise EvidenceVerificationError(
+                f"evidence report must be an object: {path}"
+            )
         return loaded
 
     def _verify_report(
@@ -363,14 +413,14 @@ class EvidenceReceiptVerifier:
 
         report_candidate_id = _require_text(report, "candidate_id")
         report_source_hash = _require_text(report, "source_hash")
-        commit = _require_text(report, "commit")
+        commit = _require_git_commit(report, "commit")
         runner = _require_text(report, "runner")
         nonce = _require_text(report, "nonce")
-        dataset_digest = _require_sha256(report, "dataset_digest")
+        dataset_digest = _require_nonzero_sha256(report, "dataset_digest")
         report_digest = _require_sha256(report, "report_digest")
         created_at = _require_finite_number(report, "created_at")
         signature = _require_text(report, "signature", max_len=128)
-        _require_text(report, "key_id")
+        key_id = _require_text(report, "key_id")
 
         if report_candidate_id != candidate_id:
             raise EvidenceVerificationError("evidence report candidate mismatch")
@@ -380,10 +430,18 @@ class EvidenceReceiptVerifier:
             raise EvidenceVerificationError("evidence report commit mismatch")
         if self._trusted_runners and runner not in self._trusted_runners:
             raise EvidenceVerificationError(f"untrusted evidence runner: {runner}")
+        if self._trusted_signers:
+            trusted_key_ids = self._trusted_signers.get(runner)
+            if trusted_key_ids is None or key_id not in trusted_key_ids:
+                raise EvidenceVerificationError(
+                    f"untrusted evidence signer: runner={runner}, key_id={key_id}"
+                )
 
         now = float(self._clock())
         if created_at > now + self._future_skew_s:
-            raise EvidenceVerificationError("evidence report timestamp is in the future")
+            raise EvidenceVerificationError(
+                "evidence report timestamp is in the future"
+            )
         if now - created_at > self._max_age_s:
             raise EvidenceVerificationError("evidence report expired")
 
@@ -409,6 +467,7 @@ class EvidenceReceiptVerifier:
             "source_hash": report_source_hash,
             "commit": commit,
             "runner": runner,
+            "key_id": key_id,
             "nonce": nonce,
             "dataset_digest": dataset_digest,
             "report_digest": report_digest,
@@ -429,6 +488,7 @@ class EvidenceReceiptVerifier:
             "report_type": report["report_type"],
             "report_digest": report["report_digest"],
             "runner": report["runner"],
+            "key_id": report["key_id"],
             "created_at": report["created_at"],
             "dataset_digest": report["dataset_digest"],
             "nonce": report["nonce"],

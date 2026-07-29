@@ -4,6 +4,7 @@ Thesis session manager using SQLAlchemy for persistence.
 from __future__ import annotations
 
 import os
+from datetime import datetime
 from typing import Dict, List, Optional
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session

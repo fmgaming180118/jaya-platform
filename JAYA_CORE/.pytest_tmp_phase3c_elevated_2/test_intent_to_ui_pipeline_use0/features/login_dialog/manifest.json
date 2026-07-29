@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "id": "adb45271-a733-43c6-8c0d-00190df11488",
+  "name": "Login Dialog",
+  "description": "User authentication dialog",
+  "protocol_version": "1.0",
+  "entry_point": "login_dialog.run_feature",
+  "capabilities": [
+    "ui",
+    "events",
+    "state",
+    "jaya_actions"
+  ],
+  "permissions": [
+    "ui_mount",
+    "state_read",
+    "state_write",
+    "api_call"
+  ],
+  "dependencies": {},
+  "metadata": {}
+}

@@ -1,69 +1,119 @@
-"""
-RAG Vault & Episodic Memory Engine for JAYA_AGENT.
-Queries synchronized SQLite agentic_jarvis.db patches and retrieves top relevant knowledge items.
-"""
+"""Contained, read-only episodic memory access for JAYA_AGENT."""
 
-import sys
-import os
+from __future__ import annotations
+
+import re
 import sqlite3
+from contextlib import closing
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any
+
+_DATABASE_NAME = "agentic_jarvis.db"
+_MAX_QUERY_CHARACTERS = 2_000
+_MAX_RESULTS = 20
+
+
+class MemoryQueryError(RuntimeError):
+    """Raised when an installed memory database cannot be queried safely."""
 
 
 class RAGMemoryEngine:
-    """
-    Episodic memory & RAG retriever querying synchronized SQLite patches.
-    """
+    """Query only the verified database installed in the Agent data root."""
 
-    def __init__(self, db_path: Optional[str] = None):
-        if db_path:
-            self.db_path = Path(db_path)
-        else:
-            root_dir = Path(__file__).resolve().parent.parent.parent.parent
-            core_db = root_dir / "JAYA_CORE" / "data" / "agentic_jarvis.db"
-            research_db = root_dir / "JAYA_RESEARCH" / "data" / "agentic_jarvis.db"
-            self.db_path = core_db if core_db.exists() else research_db
+    def __init__(
+        self,
+        db_path: str | Path | None = None,
+        *,
+        storage_root: str | Path | None = None,
+    ) -> None:
+        agent_root = Path(__file__).resolve().parents[2]
+        root = Path(storage_root or (agent_root / "data")).resolve(strict=False)
+        candidate = Path(db_path or (root / _DATABASE_NAME))
+        if not candidate.is_absolute():
+            candidate = root / candidate
+        resolved = candidate.resolve(strict=False)
+        try:
+            resolved.relative_to(root)
+        except ValueError as exc:
+            raise ValueError(
+                "Memory database must remain inside Agent storage"
+            ) from exc
+        if resolved.name != _DATABASE_NAME:
+            raise ValueError("Memory database must use the canonical filename")
+        self.storage_root = root
+        self.db_path = resolved
 
-        print(f"[RAG MEMORY] Engine bound to SQLite DB: {self.db_path}")
+    def query_relevant_patches(
+        self,
+        query: str,
+        limit: int = 3,
+    ) -> list[dict[str, Any]]:
+        """Return bounded rows without creating or modifying the database."""
 
-    def query_relevant_patches(self, query: str, limit: int = 3) -> List[Dict[str, Any]]:
-        """
-        Retrieves top relevant knowledge patches matching user query keywords.
-        """
+        if not isinstance(query, str) or len(query) > _MAX_QUERY_CHARACTERS:
+            raise ValueError("Memory query must be a bounded string")
+        if not isinstance(limit, int) or isinstance(limit, bool):
+            raise TypeError("Memory result limit must be an integer")
+        if not 1 <= limit <= _MAX_RESULTS:
+            raise ValueError("Memory result limit is outside policy")
         if not self.db_path.exists():
             return []
-
+        if not self.db_path.is_file() or self.db_path.is_symlink():
+            raise MemoryQueryError("Installed memory path is not a regular file")
+        resolved = self.db_path.resolve(strict=True)
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            resolved.relative_to(self.storage_root)
+        except ValueError as exc:
+            raise MemoryQueryError(
+                "Installed memory path escaped Agent storage"
+            ) from exc
 
-            # Search keywords
-            keywords = [w.lower() for w in query.split() if len(w) > 3]
-            if not keywords:
-                rows = cursor.execute(
-                    "SELECT patch_id, topic, statement, bayes_confidence FROM jarvis_patches "
-                    "ORDER BY bayes_confidence DESC LIMIT ?", (limit,)
-                ).fetchall()
-            else:
-                where_clause = " OR ".join(["topic LIKE ?" for _ in keywords] + ["statement LIKE ?" for _ in keywords])
-                params = [f"%{k}%" for k in keywords] * 2 + [limit]
-                sql = (
-                    f"SELECT patch_id, topic, statement, bayes_confidence FROM jarvis_patches "
-                    f"WHERE {where_clause} ORDER BY bayes_confidence DESC LIMIT ?"
+        keywords = [
+            word.lower()
+            for word in re.findall(r"[\w-]+", query, flags=re.UNICODE)
+            if len(word) > 3
+        ][:20]
+        database_uri = f"{resolved.as_uri()}?mode=ro"
+        try:
+            with closing(
+                sqlite3.connect(
+                    database_uri,
+                    uri=True,
+                    timeout=1.0,
                 )
-                rows = cursor.execute(sql, params).fetchall()
+            ) as connection:
+                connection.row_factory = sqlite3.Row
+                connection.execute("PRAGMA query_only = ON")
+                if keywords:
+                    clauses = ["topic LIKE ?"] * len(keywords)
+                    clauses.extend(["statement LIKE ?"] * len(keywords))
+                    parameters = [f"%{keyword}%" for keyword in keywords] * 2
+                    parameters.append(limit)
+                    rows = connection.execute(
+                        "SELECT patch_id, topic, statement, bayes_confidence "
+                        "FROM jarvis_patches WHERE "
+                        + " OR ".join(clauses)
+                        + " ORDER BY bayes_confidence DESC LIMIT ?",
+                        parameters,
+                    ).fetchall()
+                else:
+                    rows = connection.execute(
+                        "SELECT patch_id, topic, statement, bayes_confidence "
+                        "FROM jarvis_patches "
+                        "ORDER BY bayes_confidence DESC LIMIT ?",
+                        (limit,),
+                    ).fetchall()
+        except sqlite3.Error as exc:
+            raise MemoryQueryError(
+                f"Installed memory database query failed ({type(exc).__name__})"
+            ) from exc
 
-            results = []
-            for r in rows:
-                results.append({
-                    "patch_id": r["patch_id"],
-                    "topic": r["topic"],
-                    "statement": r["statement"],
-                    "confidence": round(r["bayes_confidence"] * 100, 1)
-                })
-            conn.close()
-            return results
-        except Exception as e:
-            print(f"[RAG MEMORY] Database query notice: {e}")
-            return []
+        return [
+            {
+                "patch_id": row["patch_id"],
+                "topic": row["topic"],
+                "statement": row["statement"],
+                "confidence": round(float(row["bayes_confidence"]) * 100, 1),
+            }
+            for row in rows
+        ]

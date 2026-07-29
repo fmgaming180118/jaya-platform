@@ -1,38 +1,30 @@
 package com.example.jaya.security
 
-import android.security.keystore.KeyGenParameterSpec
-import android.security.keystore.KeyProperties
-import android.util.Log
-import java.security.KeyStore
-import javax.crypto.KeyGenerator
-import javax.crypto.SecretKey
+import android.content.Context
 
-class SqliteCipherVault {
+/**
+ * Supplies SQLCipher with a random database passphrase wrapped by an
+ * AndroidKeyStore key. The keystore key itself is never exported.
+ */
+class SqliteCipherVault(
+    context: Context,
+    private val secretStore: KeystoreSecretStore = KeystoreSecretStore(
+        context = context,
+        keyAlias = "jaya.database.wrapping_key.v1",
+        preferencesName = "jaya_database_secrets",
+    ),
+) {
+    fun getOrCreateDatabasePassphrase(): ByteArray =
+        secretStore.getOrCreateRandom(DATABASE_PASSPHRASE_NAME, DATABASE_KEY_BYTES)
 
-    private val KEY_ALIAS = "JayaMasterEncryptionKeyAES256"
+    @Deprecated(
+        message = "Use getOrCreateDatabasePassphrase; this returns a wrapped database secret, not the master key",
+        replaceWith = ReplaceWith("getOrCreateDatabasePassphrase()"),
+    )
+    fun getOrCreateMasterKey(): ByteArray = getOrCreateDatabasePassphrase()
 
-    fun getOrCreateMasterKey(): ByteArray {
-        val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        
-        if (!keyStore.containsAlias(KEY_ALIAS)) {
-            val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-            val spec = KeyGenParameterSpec.Builder(
-                KEY_ALIAS,
-                KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
-            )
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                .setKeySize(256)
-                .build()
-
-            keyGenerator.init(spec)
-            keyGenerator.generateKey()
-            Log.d("SqliteCipherVault", "Hardware-backed AES-256 master key generated in Android KeyStore.")
-        } else {
-            Log.d("SqliteCipherVault", "Retrieved existing AES-256 master key from Android KeyStore.")
-        }
-
-        val secretKey = keyStore.getKey(KEY_ALIAS, null) as SecretKey
-        return secretKey.encoded ?: "JAYA_DEFAULT_AES_PASSPHRASE_256".toByteArray()
+    private companion object {
+        const val DATABASE_KEY_BYTES = 32
+        const val DATABASE_PASSPHRASE_NAME = "sqlcipher_passphrase_v1"
     }
 }

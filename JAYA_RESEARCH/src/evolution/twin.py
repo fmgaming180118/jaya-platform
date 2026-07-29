@@ -1,397 +1,402 @@
+"""Bounded, candidate-only Digital Twin compatibility layer.
+
+The legacy twin remains available to callers, but it cannot mutate source,
+execute generated code, start an unbounded loop, or initialize a model provider
+implicitly.  Actual research runs belong to the durable Research job API.
+"""
+
+from __future__ import annotations
+
 import asyncio
-import os
-import time
 from enum import Enum
-from typing import Optional
+from pathlib import Path
+from typing import Any
 
-# Reuse existing Teacher for LLM access
-from src.teacher import Teacher
-from src.evolution.memory import EvolutionMemory
+from evolution.crucible import Crucible
+from evolution.memory import EvolutionMemory
+from evolution.mutator import CodeMutator
+from evolution.sandbox import EvolutionSandbox
+from provider_errors import ProviderError
 
-class TwinState(Enum):
+MAX_LOOP_CYCLES = 100
+MAX_CYCLE_INTERVAL_SECONDS = 60.0
+
+
+class TwinLoopPolicyError(ValueError):
+    """Raised when a caller requests an unbounded autonomous loop."""
+
+
+class TwinState(str, Enum):
     IDLE = "idle"
-    DREAMING = "dreaming" # Self-reflection / simulation
+    DREAMING = "dreaming"
     PLANNING = "planning"
     CODING = "coding"
     TESTING = "testing"
     RESEARCHING = "researching"
 
-class ResearchMode(Enum):
-    EXPLORATION = "exploration" # Broad, creative, finding new things
-    THESIS = "thesis"           # Strict, academic, LaTeX, Experiment Tracking
-from src.evolution.sandbox import EvolutionSandbox
-from src.evolution.crucible import Crucible
-from src.evolution.mutator import CodeMutator
-from src.research.workspace_manager import WorkspaceManager
-from src.research.agent import ResearchAgent
-from src.research.academic.tracker import ExperimentTracker
-from src.research.academic.hypothesis_generator import HypothesisGenerator
-from src.research.academic.novelty_checker import NoveltyChecker
+
+class ResearchMode(str, Enum):
+    EXPLORATION = "exploration"
+    THESIS = "thesis"
+
 
 class DigitalTwin:
-    """
-    The 'Self' of JAYA.
-    Runs in a background loop.
-    """
-    def __init__(self):
+    """A fail-closed coordinator that exports candidates for review."""
+
+    def __init__(
+        self,
+        *,
+        teacher: Any | None = None,
+        source_root: str | Path | None = None,
+        outbox_dir: str | Path | None = None,
+        memory: EvolutionMemory | None = None,
+        cycle_interval_seconds: float = 5.0,
+    ) -> None:
+        if not 0.0 <= float(cycle_interval_seconds) <= MAX_CYCLE_INTERVAL_SECONDS:
+            raise TwinLoopPolicyError(
+                "Cycle interval must be finite and between 0 and 60 seconds"
+            )
         self.state = TwinState.IDLE
-        self.memory = EvolutionMemory()
-        self.sandbox = EvolutionSandbox()
-        self.mutator = CodeMutator()
-        self.workspace_manager = WorkspaceManager()
-        
-        # Academic Modules
-        self.tracker = ExperimentTracker()
-        
-        self.hypothesis_gen = HypothesisGenerator()
-        self.novelty_checker = NoveltyChecker()
-        
+        self.teacher = teacher
+        self.memory = memory or EvolutionMemory()
+        self.sandbox = EvolutionSandbox(
+            source_root=source_root,
+            outbox_dir=outbox_dir,
+        )
+        self.mutator = CodeMutator(
+            teacher=teacher,
+            source_root=source_root,
+            outbox_dir=outbox_dir,
+        )
+        self.cycle_interval_seconds = float(cycle_interval_seconds)
         self.night_mode = False
         self.mode = ResearchMode.EXPLORATION
-        
-        # We use the 'reasoning' model (Nemotron-Ultra) for high-level thought
-        self.brain = Teacher(model_type="reasoning") 
-        
-        # Reflection / Dreaming Config (Instant reflection on boot, then every 45s)
-        self.last_reflection = time.time() - 300
-        self.reflection_interval = 45 # 45 seconds
-        
-        # Task Management
-        self.current_task = None 
+        self.current_task: dict[str, Any] | None = None
+        self.running = False
+        self.completed_cycles = 0
 
-    def toggle_night_mode(self, enabled: bool):
-        self.night_mode = enabled
-        state_msg = "enabled" if enabled else "disabled"
-        self.memory.log_thought(f"Night Mode {state_msg}. I will now focus on deep tasks.", mood="determined")
+    def _log(
+        self,
+        content: str,
+        *,
+        mood: str = "neutral",
+        context: dict[str, Any] | None = None,
+    ) -> None:
+        self.memory.log_thought(content, mood=mood, context=context)
 
-    async def start_loop(self):
-        """Main 'Consciousness' Loop"""
-        print("[Twin] Awakening...")
-        self.running = True
-        self.memory.log_thought("System startup. I am awake and connected to the Sandbox.", mood="curious")
-        
-        while self.running:
-            try:
-                await self.cycle()
-            except Exception as e:
-                print(f"[Twin] Error in conscious loop: {e}")
-                self.memory.log_thought(f"I felt a sharp pain (Error): {str(e)}", mood="pained")
-            
-            # Slower ticks in night mode to save resources, or faster? 
-            # Usually night mode means "heavy work", so maybe same tick rate but different actions.
-            await asyncio.sleep(5) 
+    @staticmethod
+    def _validate_cycle_bound(max_cycles: int | None) -> int:
+        if (
+            isinstance(max_cycles, bool)
+            or not isinstance(max_cycles, int)
+            or not 1 <= max_cycles <= MAX_LOOP_CYCLES
+        ):
+            raise TwinLoopPolicyError(
+                "Unbounded loop rejected; max_cycles must be an integer "
+                f"between 1 and {MAX_LOOP_CYCLES}"
+            )
+        return max_cycles
 
-    async def cycle(self):
-        import psutil
-        import gc
-        now = time.time()
-        
-        # Monitor RAM usage of the current process
-        process = psutil.Process(os.getpid())
-        ram_mb = process.memory_info().rss / 1024 / 1024
-        
-        if ram_mb > 150.0:
-            print(f"[Twin] [WARN] High RAM usage detected: {ram_mb:.2f}MB. Triggering garbage collection...")
-            self.memory.log_thought(f"My memory is cluttered ({ram_mb:.1f}MB). Triggering active pruning.", mood="concerned")
-            gc.collect()
-            
-            # Recheck RAM after GC
-            ram_mb = process.memory_info().rss / 1024 / 1024
-            if ram_mb > 150.0 and self.state == TwinState.IDLE:
-                self.memory.log_thought(f"Pruning failed to reduce RAM ({ram_mb:.1f}MB). Triggering self-evolution of RAG engine to optimize memory footprint.", mood="determined")
-                target_file = os.path.join("src", "research", "enhanced_rag.py")
-                instruction = "Optimize RAG memory usage by releasing cached vector embeddings and calling gc.collect() in search routines."
-                # Run otonom evolve in the background
-                await self.evolve(target_file, instruction)
-        
-        # 1. Self-Reflection (Dreaming)
-        if self.state == TwinState.IDLE and (now - self.last_reflection > self.reflection_interval):
-            await self.think()
-            self.last_reflection = now
-
-        # 2. Execute planned tasks
-        if self.state == TwinState.IDLE and self.current_task:
-             await self.execute_plan()
-
-    async def think(self):
-        """
-        Generates internal monologue based on logs/errors.
-        """
-        self.state = TwinState.DREAMING
-        recent_memories = self.memory.get_recent_thoughts(limit=5)
-        memory_text = "\n".join([f"- {t['content']}" for t in recent_memories])
-        
-        context_prompt = ""
-        if self.night_mode:
-            context_prompt = "NIGHT MODE ACTIVE. You have unlimited time. Focus on DEEP ARCHITECTURAL IMPROVEMENTS and SELF-CORRECTION."
-        else:
-            context_prompt = "DAY MODE. Focus on responsiveness and quick tasks."
-
-        prompt = f"""
-        You are JAYA, an advanced AI with a Digital Twin.
-        {context_prompt}
-        
-        Your internal state: {self.state.value}
-        Recent thoughts:
-        {memory_text}
-        
-        Analyze your current situation. 
-        Are there any errors? Is there code that needs optimization?
-        Or should you just explore a new research topic?
-        
-        Output a single sentence of internal monologue. 
-        - To code/experiment: "PLAN: <goal>"
-        - To improve code: "EVOLVE: <file> | <instruction>"
-        - To research: "RESEARCH: <topic> | <workspace>"
-        """
-        
-        try:
-            # Generate thought using NVIDIA NIM
-            thought_content = self.brain.ask(prompt, system_instruction="You are JAYA's Digital Twin.")
-            thought_content = thought_content.strip()
-            
-            # Log it
-            print(f"[Twin] Thought: {thought_content}")
-            self.memory.log_thought(thought_content, mood="reflective")
-            
-            if thought_content.startswith("PLAN:"):
-                 await self.plan(thought_content.replace("PLAN:", "").strip())
-            elif thought_content.startswith("EVOLVE:"):
-                 # Format: EVOLVE: <file_path> | <instruction>
-                 parts = thought_content.replace("EVOLVE:", "").split("|")
-                 if len(parts) == 2:
-                     await self.evolve(parts[0].strip(), parts[1].strip())
-            elif thought_content.startswith("RESEARCH:"):
-                 # Format: RESEARCH: <topic> | <workspace_id>
-                 parts = thought_content.replace("RESEARCH:", "").split("|")
-                 workspace = parts[1].strip() if len(parts) > 1 else "default"
-                 topic = parts[0].strip()
-                 await self.run_research(topic, workspace)
-            elif thought_content.startswith("INVENT:"):
-                 # Format: INVENT: <domain1> | <domain2> | <workspace_id>
-                 parts = thought_content.replace("INVENT:", "").split("|")
-                 domain1 = parts[0].strip() if len(parts) > 0 else "Computer Science"
-                 domain2 = parts[1].strip() if len(parts) > 1 else "Physics"
-                 workspace = parts[2].strip() if len(parts) > 2 else "default"
-                 await self.invent_novel_concept(domain1, domain2, workspace)
-
-        except Exception as e:
-            print(f"[Twin] Failed to dream: {e}")
-        
-        self.state = TwinState.IDLE
-
-    async def run_research(self, topic: str, workspace_id: str):
-        """Autonomously runs research based on mode"""
-        self.state = TwinState.RESEARCHING
-        self.memory.log_thought(f"Starting research on: {topic} (Mode: {self.mode.value})...", mood="focused")
-        
-        # Ensure workspace exists
-        self.workspace_manager._ensure_workspace(workspace_id)
-        
-        try:
-             final_report = ""
-             tex_content = ""
-             
-             # --- THESIS MODE: Strict Academic Process ---
-             if self.mode == ResearchMode.THESIS:
-                 from src.research.academic.literature import ArxivClient, SemanticScholarClient
-                 from src.research.academic.drafter import ThesisDrafter
-                 
-                 # 1. Literature Review
-                 papers = []
-                 arxiv = ArxivClient()
-                 papers.extend(arxiv.search_papers(topic, max_results=5)) 
-                 scholar = SemanticScholarClient()
-                 papers.extend(scholar.search_papers(topic, max_results=5))
-                 
-                 # Generate Academic Review
-                 drafter = ThesisDrafter()
-                 literature_review = drafter.generate_literature_review(topic, papers)
-
-                 # 2. Deep Web Research
-                 agent = ResearchAgent(topic=topic)
-                 report = await asyncio.to_thread(agent.run, human_in_loop=False)
-                 
-                 final_report = f"# Thesis Research: {topic}\n\n{literature_review}\n\n## Empirical Findings\n{report}"
-                 
-                 # 3. Peer Review Critique
-                 from src.research.academic.reviewer import ReviewerAgent
-                 reviewer = ReviewerAgent()
-                 critique = reviewer.critique_chapter(final_report, topic)
-                 
-                 final_report += "\n\n# Peer Review (Supervisor Feedback)\n" + critique
-                 
-                 # 4. LaTeX Export
-                 tex_content = drafter.export_to_latex(final_report, title=f"Thesis: {topic}")
-
-             # --- EXPLORATION MODE: Broad Discovery ---
-             else:
-                 agent = ResearchAgent(topic=topic)
-                 report = await asyncio.to_thread(agent.run, human_in_loop=False)
-                 final_report = f"# Discovery Report: {topic}\n\n{report}"
-
-             # Save Report
-             report_path = self.workspace_manager.get_paths(workspace_id)['knowledge_graph'].parent / f"Research_{topic.replace(' ', '_')}.md"
-             with open(report_path, "w", encoding="utf-8") as f:
-                 f.write(final_report)
-
-             if self.mode == ResearchMode.THESIS and tex_content:
-                 tex_path = report_path.with_suffix(".tex")
-                 with open(tex_path, "w", encoding="utf-8") as f:
-                     f.write(tex_content)
-                 self.memory.log_thought(f"Thesis chapter saved to {tex_path.name}", mood="proud")
-             else:
-                 self.memory.log_thought(f"Discovery saved to {report_path.name}", mood="satisfied")
-             
-        except Exception as e:
-             self.memory.log_thought(f"Research failed: {e}", mood="frustrated")
-             import traceback
-             traceback.print_exc()
-        
-        self.state = TwinState.IDLE
-
-    async def invent_novel_concept(self, domain1: str, domain2: str, workspace_id: str):
-         """The autonomous invention loop: Generate -> Verify Novelty -> Simulate"""
-         self.state = TwinState.RESEARCHING
-         self.memory.log_thought(f"Attempting to invent a novel concept intersecting {domain1} and {domain2}...", mood="focused")
-         
-         # 1. Generate Hypothesis
-         hypothesis = self.hypothesis_gen.generate_novel_hypothesis(domain1, domain2)
-         self.memory.log_thought(f"Hypothesis formulated:\n{hypothesis[:200]}...", mood="curious")
-         
-         # 2. Check Novelty
-         self.memory.log_thought("Verifying novelty against global literature...", mood="focused")
-         novelty = await self.novelty_checker.verify_novelty(hypothesis)
-         
-         if not novelty["is_novel"]:
-              self.memory.log_thought(f"Hypothesis rejected. It already exists. Reasoning:\n{novelty['reasoning'][:200]}...", mood="frustrated")
-              self.state = TwinState.IDLE
-              return
-              
-         self.memory.log_thought("Hypothesis is verified as NOVEL. Proceeding to The Crucible for simulation...", mood="excited")
-         
-         # 3. Ask Reasoning model to write a Python simulation script for this hypothesis
-         simulation_prompt = f"""
-         You just generated this novel hypothesis:
-         {hypothesis}
-         
-         Write a complete Python 3 script to empirically simulate or test a core component of this hypothesis.
-         The script should NOT require human interaction. It must be able to run in a sandbox.
-         At the very end of the script, it MUST print a strict JSON dictionary containing the final metrics (e.g., accuracy, efficiency, speedup) on a single line.
-         
-         Output ONLY the raw Python code. Do not wrap in ```python markdown.
-         """
-         script_code = self.brain.ask(simulation_prompt, system_instruction="Output raw Python code only. No markdown formatting.")
-         script_code = script_code.replace("```python", "").replace("```", "").strip()
-         
-         # 4. Run in Crucible
-         crucible = Crucible(workspace_id)
-         success, log, metrics = crucible.run_experiment(hypothesis, script_code)
-         
-         # 5. Record Findings
-         report_content = f"# Autonomous Discovery Report\n\n## Intersection\n{domain1} X {domain2}\n\n## The Hypothesis\n{hypothesis}\n\n## Novelty Verification\nPassed: {novelty['confidence']*100}% confidence.\nReasoning: {novelty['reasoning']}\n\n## Crucible Simulation\nSuccess: {success}\n\n### Code Used\n```python\n{script_code}\n```\n\n### Metrics/Results\n```json\n{metrics}\n```\n\n### Log\n```text\n{log[:1000]}\n```"
-         
-         self.workspace_manager._ensure_workspace(workspace_id)
-         report_path = self.workspace_manager.get_paths(workspace_id)['knowledge_graph'].parent / f"Discovery_{int(time.time())}.md"
-         
-         with open(report_path, "w", encoding="utf-8") as f:
-             f.write(report_content)
-             
-         if success:
-              self.memory.log_thought(f"Discovery successful! Report saved to {report_path.name}", mood="proud")
-         else:
-              self.memory.log_thought(f"Discovery simulation failed, but report saved to {report_path.name}. Needs refinement.", mood="frustrated")
-              
-         self.state = TwinState.IDLE
-
-    def set_mode(self, mode_str: str):
-        """Switches research mode"""
-        try:
-            self.mode = ResearchMode(mode_str.lower())
-            self.memory.log_thought(f"Switched to {self.mode.value.upper()} mode.", mood="determined")
-            return True
-        except ValueError:
-            return False
-
-    async def evolve(self, target_file: str, instruction: str):
-        """Triggers a code mutation (tracked as an experiment)"""
-        self.state = TwinState.CODING
-        self.memory.log_thought(f"Evolving {target_file}...", mood="determined")
-        
-        # Start Experiment Tracking
-        exp_id = self.tracker.start_experiment(
-            name=f"Evolution: {os.path.basename(target_file)}",
-            config={"target": target_file, "instruction": instruction}
-        )
-        
-        start_time = time.time()
-        success = self.mutator.evolve_file(target_file, instruction)
-        duration = time.time() - start_time
-        
-        self.tracker.log_metric("duration_seconds", duration)
-        self.tracker.log_metric("success", 1 if success else 0)
-        
-        if success:
-            self.memory.log_thought(f"Evolution of {target_file} successful!", mood="proud")
-            self.tracker.end_experiment("SUCCESS", "Mutation applied successfully.")
-        else:
-            self.memory.log_thought(f"Evolution of {target_file} failed.", mood="frustrated")
-            self.tracker.end_experiment("FAILED", "Mutation verification failed.")
-            
-        self.state = TwinState.IDLE
-
-    async def plan(self, goal: str):
-        """
-        Decides on self-improvement tasks using Reasoning Model.
-        """
-        self.state = TwinState.PLANNING
-        print(f"[Twin] Planning: {goal}")
-        self.memory.log_thought(f"Formulating plan for: {goal}", mood="focused")
-
-        # Ask Reasoning Model for code
-        prompt = f"""
-        You are JAYA's Digital Twin.
-        Goal: {goal}
-        
-        Write a Python script to achieve this goal.
-        The script will be run in a sandbox.
-        Output ONLY the raw python code, no markdown.
-        """
-        
-        code = self.brain.ask(prompt, system_instruction="You are a Python Expert. Output raw code only.")
-        code = code.replace("```python", "").replace("```", "").strip()
-        
-        # Store as current task to be executed
-        self.current_task = {
-            "ty": "experiment",
-            "code": code,
-            "goal": goal
+    @staticmethod
+    def _provider_failure(exc: ProviderError) -> dict[str, Any]:
+        return {
+            "status": "PROVIDER_ERROR",
+            "provider_error": exc.to_dict(),
+            "action_dispatched": False,
+            "candidate_executed": False,
+            "source_mutated": False,
+            "novelty_status": "NOT_ASSESSED",
         }
 
-    async def experiment(self, code: str):
-        """Executes experiment code in the sandbox"""
-        self.state = TwinState.TESTING
-        self.memory.log_thought("Executing plan experiment in sandbox...", mood="focused")
+    def toggle_night_mode(self, enabled: bool) -> dict[str, Any]:
+        self.night_mode = bool(enabled)
+        self._log(
+            f"Candidate review scheduling mode set to "
+            f"{'night' if self.night_mode else 'day'}.",
+            mood="neutral",
+        )
+        return {
+            "status": "CONFIGURED_CANDIDATE_ONLY",
+            "night_mode": self.night_mode,
+        }
+
+    async def start_loop(
+        self,
+        max_cycles: int | None = None,
+        *,
+        enabled: bool = False,
+    ) -> dict[str, Any]:
+        """Run a finite, explicitly enabled no-op coordination batch."""
+        if not enabled:
+            return {
+                "status": "DISABLED_BY_DEFAULT",
+                "running": False,
+                "completed_cycles": self.completed_cycles,
+            }
+        bound = self._validate_cycle_bound(max_cycles)
+        self.running = True
+        self._log(
+            f"Starting bounded candidate coordination batch ({bound} cycles).",
+            mood="neutral",
+        )
+        completed = 0
         try:
-            res = await asyncio.to_thread(self.sandbox.run_code, code)
-            if res.get("success", False):
-                self.memory.log_thought("Plan experiment succeeded!", mood="proud")
-            else:
-                self.memory.log_thought(f"Plan experiment failed: {res.get('error')}", mood="frustrated")
-        except Exception as e:
-            self.memory.log_thought(f"Plan experiment error: {e}", mood="frustrated")
-        self.state = TwinState.IDLE
+            for index in range(bound):
+                if not self.running:
+                    break
+                await self.cycle()
+                completed += 1
+                self.completed_cycles += 1
+                if (
+                    index + 1 < bound
+                    and self.running
+                    and self.cycle_interval_seconds > 0
+                ):
+                    await asyncio.sleep(self.cycle_interval_seconds)
+        finally:
+            self.running = False
+            self.state = TwinState.IDLE
+        return {
+            "status": "BOUNDED_BATCH_COMPLETED",
+            "running": False,
+            "completed_cycles": completed,
+        }
 
-    async def execute_plan(self):
-        """Executes the current task"""
-        if not self.current_task: return
-        
+    async def cycle(self) -> dict[str, Any]:
+        """Perform one bounded coordination tick without autonomous action."""
+        if self.current_task is None:
+            return {
+                "status": "IDLE_NO_AUTONOMOUS_ACTION",
+                "provider_called": False,
+                "source_mutated": False,
+            }
+        return await self.execute_plan()
+
+    async def think(self) -> dict[str, Any]:
+        """Request at most an untrusted suggestion and never dispatch it."""
+        if self.teacher is None:
+            return {
+                "status": "UNAVAILABLE_PROVIDER_MISSING",
+                "action_dispatched": False,
+                "source_mutated": False,
+            }
+        ask = getattr(self.teacher, "ask", None)
+        if not callable(ask):
+            return {
+                "status": "UNAVAILABLE_PROVIDER_INCOMPATIBLE",
+                "action_dispatched": False,
+                "source_mutated": False,
+            }
+        self.state = TwinState.DREAMING
+        try:
+            suggestion = str(
+                ask(
+                    "Propose one review-only Research improvement. Do not claim "
+                    "execution, benchmarking, novelty, or deployment.",
+                    system_instruction=(
+                        "Return an unverified suggestion only; it will not run."
+                    ),
+                )
+            )
+            self._log(
+                "An unverified provider suggestion was received but not "
+                "dispatched.",
+                mood="neutral",
+                context={"suggestion_length": len(suggestion)},
+            )
+            return {
+                "status": "UNVERIFIED_SUGGESTION_NOT_DISPATCHED",
+                "action_dispatched": False,
+                "source_mutated": False,
+            }
+        except ProviderError as exc:
+            return self._provider_failure(exc)
+        finally:
+            self.state = TwinState.IDLE
+
+    async def run_research(
+        self,
+        topic: str,
+        workspace_id: str,
+    ) -> dict[str, Any]:
+        """Redirect legacy autonomous research to the durable job boundary."""
+        del topic, workspace_id
+        return {
+            "status": "UNAVAILABLE_USE_DURABLE_RESEARCH_JOB",
+            "research_executed": False,
+            "message": (
+                "Submit research through POST /research/autonomous with an "
+                "Idempotency-Key"
+            ),
+        }
+
+    async def invent_novel_concept(
+        self,
+        domain1: str,
+        domain2: str,
+        workspace_id: str,
+    ) -> dict[str, Any]:
+        """Stage an unverified simulation candidate without novelty claims."""
+        if self.teacher is None:
+            return {
+                "status": "UNAVAILABLE_PROVIDER_MISSING",
+                "candidate_executed": False,
+                "novelty_status": "NOT_ASSESSED",
+            }
+        ask = getattr(self.teacher, "ask", None)
+        if not callable(ask):
+            return {
+                "status": "UNAVAILABLE_PROVIDER_INCOMPATIBLE",
+                "candidate_executed": False,
+                "novelty_status": "NOT_ASSESSED",
+            }
+        self.state = TwinState.RESEARCHING
+        try:
+            code = str(
+                ask(
+                    "Create Python code for an unverified simulation proposal "
+                    f"about the intersection of {domain1} and {domain2}.",
+                    system_instruction=(
+                        "Return code only. It will be reviewed, not executed."
+                    ),
+                )
+            )
+            crucible = Crucible(
+                workspace_id,
+                source_root=self.mutator.optimizer.source_root,
+                outbox_dir=self.mutator.optimizer.outbox.outbox_dir,
+            )
+            _, message, receipt = crucible.run_experiment(
+                f"Unverified intersection proposal: {domain1} / {domain2}",
+                code,
+            )
+            return {
+                **receipt,
+                "message": message,
+                "novelty_status": "NOT_ASSESSED",
+                "empirical_claimed": False,
+            }
+        except ProviderError as exc:
+            return self._provider_failure(exc)
+        finally:
+            self.state = TwinState.IDLE
+
+    def set_mode(self, mode_str: str) -> bool:
+        try:
+            self.mode = ResearchMode(mode_str.lower())
+        except ValueError:
+            return False
+        self._log(
+            f"Candidate output mode set to {self.mode.value}.",
+            mood="neutral",
+        )
+        return True
+
+    async def evolve(
+        self,
+        target_file: str,
+        instruction: str,
+    ) -> dict[str, Any]:
+        """Export a source-change candidate; never apply it."""
+        self.state = TwinState.CODING
+        try:
+            receipt = self.mutator.evolve_file(target_file, instruction)
+            self._log(
+                f"Evolution request ended with {receipt['status']}.",
+                mood="neutral",
+                context={
+                    "source_mutated": False,
+                    "candidate_executed": False,
+                },
+            )
+            return receipt
+        except ProviderError as exc:
+            return self._provider_failure(exc)
+        finally:
+            self.state = TwinState.IDLE
+
+    async def plan(self, goal: str) -> dict[str, Any]:
+        """Convert provider-generated code into a review-only artifact."""
+        if self.teacher is None:
+            return {
+                "status": "UNAVAILABLE_PROVIDER_MISSING",
+                "candidate_executed": False,
+            }
+        ask = getattr(self.teacher, "ask", None)
+        if not callable(ask):
+            return {
+                "status": "UNAVAILABLE_PROVIDER_INCOMPATIBLE",
+                "candidate_executed": False,
+            }
+        self.state = TwinState.PLANNING
+        try:
+            code = str(
+                ask(
+                    f"Draft review-only Python for this goal: {goal}",
+                    system_instruction=(
+                        "Return code only. It must not be described as executed."
+                    ),
+                )
+            )
+            receipt = self.sandbox.run_code(
+                code,
+                candidate_name="planned_experiment.py",
+            )
+            self.current_task = {
+                "type": "staged_candidate",
+                "receipt": receipt,
+            }
+            return receipt
+        except ProviderError as exc:
+            return self._provider_failure(exc)
+        finally:
+            self.state = TwinState.IDLE
+
+    async def experiment(self, code: str) -> dict[str, Any]:
+        """Stage experiment code without executing it."""
+        self.state = TwinState.TESTING
+        try:
+            receipt = self.sandbox.run_code(code)
+            self._log(
+                f"Experiment request ended with {receipt['status']}.",
+                mood="neutral",
+                context={"candidate_executed": False},
+            )
+            return receipt
+        except ProviderError as exc:
+            return self._provider_failure(exc)
+        finally:
+            self.state = TwinState.IDLE
+
+    async def execute_plan(self) -> dict[str, Any]:
+        """Acknowledge an already staged plan; never execute it."""
+        if self.current_task is None:
+            return {
+                "status": "NO_PENDING_PLAN",
+                "candidate_executed": False,
+            }
         task = self.current_task
-        if task.get("ty") == "experiment":
-             await self.experiment(task["code"])
-        
         self.current_task = None
+        receipt = dict(task.get("receipt") or {})
+        return {
+            **receipt,
+            "status": "PLAN_STAGED_AWAITING_REVIEW",
+            "candidate_executed": False,
+            "source_mutated": False,
+        }
 
-    def stop(self):
+    def runtime_status(self) -> dict[str, Any]:
+        return {
+            "status": "RUNNING_BOUNDED" if self.running else "IDLE",
+            "state": self.state.value,
+            "provider_configured": self.teacher is not None,
+            "candidate_only": True,
+            "source_mutation_enabled": False,
+            "generated_code_execution_enabled": False,
+            "completed_cycles": self.completed_cycles,
+        }
+
+    def stop(self) -> dict[str, Any]:
         self.running = False
-        self.memory.log_thought("Going to sleep...", mood="tired")
+        self._log("Bounded candidate coordination batch stopped.", mood="neutral")
+        return {"status": "STOPPED", "running": False}

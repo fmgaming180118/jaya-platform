@@ -1,39 +1,62 @@
+"""Compatibility tool for allowlisted process profiles; raw shell is forbidden."""
 
-import subprocess
-import platform
-import logging
+from __future__ import annotations
+
+from typing import Any
+
 from pydantic import BaseModel, Field
+from src.capability_boundary import (
+    CapabilityGateway,
+    request_capability,
+    require_profile,
+)
 from src.tools.base import BaseTool
 
-logger = logging.getLogger("Tool:CmdRunner")
 
 class CommandInput(BaseModel):
-    command: str = Field(..., description="The shell command to execute (e.g., 'ping google.com', 'dir').")
+    """Structured input containing a profile identifier, never shell text."""
+
+    profile: str = Field(
+        ...,
+        description="Pre-registered Agent/OS execution profile identifier.",
+    )
+    arguments: dict[str, Any] = Field(default_factory=dict)
+
 
 class CmdRunnerTool(BaseTool):
+    """Route a fixed execution profile through an injected capability gateway."""
+
+    def __init__(self, capability_gateway: CapabilityGateway | None = None) -> None:
+        self._capability_gateway = capability_gateway
+
     @property
     def name(self) -> str:
         return "system_run_command"
 
     @property
     def description(self) -> str:
-        return "Executes a shell command on the host system (PowerShell on Windows, Bash on Linux). Use with caution."
+        return (
+            "Runs a pre-registered process profile through an authorized "
+            "capability gateway; arbitrary shell commands are rejected."
+        )
 
     @property
-    def parameters(self):
+    def parameters(self) -> type[BaseModel]:
         return CommandInput
 
-    def execute(self, command: str) -> str:
-        logger.info(f"Executing: {command}")
-        try:
-            os_type = platform.system()
-            if os_type == "Windows":
-                 completed = subprocess.run(["powershell", "-Command", command], capture_output=True, text=True, shell=True)
-            else:
-                 completed = subprocess.run(command, capture_output=True, text=True, shell=True)
-            
-            if completed.returncode != 0:
-                return f"Error: {completed.stderr.strip()}"
-            return completed.stdout.strip()
-        except Exception as e:
-            return f"Execution Failed: {str(e)}"
+    def execute(
+        self,
+        profile: str,
+        arguments: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        safe_profile = require_profile(profile)
+        return dict(
+            request_capability(
+                self._capability_gateway,
+                action="process.profile.run",
+                arguments={
+                    "profile": safe_profile,
+                    "arguments": dict(arguments or {}),
+                },
+            )
+        )

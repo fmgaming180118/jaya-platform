@@ -12,13 +12,24 @@ from src.brain_v2.engine.action_protocol import (
     ActionPolicy,
     ActionProtocolConfigurationError,
     ActionProtocolError,
+    ActionStep,
     AuthorizationCode,
     ExecutionReceipt,
     PolicyBoundExecutor,
     ProtocolFailureCode,
     ReceiptOutcome,
+    RiskLevel,
+    SideEffectClass,
 )
 from src.brain_v2.engine.spec_generators import IntentMatch, SpecGeneratorRouter
+from src.os_kernel.ipc import (
+    InProcessIPCChannel,
+    IPCFailureCode,
+    IPCMessage,
+    IPCRouter,
+    KernelIPCServer,
+    MessageType,
+)
 
 
 class MutableClock:
@@ -153,6 +164,133 @@ def test_missing_capability_and_destructive_without_confirmation_are_denied(
     with pytest.raises(ActionProtocolError) as exc_info:
         executor.execute(plan, no_confirmation, lambda step: step.action)
     assert exc_info.value.code is ProtocolFailureCode.INVALID_AUTHORIZATION
+
+
+def test_high_risk_write_requires_confirmation_and_grants_least_privilege(
+    policy: ActionPolicy,
+) -> None:
+    bundle = _route(policy, "config_set", {"theme": "dark"})
+    plan = bundle.action_plan
+    assert plan is not None
+    assert plan.risk is RiskLevel.HIGH
+    assert plan.side_effect_class is SideEffectClass.WRITE
+
+    denied = policy.authorize(
+        plan,
+        available_capabilities={"config.write", "system.power"},
+    )
+    assert denied.code is AuthorizationCode.CONFIRMATION_REQUIRED
+
+    confirmation = policy.confirm_plan(
+        plan,
+        actor_id="config-owner",
+        confirmed=True,
+    )
+    decision = policy.authorize(
+        plan,
+        available_capabilities={"config.write", "system.power"},
+        confirmation=confirmation,
+    )
+    assert decision.authorized is True
+    assert decision.granted_capabilities == ("config.write",)
+
+
+def test_confirmation_and_authorization_expiry_fail_before_handler(
+    clock: MutableClock,
+) -> None:
+    policy = ActionPolicy(
+        signing_secret=b"core-015-expiry-signing-key-material",
+        environment="test",
+        test_mode=True,
+        clock=clock,
+        confirmation_ttl_s=1.0,
+        authorization_ttl_s=2.0,
+    )
+    config_bundle = _route(policy, "config_set")
+    config_plan = config_bundle.action_plan
+    assert config_plan is not None
+    confirmation = policy.confirm_plan(
+        config_plan,
+        actor_id="config-owner",
+        confirmed=True,
+    )
+    clock.now = confirmation.expires_at
+    denied = policy.authorize(
+        config_plan,
+        available_capabilities={"config.write"},
+        confirmation=confirmation,
+    )
+    assert denied.code is AuthorizationCode.INVALID_CONFIRMATION
+
+    status_bundle = _route(policy, "status")
+    status_plan = status_bundle.action_plan
+    assert status_plan is not None
+    decision = policy.authorize(
+        status_plan,
+        available_capabilities={"observability.status.read"},
+    )
+    clock.now = decision.expires_at
+    observed: list[str] = []
+    executor = PolicyBoundExecutor(
+        policy,
+        executor_id="status-executor",
+        capabilities={"observability.status.read"},
+    )
+    with pytest.raises(ActionProtocolError) as exc_info:
+        executor.execute(
+            status_plan,
+            decision,
+            lambda step: observed.append(step.action),
+        )
+    assert exc_info.value.code is ProtocolFailureCode.EXPIRED_AUTHORIZATION
+    assert observed == []
+
+
+def test_idempotency_collision_blocks_second_handler(policy: ActionPolicy) -> None:
+    def plan(plan_id: str):
+        return policy.create_plan(
+            intent={"request": plan_id},
+            ordered_steps=(
+                ActionStep(
+                    step_id="status-step",
+                    action="get_status",
+                    required_capabilities=("observability.status.read",),
+                    side_effect_class=SideEffectClass.READ,
+                ),
+            ),
+            risk=RiskLevel.LOW,
+            required_capabilities=("observability.status.read",),
+            side_effect_class=SideEffectClass.READ,
+            plan_id=plan_id,
+            idempotency_key="idem-shared-status-request",
+        )
+
+    first_plan = plan("plan-first-status")
+    second_plan = plan("plan-second-status")
+    first_decision = policy.authorize(
+        first_plan,
+        available_capabilities={"observability.status.read"},
+    )
+    second_decision = policy.authorize(
+        second_plan,
+        available_capabilities={"observability.status.read"},
+    )
+    executor = PolicyBoundExecutor(
+        policy,
+        executor_id="status-executor",
+        capabilities={"observability.status.read"},
+    )
+    executor.execute(first_plan, first_decision, lambda step: step.action)
+
+    observed: list[str] = []
+    with pytest.raises(ActionProtocolError) as exc_info:
+        executor.execute(
+            second_plan,
+            second_decision,
+            lambda step: observed.append(step.action),
+        )
+    assert exc_info.value.code is ProtocolFailureCode.EXECUTION_REPLAY
+    assert observed == []
 
 
 def test_tampered_and_expired_plan_are_denied(
@@ -330,6 +468,112 @@ def test_failed_handler_produces_signed_failure_not_claimed_success(
         )
         == "EXECUTION_FAILED"
     )
+
+
+def test_non_json_handler_result_is_signed_failure_not_success(
+    policy: ActionPolicy,
+) -> None:
+    bundle = _route(policy, "status")
+    plan = bundle.action_plan
+    assert plan is not None
+    decision = policy.authorize(
+        plan,
+        available_capabilities={"observability.status.read"},
+    )
+    executor = PolicyBoundExecutor(
+        policy,
+        executor_id="status-executor",
+        capabilities={"observability.status.read"},
+    )
+
+    result = executor.execute(plan, decision, lambda _step: object())
+
+    assert result.succeeded is False
+    assert result.receipt.outcome is ReceiptOutcome.FAILED
+    assert "ValueError" in result.error
+    assert bundle.execution_status == "PLAN_ONLY"
+    assert (
+        bundle.apply_execution_receipt(
+            policy=policy,
+            authorization=decision,
+            receipt=result.receipt,
+        )
+        == "EXECUTION_FAILED"
+    )
+
+
+def test_ui_status_fields_are_read_only_and_evidence_bound(
+    policy: ActionPolicy,
+) -> None:
+    bundle = _route(policy, "status")
+    assert bundle.action_spec is not None
+    assert bundle.execution_status == "PLAN_ONLY"
+    assert bundle.status_snapshot()["execution_status"] == "PLAN_ONLY"
+
+    with pytest.raises(AttributeError):
+        bundle.execution_status = "EXECUTED"
+    with pytest.raises(AttributeError):
+        bundle.execution_receipt = None
+    with pytest.raises(AttributeError):
+        bundle.action_spec.status = "EXECUTED"
+    with pytest.raises(TypeError):
+        bundle.metadata["execution_status"] = "EXECUTED"
+
+    assert bundle.execution_status == "PLAN_ONLY"
+    assert bundle.execution_receipt is None
+    assert bundle.status_snapshot()["execution_status"] == "PLAN_ONLY"
+
+
+def test_tampered_authorization_cannot_invoke_handler(policy: ActionPolicy) -> None:
+    bundle = _route(policy, "status")
+    plan = bundle.action_plan
+    assert plan is not None
+    decision = policy.authorize(
+        plan,
+        available_capabilities={"observability.status.read"},
+    )
+    tampered = replace(decision, expires_at=decision.expires_at + 1.0)
+    observed: list[str] = []
+    executor = PolicyBoundExecutor(
+        policy,
+        executor_id="status-executor",
+        capabilities={"observability.status.read"},
+    )
+
+    with pytest.raises(ActionProtocolError) as exc_info:
+        executor.execute(
+            plan,
+            tampered,
+            lambda step: observed.append(step.action),
+        )
+    assert exc_info.value.code is ProtocolFailureCode.INVALID_AUTHORIZATION
+    assert observed == []
+    assert bundle.execution_status == "PLAN_ONLY"
+
+
+@pytest.mark.asyncio
+async def test_legacy_ipc_direct_exec_is_fail_closed_without_execution_claim() -> None:
+    server = KernelIPCServer(IPCRouter(InProcessIPCChannel()))
+    marker = {"ran": False}
+    message = IPCMessage.create(
+        MessageType.SYS_EXEC_CODE,
+        {
+            "code": "marker['ran'] = True",
+            "context": {"marker": marker},
+        },
+    )
+
+    response = await server._handle_exec_code(message)
+
+    assert marker == {"ran": False}
+    assert response.type is MessageType.NAK
+    assert response.payload["success"] is False
+    assert response.payload["data"] == {
+        "code": IPCFailureCode.NOT_AUTHORIZED.value,
+        "execution_status": "PLAN_ONLY",
+        "required_evidence": "signed_execution_receipt",
+    }
+    assert "executed" not in response.to_json().lower()
 
 
 def test_unsigned_compatibility_plan_remains_plan_only_and_cannot_authorize(

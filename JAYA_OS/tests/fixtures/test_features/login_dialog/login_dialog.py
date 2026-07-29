@@ -330,7 +330,7 @@ def build_scene_aa969568() -> WidgetBase:
         widget_id="3accc7dc-a9bc-4fcd-a552-922b1f8ef719",
         label="Untitled",
         layout="flex_col",
-        rect={"x": {"value": 0, "unit": "px"}, "y": {"value": 0, "unit": "px"}, "width": null, "height": null},
+        rect={"x": {"value": 0, "unit": "px"}, "y": {"value": 0, "unit": "px"}, "width": None, "height": None},
         visible=True,
         enabled=True,
     )

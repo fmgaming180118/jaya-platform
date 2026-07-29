@@ -1,32 +1,46 @@
-"""
-Built-in Memory Manager Skill for JAYA_AGENT.
-Triggers SQLite WAL mode optimization and memory cap garbage collection.
-"""
+"""Capability-gated maintenance of Agent-owned installed memory."""
 
-import sys
-import os
-from typing import Dict, Any
-from ..base_skill import Skill, skill_action
+from __future__ import annotations
 
-try:
-    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-    research_src = os.path.join(root_dir, "JAYA_RESEARCH", "src")
-    if research_src not in sys.path:
-        sys.path.insert(0, research_src)
-    from memory_manager import MemoryManager
-    mm = MemoryManager()
-except Exception:
-    mm = None
+from collections.abc import Mapping
+
+from security.capability_sandbox import require_active_capability
+from skills.adapters import MemoryMaintenanceAdapter, SkillAdapterUnavailable
+from skills.base_skill import Skill, skill_action
+
+MEMORY_RESOURCE = "system://memory"
 
 
 class MemoryManagerSkill(Skill):
-    name = "memory_skill"
-    description = "SQLite WAL optimization and RAM garbage collection"
+    """Run memory maintenance only through an explicitly injected adapter."""
 
-    @skill_action("optimize_memory", "Runs SQLite WAL indexing and garbage collection")
+    name = "memory_skill"
+    description = "SQLite and RAM maintenance"
+
+    def __init__(self, manager: MemoryMaintenanceAdapter | None = None) -> None:
+        self._manager = manager
+
+    @skill_action(
+        "optimize_memory",
+        "Runs SQLite maintenance and garbage collection",
+        capability="system.memory.optimize",
+        fixed_resources=(MEMORY_RESOURCE,),
+        timeout_seconds=10.0,
+    )
     def optimize_memory(self) -> str:
-        if mm is None:
-            return "MemoryManager module unavailable."
-        mm.optimize_sqlite_database()
-        ram_info = mm.enforce_memory_cap(max_ram_mb=200)
-        return f"Memory optimized. Current RAM RSS: {ram_info.get('current_rss_mb')} MB (Cap: 200 MB)"
+        require_active_capability(
+            "system.memory.optimize",
+            (MEMORY_RESOURCE,),
+        )
+        if self._manager is None:
+            raise SkillAdapterUnavailable("memory_maintenance")
+        optimization = self._manager.optimize_sqlite_database()
+        if isinstance(optimization, Mapping) and optimization.get("success") is False:
+            raise RuntimeError("Memory maintenance adapter reported failure")
+        ram_info = self._manager.enforce_memory_cap(max_ram_mb=200)
+        if not isinstance(ram_info, Mapping):
+            raise RuntimeError("Memory maintenance adapter returned invalid metrics")
+        current_rss = ram_info.get("current_rss_mb")
+        if not isinstance(current_rss, (int, float)):
+            return "Memory maintenance completed; RSS is UNAVAILABLE"
+        return f"Memory maintenance completed; RSS is {current_rss} MB"

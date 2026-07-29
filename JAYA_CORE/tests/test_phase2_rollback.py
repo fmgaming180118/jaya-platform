@@ -114,7 +114,7 @@ class TestPhase2Rollback(unittest.TestCase):
             "schema_version": "jaya-evolution-evidence-report-v1",
             "candidate_id": candidate["candidate_id"],
             "source_hash": candidate["source_hash"],
-            "commit": "abcdef1234567890",
+            "commit": "a" * 40,
             "runner": "ci-runtime",
             "created_at": now,
             "dataset_digest": f"sha256:{'d' * 64}",
@@ -155,7 +155,7 @@ class TestPhase2Rollback(unittest.TestCase):
                 signed["candidate"],
                 str(test_path),
                 str(benchmark_path),
-                expected_commit="abcdef1234567890",
+                expected_commit="a" * 40,
             )
 
         self.assertTrue(verified["ok"])

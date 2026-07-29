@@ -1,35 +1,50 @@
-"""
-Built-in Web Research Skill for JAYA_AGENT.
-Integrated DuckDuckGo API / HTTP fallback search.
-"""
+"""Capability-gated web research through an injected public adapter."""
 
-import sys
-import os
+from __future__ import annotations
+
 import json
-from typing import Dict, Any
-from ..base_skill import Skill, skill_action
 
-# Import WebSearchClient from JAYA_RESEARCH
-try:
-    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
-    research_src = os.path.join(root_dir, "JAYA_RESEARCH", "src")
-    if research_src not in sys.path:
-        sys.path.insert(0, research_src)
-    from research.web_search import WebSearchClient
-    web_client = WebSearchClient()
-except Exception:
-    web_client = None
+from security.capability_sandbox import require_active_capability
+from skills.adapters import SkillAdapterUnavailable, WebResearchAdapter
+from skills.base_skill import Skill, skill_action
 
 
 class WebResearchSkill(Skill):
-    name = "web_skill"
-    description = "Web research and DuckDuckGo search"
+    """Search only through a separately configured, reviewed adapter."""
 
-    @skill_action("web_search", "Searches the web for information", params={"query": "str"})
+    name = "web_skill"
+    description = "Bounded web research"
+    NETWORK_RESOURCES = (
+        "https://api.duckduckgo.com",
+        "https://html.duckduckgo.com/html",
+    )
+
+    def __init__(self, client: WebResearchAdapter | None = None) -> None:
+        self._client = client
+
+    @skill_action(
+        "web_search",
+        "Searches allowlisted HTTPS providers for information",
+        params={"query": "str"},
+        capability="network.search",
+        fixed_resources=NETWORK_RESOURCES,
+        timeout_seconds=15.0,
+    )
     def web_search(self, query: str) -> str:
-        if web_client is None:
-            return f"Web search client unavailable. Query: '{query}'"
-        results = web_client.search(query, max_results=3)
-        if not results:
-            return f"No web search results found for query: '{query}'"
-        return json.dumps(results, indent=2)
+        require_active_capability(
+            "network.search",
+            self.NETWORK_RESOURCES,
+        )
+        clean_query = query.strip()
+        if (
+            not clean_query
+            or len(clean_query) > 512
+            or any(ord(character) < 32 for character in clean_query)
+        ):
+            raise ValueError("Search query is empty, oversized, or contains controls")
+        if self._client is None:
+            raise SkillAdapterUnavailable("web_research")
+        results = self._client.search(clean_query, max_results=3)
+        if not isinstance(results, list):
+            raise ValueError("Web research adapter returned an invalid result")
+        return json.dumps(results, ensure_ascii=False, indent=2)

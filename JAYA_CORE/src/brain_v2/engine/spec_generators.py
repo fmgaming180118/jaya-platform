@@ -20,7 +20,8 @@ Implements brain-side spec generators:
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from types import MappingProxyType
+from typing import Any, Dict, List, Mapping, Optional
 
 from src.brain_v2.engine.action_protocol import (
     DEFAULT_ACTION_CATALOG,
@@ -153,7 +154,12 @@ class ExecutionPlan:
     estimated_latency_ms: float = 1.0
     required_resources: Dict[str, float] = field(default_factory=dict)
     priority: int = 0
-    status: str = "PLAN_ONLY"
+
+    @property
+    def status(self) -> str:
+        """A brain-generated task specification never proves execution."""
+
+        return "PLAN_ONLY"
 
 
 @dataclass
@@ -164,7 +170,12 @@ class ActionSpec:
     payload: Dict[str, Any] = field(default_factory=dict)
     require_auth: bool = True
     timestamp: float = field(default_factory=time.time)
-    status: str = "PLAN_ONLY"
+
+    @property
+    def status(self) -> str:
+        """An IPC action specification is a plan, not an execution claim."""
+
+        return "PLAN_ONLY"
 
 
 @dataclass
@@ -176,10 +187,45 @@ class SpecBundle:
     task_spec: Optional[ExecutionPlan] = None
     action_spec: Optional[ActionSpec] = None
     action_plan: Optional[ActionPlan] = None
-    execution_receipt: Optional[ExecutionReceipt] = None
-    execution_status: str = "PLAN_ONLY"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: Mapping[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
+    _execution_receipt: Optional[ExecutionReceipt] = field(
+        default=None,
+        init=False,
+        repr=False,
+    )
+
+    def __post_init__(self) -> None:
+        metadata = dict(self.metadata)
+        metadata.pop("execution_status", None)
+        metadata.pop("execution_receipt_digest", None)
+        self.metadata = MappingProxyType(metadata)
+
+    @property
+    def execution_receipt(self) -> Optional[ExecutionReceipt]:
+        """Return authenticated evidence attached through the policy boundary."""
+
+        return self._execution_receipt
+
+    @property
+    def execution_status(self) -> str:
+        """Derive status only from an authenticated attached receipt."""
+
+        if self._execution_receipt is None:
+            return "PLAN_ONLY"
+        if self._execution_receipt.outcome is ReceiptOutcome.SUCCEEDED:
+            return "EXECUTED"
+        return "EXECUTION_FAILED"
+
+    def status_snapshot(self) -> dict[str, Any]:
+        """Return UI-safe metadata with evidence-bound execution status."""
+
+        snapshot = {**self.metadata, "execution_status": self.execution_status}
+        if self._execution_receipt is not None:
+            snapshot["execution_receipt_digest"] = (
+                self._execution_receipt.receipt_digest
+            )
+        return snapshot
 
     def is_empty(self) -> bool:
         """Returns True if no specifications are contained in the bundle."""
@@ -207,17 +253,7 @@ class SpecBundle:
             plan=self.action_plan,
             authorization=authorization,
         )
-        self.execution_receipt = receipt
-        self.execution_status = (
-            "EXECUTED"
-            if receipt.outcome is ReceiptOutcome.SUCCEEDED
-            else "EXECUTION_FAILED"
-        )
-        self.metadata = {
-            **self.metadata,
-            "execution_status": self.execution_status,
-            "execution_receipt_digest": receipt.receipt_digest,
-        }
+        self._execution_receipt = receipt
         return self.execution_status
 
 
@@ -640,7 +676,6 @@ class TaskSpecGenerator(SpecGenerator):
                 "plan_id": plan.plan_id,
                 "action_plan_id": action_plan.plan_id,
                 "intent_type": intent.intent_type,
-                "execution_status": "PLAN_ONLY",
             },
         )
 
@@ -720,7 +755,6 @@ class ActionSpecGenerator(SpecGenerator):
                 "channel": channel,
                 "action": action,
                 "action_plan_id": action_plan.plan_id,
-                "execution_status": "PLAN_ONLY",
             },
         )
 
@@ -772,5 +806,4 @@ class SpecGeneratorRouter:
         if composite.is_empty():
             composite.ui_spec = self.ui_generator.generate(intent).ui_spec
 
-        composite.metadata["execution_status"] = composite.execution_status
         return composite

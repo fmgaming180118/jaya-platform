@@ -41,6 +41,7 @@ ROOT_FILE_ALLOWLIST = {
     "JAYA_RESEARCH_MODE.bat",
     "START_JAYA_RESEARCH.bat",
     "nvidia_nim_config.yaml",
+    "pyproject.toml",
 }
 
 ROOT_DIR_ALLOWLIST = {

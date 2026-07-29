@@ -1,79 +1,93 @@
-import os
+"""Tests for the review-only Crucible boundary."""
+
+from __future__ import annotations
+
 import json
-import sys
+from pathlib import Path
 
-# Add project root to path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
+from evolution.crucible import Crucible
+from research.research_artifact import validate_artifact_dict
 
-from src.evolution.crucible import Crucible
 
-def test_crucible_success():
-    crucible = Crucible(workspace_id="pytest_env")
-    
-    # A simple script that calculates something and outputs JSON metrics
-    python_code = """
-import json
-def calc():
-    return {"accuracy": 0.99, "status": "ok"}
-print(json.dumps(calc()))
-"""
-    
-    success, log, metrics = crucible.run_experiment("Test Math", python_code, timeout_seconds=5)
-    
-    assert success is True
-    assert "accuracy" in metrics
-    assert metrics["accuracy"] == 0.99
-    assert metrics["status"] == "ok"
+def test_crucible_exports_simulation_candidate_without_execution(
+    tmp_path: Path,
+) -> None:
+    marker = tmp_path / "must-not-exist.txt"
+    python_code = (
+        "from pathlib import Path\n"
+        f"Path({str(marker)!r}).write_text('executed')\n"
+    )
+    crucible = Crucible(
+        workspace_id="pytest_env",
+        source_root=tmp_path,
+        outbox_dir=tmp_path / "outbox",
+    )
 
-def test_crucible_syntax_error():
-    crucible = Crucible(workspace_id="pytest_env")
-    
-    # Intentionally broken code
-    python_code = """
-import json
-def calc()
-    return {"accuracy": 0.99}
-print(json.dumps(calc()))
-"""
-    
-    success, log, metrics = crucible.run_experiment("Test Broken Code", python_code, timeout_seconds=5)
-    
+    success, log, result = crucible.run_experiment(
+        "Unverified test hypothesis",
+        python_code,
+        timeout_seconds=5,
+    )
+
     assert success is False
-    assert "SyntaxError" in log
+    assert log.startswith("SIMULATION_CANDIDATE_EXPORTED")
+    assert result["status"] == "SIMULATION_CANDIDATE_EXPORTED"
+    assert result["candidate_executed"] is False
+    assert result["benchmark_status"] == "NOT_RUN"
+    assert result["novelty_status"] == "NOT_ASSESSED"
+    assert result["empirical_metrics"] is None
+    assert not marker.exists()
 
-def test_crucible_timeout():
-    crucible = Crucible(workspace_id="pytest_env")
-    
-    # Infinite loop
-    python_code = """
-import time
-while True:
-    time.sleep(0.1)
-"""
-    
-    success, log, metrics = crucible.run_experiment("Test Timeout", python_code, timeout_seconds=1)
-    
+    artifact = json.loads(
+        Path(result["artifact_path"]).read_text(encoding="utf-8")
+    )
+    validate_artifact_dict(artifact)
+    assert artifact["evidence_kind"] == "SIMULATION"
+    assert artifact["status"] == "SIMULATION_ONLY"
+    assert artifact["payload"]["execution_backend"] == "UNAVAILABLE"
+
+
+def test_crucible_rejects_invalid_syntax(tmp_path: Path) -> None:
+    crucible = Crucible(
+        workspace_id="pytest_env",
+        source_root=tmp_path,
+        outbox_dir=tmp_path / "outbox",
+    )
+
+    success, log, result = crucible.run_experiment(
+        "Broken candidate",
+        "def calc()\n    return 1\n",
+        timeout_seconds=5,
+    )
+
     assert success is False
-    assert "Timeout expired" in log
+    assert "CANDIDATE_REJECTED" in log
+    assert result["candidate_executed"] is False
+    assert list((tmp_path / "outbox").glob("*.json")) == []
 
-if __name__ == "__main__":
-    print("Running Crucible Sandbox tests...")
-    try:
-        print("\n1. Testing crucible success...")
-        test_crucible_success()
-        print("=> Success!")
-        
-        print("\n2. Testing crucible syntax error...")
-        test_crucible_syntax_error()
-        print("=> Success!")
-        
-        print("\n3. Testing crucible timeout...")
-        test_crucible_timeout()
-        print("=> Success!")
-        
-        print("\nAll Crucible tests passed successfully!")
-    except Exception as e:
-        print(f"\nTest failed: {e}")
-        import sys
-        sys.exit(1)
+
+def test_crucible_rejects_unbounded_loop_and_timeout(tmp_path: Path) -> None:
+    crucible = Crucible(
+        workspace_id="pytest_env",
+        source_root=tmp_path,
+        outbox_dir=tmp_path / "outbox",
+    )
+
+    success, log, result = crucible.run_experiment(
+        "Unbounded candidate",
+        "while True:\n    pass\n",
+        timeout_seconds=5,
+    )
+
+    assert success is False
+    assert "Unbounded loop rejected" in log
+    assert result["candidate_executed"] is False
+
+    success, log, result = crucible.run_experiment(
+        "Invalid timeout",
+        "VALUE = 1\n",
+        timeout_seconds=0,
+    )
+    assert success is False
+    assert "bounded integer" in log
+    assert result == {}

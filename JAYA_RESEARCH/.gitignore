@@ -44,6 +44,14 @@ evolution/
 jurnal_pdf/
 scratch/
 
+# `src/experiments` and `src/evolution` are production source packages, not
+# runtime output. Keep them trackable even though similarly named runtime
+# directories remain ignored.
+!src/experiments/
+!src/experiments/**
+!src/evolution/
+!src/evolution/**
+
 # Database & Large Model Binaries
 *.db
 *.sqlite

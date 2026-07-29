@@ -1,52 +1,81 @@
-"""
-Tool Calling Security Interlock & Sandbox Guard for JAYA_AGENT.
-Isolates skill and tool execution inside Windows Job Objects / WASM sandbox.
-Enforces 256MB RAM ceiling and 10s execution timeout per tool action.
+"""Fail-closed process interlock for JAYA_AGENT.
+
+Arbitrary source execution is intentionally unsupported. Process execution is
+available only through immutable profiles registered by trusted startup code
+and still requires a signed, consented capability grant.
 """
 
-import sys
-import os
-import time
-from typing import Dict, Any, Callable
+from __future__ import annotations
 
-# Import Native EvolutionSandbox from JAYA_RESEARCH
-try:
-    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-    research_src = os.path.join(root_dir, "JAYA_RESEARCH", "src")
-    playground_dir = os.path.join(research_src, "playground")
-    if research_src not in sys.path:
-        sys.path.insert(0, research_src)
-    try:
-        from evolution.sandbox import EvolutionSandbox
-    except ImportError:
-        from sandbox import EvolutionSandbox
-    sandbox = EvolutionSandbox(playground_dir=playground_dir)
-except Exception as e:
-    print(f"[SECURITY] Warning: Failed to initialize EvolutionSandbox: {e}")
-    sandbox = None
+from collections.abc import Mapping
+from typing import Any
+
+from .capability_sandbox import (
+    CapabilityDenied,
+    CapabilitySandbox,
+    ProcessProfile,
+)
 
 
 class SandboxInterlock:
-    """
-    Security interlock that validates tool calls and executes python code
-    within safe Native Job Object sandbox constraints.
-    """
+    """Delegate fixed no-shell process profiles to the JAYA OS sandbox."""
 
-    def __init__(self, max_ram_mb: int = 256, timeout_sec: int = 10):
-        self.max_ram_mb = max_ram_mb
+    def __init__(
+        self,
+        *,
+        sandbox: CapabilitySandbox | None = None,
+        process_profiles: Mapping[str, ProcessProfile] | None = None,
+        timeout_sec: float = 10.0,
+        max_ram_mb: int = 256,
+    ) -> None:
+        if not 0.01 <= timeout_sec <= 10.0:
+            raise ValueError("Process timeout must be between 0.01 and 10 seconds")
+        if not 32 <= max_ram_mb <= 1024:
+            raise ValueError("RAM policy must be between 32 and 1024 MiB")
+        self.sandbox = sandbox or CapabilitySandbox()
         self.timeout_sec = timeout_sec
-        self.sandbox = sandbox
-        print(f"[SECURITY] SandboxInterlock initialized (RAM Cap: {self.max_ram_mb}MB, Timeout: {self.timeout_sec}s).")
+        self.max_ram_mb = max_ram_mb
+        for name, profile in (process_profiles or {}).items():
+            self.sandbox.register_process_profile(name, profile)
 
-    def execute_safe_code(self, code: str) -> Dict[str, Any]:
-        """
-        Executes Python code in isolated sandbox.
-        """
-        if self.sandbox is None:
-            return {"success": False, "error": "EvolutionSandbox not available"}
+    def execute_safe_code(self, code: str) -> dict[str, Any]:
+        """Reject the legacy arbitrary-code API regardless of content."""
 
-        start = time.time()
-        res = self.sandbox.run_code(code, timeout=self.timeout_sec)
-        elapsed = time.time() - start
-        res["elapsed_sec"] = round(elapsed, 3)
-        return res
+        del code
+        return {
+            "success": False,
+            "error_code": "ARBITRARY_CODE_DENIED",
+            "error": (
+                "Arbitrary source execution is disabled; use a reviewed "
+                "process profile with an explicit capability grant"
+            ),
+        }
+
+    async def execute_process_profile(
+        self,
+        profile_name: str,
+        *,
+        grant_token: str | None,
+        idempotency_key: str | None,
+    ) -> dict[str, Any]:
+        """Execute a pre-registered profile and return redacted evidence."""
+
+        try:
+            execution = await self.sandbox.execute_process_profile(
+                grant_token=grant_token,
+                profile_name=profile_name,
+                idempotency_key=idempotency_key,
+                timeout_seconds=self.timeout_sec,
+            )
+            return {
+                "success": True,
+                "result": execution.result,
+                "replayed": execution.replayed,
+                "receipt": execution.receipt.to_dict(),
+            }
+        except CapabilityDenied as exc:
+            return {
+                "success": False,
+                "error_code": exc.code,
+                "error": exc.safe_message,
+            }

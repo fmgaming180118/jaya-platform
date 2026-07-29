@@ -47,7 +47,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val database = AppDatabase.getDatabase(application)
-        repository = ChatRepository(database.chatDao(), application.filesDir)
+        repository = ChatRepository(database.chatDao(), application)
         
         viewModelScope.launch {
             repository.allSessions.collect { sessionList ->
@@ -65,7 +65,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var messagesJob: kotlinx.coroutines.Job? = null
 
     fun selectSession(sessionId: Long) {
-        Log.d("ChatViewModel", "Selecting session: $sessionId")
+        Log.d("ChatViewModel", "Chat session selected")
         _currentSessionId.value = sessionId
         messagesJob?.cancel()
         messagesJob = viewModelScope.launch {
@@ -116,7 +116,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 try {
                     repository.sendPromptToJaya(sessionId, content)
                 } catch (e: Exception) {
-                    Log.e("ChatViewModel", "Error sending prompt to JAYA", e)
+                    Log.e("ChatViewModel", "JAYA prompt request failed")
                 } finally {
                     _isLoading.value = false
                 }

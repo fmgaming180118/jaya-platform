@@ -415,6 +415,43 @@ class ConfirmationGrant:
     confirmation_digest: str = ""
     signature: str = ""
 
+    def __post_init__(self) -> None:
+        if self.schema_version != CONFIRMATION_SCHEMA_VERSION:
+            raise ValueError("unsupported action confirmation schema")
+        if self.signature_algorithm != SIGNATURE_ALGORITHM:
+            raise ValueError("unsupported confirmation signature algorithm")
+        object.__setattr__(
+            self,
+            "plan_id",
+            _require_identifier(self.plan_id, "plan_id"),
+        )
+        object.__setattr__(
+            self,
+            "plan_digest",
+            _require_digest(self.plan_digest, "plan_digest"),
+        )
+        object.__setattr__(
+            self,
+            "actor_id",
+            _require_identifier(self.actor_id, "actor_id"),
+        )
+        issued_at = float(self.issued_at)
+        expires_at = float(self.expires_at)
+        if (
+            not math.isfinite(issued_at)
+            or not math.isfinite(expires_at)
+            or expires_at <= issued_at
+        ):
+            raise ValueError("confirmation timestamps are invalid")
+        object.__setattr__(self, "issued_at", issued_at)
+        object.__setattr__(self, "expires_at", expires_at)
+        if self.confirmation_digest:
+            _require_digest(self.confirmation_digest, "confirmation_digest")
+        if self.signature and not re.fullmatch(r"[0-9a-f]{64}", self.signature):
+            raise ValueError(
+                "confirmation signature must be 64 lowercase hex characters"
+            )
+
     def payload(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
@@ -452,6 +489,55 @@ class AuthorizationDecision:
     signature_algorithm: str = SIGNATURE_ALGORITHM
     decision_digest: str = ""
     signature: str = ""
+
+    def __post_init__(self) -> None:
+        if self.schema_version != AUTHORIZATION_SCHEMA_VERSION:
+            raise ValueError("unsupported action authorization schema")
+        if self.signature_algorithm != SIGNATURE_ALGORITHM:
+            raise ValueError("unsupported authorization signature algorithm")
+        object.__setattr__(
+            self,
+            "decision_id",
+            _require_identifier(self.decision_id, "decision_id"),
+        )
+        object.__setattr__(
+            self,
+            "plan_id",
+            _require_identifier(self.plan_id, "plan_id"),
+        )
+        object.__setattr__(
+            self,
+            "plan_digest",
+            _require_digest(self.plan_digest, "plan_digest"),
+        )
+        if not isinstance(self.authorized, bool):
+            raise ValueError("authorized must be a boolean")
+        object.__setattr__(self, "code", AuthorizationCode(self.code))
+        if not isinstance(self.reason, str) or not self.reason.strip():
+            raise ValueError("authorization reason must be a non-empty string")
+        object.__setattr__(
+            self,
+            "granted_capabilities",
+            _normalize_capabilities(self.granted_capabilities),
+        )
+        if self.confirmation_digest:
+            _require_digest(self.confirmation_digest, "confirmation_digest")
+        issued_at = float(self.issued_at)
+        expires_at = float(self.expires_at)
+        if (
+            not math.isfinite(issued_at)
+            or not math.isfinite(expires_at)
+            or expires_at <= issued_at
+        ):
+            raise ValueError("authorization timestamps are invalid")
+        object.__setattr__(self, "issued_at", issued_at)
+        object.__setattr__(self, "expires_at", expires_at)
+        if self.decision_digest:
+            _require_digest(self.decision_digest, "decision_digest")
+        if self.signature and not re.fullmatch(r"[0-9a-f]{64}", self.signature):
+            raise ValueError(
+                "authorization signature must be 64 lowercase hex characters"
+            )
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -498,6 +584,64 @@ class ExecutionReceipt:
     signature_algorithm: str = SIGNATURE_ALGORITHM
     receipt_digest: str = ""
     signature: str = ""
+
+    def __post_init__(self) -> None:
+        if self.schema_version != EXECUTION_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("unsupported execution receipt schema")
+        if self.signature_algorithm != SIGNATURE_ALGORITHM:
+            raise ValueError("unsupported receipt signature algorithm")
+        for field_name in (
+            "receipt_id",
+            "plan_id",
+            "executor_id",
+            "idempotency_key",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _require_identifier(getattr(self, field_name), field_name),
+            )
+        for field_name in (
+            "plan_digest",
+            "authorization_digest",
+            "result_digest",
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _require_digest(getattr(self, field_name), field_name),
+            )
+        object.__setattr__(self, "outcome", ReceiptOutcome(self.outcome))
+        executed_steps = tuple(
+            _require_identifier(step_id, "executed step_id")
+            for step_id in self.executed_steps
+        )
+        if len(executed_steps) != len(set(executed_steps)):
+            raise ValueError("executed_steps must be unique")
+        object.__setattr__(self, "executed_steps", executed_steps)
+        if self.failed_step_id:
+            object.__setattr__(
+                self,
+                "failed_step_id",
+                _require_identifier(self.failed_step_id, "failed_step_id"),
+            )
+        started_at = float(self.started_at)
+        completed_at = float(self.completed_at)
+        expires_at = float(self.expires_at)
+        timestamps = (started_at, completed_at, expires_at)
+        if (
+            not all(math.isfinite(value) for value in timestamps)
+            or completed_at < started_at
+            or expires_at <= completed_at
+        ):
+            raise ValueError("execution receipt timestamps are invalid")
+        object.__setattr__(self, "started_at", started_at)
+        object.__setattr__(self, "completed_at", completed_at)
+        object.__setattr__(self, "expires_at", expires_at)
+        if self.receipt_digest:
+            _require_digest(self.receipt_digest, "receipt_digest")
+        if self.signature and not re.fullmatch(r"[0-9a-f]{64}", self.signature):
+            raise ValueError("receipt signature must be 64 lowercase hex characters")
 
     def payload(self) -> dict[str, Any]:
         return {
@@ -584,6 +728,7 @@ class ActionPolicy:
         authorization_ttl_s: float = 120.0,
         confirmation_ttl_s: float = 120.0,
         receipt_ttl_s: float = 300.0,
+        confirmation_risk_level: RiskLevel = RiskLevel.HIGH,
         action_catalog: Optional[Mapping[str, ActionRequirement]] = None,
     ) -> None:
         self._environment = (
@@ -646,6 +791,12 @@ class ActionPolicy:
             "confirmation_ttl_s",
         )
         self._receipt_ttl_s = self._positive_ttl(receipt_ttl_s, "receipt_ttl_s")
+        try:
+            self._confirmation_risk_level = RiskLevel(confirmation_risk_level)
+        except (TypeError, ValueError) as exc:
+            raise ActionProtocolConfigurationError(
+                "confirmation_risk_level must be a valid RiskLevel"
+            ) from exc
         raw_catalog = action_catalog or DEFAULT_ACTION_CATALOG
         self._action_catalog = {
             _require_identifier(action, "catalog action"): requirement
@@ -677,6 +828,7 @@ class ActionPolicy:
             "production": self._production,
             "test_mode": self._test_mode,
             "catalog_actions": tuple(sorted(self._action_catalog)),
+            "confirmation_risk_level": self._confirmation_risk_level.name.lower(),
         }
 
     def _sign(self, domain: str, payload: Mapping[str, Any]) -> str:
@@ -777,6 +929,12 @@ class ActionPolicy:
                 ProtocolFailureCode.INVALID_PLAN,
                 "plan risk is below the policy minimum",
             )
+
+    def _requires_confirmation(self, plan: ActionPlan) -> bool:
+        return (
+            plan.side_effect_class is SideEffectClass.DESTRUCTIVE
+            or plan.risk >= self._confirmation_risk_level
+        )
 
     def verify_plan(
         self,
@@ -926,6 +1084,11 @@ class ActionPolicy:
         confirmation_digest: str = "",
     ) -> AuthorizationDecision:
         now = float(self._clock())
+        expires_at = (
+            min(plan.expires_at, now + self._authorization_ttl_s)
+            if authorized
+            else now + self._authorization_ttl_s
+        )
         decision = AuthorizationDecision(
             decision_id=f"auth-{uuid.uuid4().hex}",
             plan_id=plan.plan_id,
@@ -936,7 +1099,7 @@ class ActionPolicy:
             granted_capabilities=capabilities,
             confirmation_digest=confirmation_digest,
             issued_at=now,
-            expires_at=min(plan.expires_at, now + self._authorization_ttl_s),
+            expires_at=expires_at,
         )
         digest = _payload_digest(decision.payload())
         return replace(
@@ -990,11 +1153,11 @@ class ActionPolicy:
                         f"missing capabilities: {', '.join(missing)}",
                     )
                 confirmation_digest = ""
-                if plan.side_effect_class is SideEffectClass.DESTRUCTIVE:
+                if self._requires_confirmation(plan):
                     if confirmation is None:
                         raise ActionProtocolError(
                             ProtocolFailureCode.CONFIRMATION_REQUIRED,
-                            "destructive action requires explicit confirmation",
+                            "action risk or side effect requires explicit confirmation",
                         )
                     self._verify_confirmation(confirmation, plan)
                     confirmation_digest = confirmation.confirmation_digest
@@ -1004,7 +1167,11 @@ class ActionPolicy:
                     authorized=True,
                     code=AuthorizationCode.AUTHORIZED,
                     reason="authorized by policy",
-                    capabilities=capabilities,
+                    capabilities=tuple(
+                        capability
+                        for capability in capabilities
+                        if capability in plan.required_capabilities
+                    ),
                     confirmation_digest=confirmation_digest,
                 )
                 self._authorized_plans.add(plan.plan_digest)
@@ -1075,12 +1242,12 @@ class ActionPolicy:
                 f"authorization is missing capabilities: {', '.join(sorted(missing))}",
             )
         if (
-            plan.side_effect_class is SideEffectClass.DESTRUCTIVE
+            self._requires_confirmation(plan)
             and not decision.confirmation_digest
         ):
             raise ActionProtocolError(
                 ProtocolFailureCode.INVALID_AUTHORIZATION,
-                "destructive authorization lacks confirmation evidence",
+                "risk-bound authorization lacks confirmation evidence",
             )
 
     def reserve_execution(

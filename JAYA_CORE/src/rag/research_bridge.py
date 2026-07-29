@@ -1,177 +1,224 @@
+"""Core-owned consumer for verified JAYA Research artifacts.
+
+Research publishes immutable candidates to its outbox. A separate promotion
+gate places approved candidates in Core's configured inbox. This bridge only
+reads that Core-owned inbox and never imports or traverses Research internals.
 """
-JAYA_CORE Research Bridge (Pillar 33 — Agentic RAG)
-Reads discoveries from JAYA_RESEARCH evolution_memory.json and injects
-them into JAYA_CORE's Agentic RAG database so that research findings
-become part of JAYA's sovereign knowledge base.
-"""
-import hashlib
+
+from __future__ import annotations
+
 import json
-import logging
 import sqlite3
-import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
-
-# Add JAYA_CORE root to path
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
+from typing import Any
 
 from src.core_config import core_config
+from src.rag.research_artifact import (
+    ResearchArtifactVerificationError,
+    VerifiedResearchArtifact,
+    verify_research_artifact,
+)
 
-logger = logging.getLogger("ResearchBridge")
+_MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
+
+
+class ResearchInboxError(RuntimeError):
+    """Raised when the Core-owned research inbox is unsafe or invalid."""
+
+
+def _within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except ValueError:
+        return False
 
 
 class ResearchBridge:
-    """
-    Bridges JAYA_RESEARCH discoveries → JAYA_CORE AgenticRAG.
+    """Ingest reviewable knowledge artifacts from a Core-owned inbox."""
 
-    Usage:
-        bridge = ResearchBridge()
-        summary = bridge.sync()
-        print(summary)
-    """
-
-    def __init__(self):
-        self.memory_path = Path(core_config.RESEARCH_MEMORY_PATH)
-        self.rag_db_path = Path(core_config.AGENTIC_RAG_PATH)
+    def __init__(
+        self,
+        *,
+        inbox_path: Path | str | None = None,
+        rag_db_path: Path | str | None = None,
+        core_data_root: Path | str | None = None,
+    ) -> None:
+        self.core_data_root = (
+            Path(core_data_root or core_config.DATA_DIR).expanduser().resolve()
+        )
+        self.inbox_path = (
+            Path(inbox_path or core_config.RESEARCH_MEMORY_PATH).expanduser().resolve()
+        )
+        self.rag_db_path = (
+            Path(rag_db_path or core_config.AGENTIC_RAG_PATH).expanduser().resolve()
+        )
+        for label, path in (
+            ("research inbox", self.inbox_path),
+            ("RAG database", self.rag_db_path),
+        ):
+            if not _within(path, self.core_data_root):
+                raise ResearchInboxError(
+                    f"{label} must remain inside the configured Core data directory"
+                )
         self._ensure_rag_schema()
 
-    # ──────────────────────────────────────────────────────────────────
-    # Public API
-    # ──────────────────────────────────────────────────────────────────
+    def sync(self) -> dict[str, Any]:
+        """Verify the complete inbox, then atomically insert new facts."""
+        artifacts = self._load_verified_artifacts()
+        if not artifacts:
+            return {"status": "no_data", "synced": 0, "skipped": 0}
 
-    def sync(self) -> Dict[str, Any]:
-        """
-        Pull latest discoveries from JAYA_RESEARCH and write them
-        into the CORE AgenticRAG facts store.
-        Returns a summary dict with counts.
-        """
-        discoveries = self._load_research_memory()
-        if not discoveries:
-            logger.info("[Bridge] No research discoveries found at %s", self.memory_path)
-            return {"status": "no_data", "synced": 0}
-
+        facts = [(artifact, self._to_fact(artifact)) for artifact in artifacts]
         new_count = 0
         skipped = 0
-
-        with sqlite3.connect(str(self.rag_db_path)) as conn:
-            for entry in discoveries:
-                entry_id = self._entry_id(entry)
-                if self._already_synced(conn, entry_id):
+        with sqlite3.connect(str(self.rag_db_path)) as connection:
+            for artifact, fact in facts:
+                if self._already_synced(connection, artifact.content_sha256):
                     skipped += 1
                     continue
-
-                fact = self._to_fact(entry)
-                self._insert_fact(conn, entry_id, fact)
+                self._insert_fact(connection, artifact.content_sha256, fact)
                 new_count += 1
-
-        logger.info("[Bridge] Sync complete — new: %d  skipped: %d", new_count, skipped)
         return {
             "status": "ok",
             "synced": new_count,
             "skipped": skipped,
-            "total_discoveries": len(discoveries),
+            "total_artifacts": len(artifacts),
         }
 
-    def status(self) -> Dict[str, Any]:
-        """Return current bridge state without syncing."""
-        discoveries = self._load_research_memory()
-        with sqlite3.connect(str(self.rag_db_path)) as conn:
-            cursor = conn.execute(
-                "SELECT COUNT(*) FROM agentic_facts WHERE source = 'research_bridge'"
-            )
-            synced = cursor.fetchone()[0]
+    def status(self) -> dict[str, Any]:
+        """Return verified inbox and ingestion counts without writing facts."""
+        try:
+            artifacts = self._load_verified_artifacts()
+            inbox_status = "verified"
+            error = None
+        except ResearchInboxError as exc:
+            artifacts = []
+            inbox_status = "invalid"
+            error = str(exc)
+        with sqlite3.connect(str(self.rag_db_path)) as connection:
+            synced = connection.execute(
+                "SELECT COUNT(*) FROM agentic_facts WHERE source = ?",
+                ("research_bridge",),
+            ).fetchone()[0]
         return {
-            "research_memory_exists": self.memory_path.exists(),
-            "total_discoveries": len(discoveries),
+            "inbox_exists": self.inbox_path.exists(),
+            "inbox_status": inbox_status,
+            "verified_artifacts": len(artifacts),
             "already_synced_in_core": synced,
-            "rag_db": str(self.rag_db_path),
+            "error": error,
         }
 
-    # ──────────────────────────────────────────────────────────────────
-    # Internals
-    # ──────────────────────────────────────────────────────────────────
+    def _artifact_paths(self) -> list[Path]:
+        if not self.inbox_path.exists():
+            return []
+        if self.inbox_path.is_symlink():
+            raise ResearchInboxError("research inbox may not be a symbolic link")
+        if self.inbox_path.is_file():
+            return [self.inbox_path]
+        if not self.inbox_path.is_dir():
+            raise ResearchInboxError("research inbox is not a file or directory")
+        paths = sorted(self.inbox_path.glob("*.json"))
+        for path in paths:
+            if path.is_symlink() or not _within(path, self.inbox_path):
+                raise ResearchInboxError("research artifact escapes the inbox")
+        return paths
+
+    def _load_verified_artifacts(self) -> list[VerifiedResearchArtifact]:
+        verified: list[VerifiedResearchArtifact] = []
+        seen_ids: set[str] = set()
+        for path in self._artifact_paths():
+            try:
+                size = path.stat().st_size
+            except OSError as exc:
+                raise ResearchInboxError(
+                    f"cannot inspect inbox artifact {path.name}"
+                ) from exc
+            if size <= 0 or size > _MAX_ARTIFACT_BYTES:
+                raise ResearchInboxError(
+                    f"inbox artifact {path.name} has an invalid size"
+                )
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                artifact = verify_research_artifact(raw)
+            except (
+                OSError,
+                UnicodeError,
+                json.JSONDecodeError,
+                ResearchArtifactVerificationError,
+            ) as exc:
+                raise ResearchInboxError(
+                    f"inbox artifact {path.name} failed verification: {exc}"
+                ) from exc
+            if artifact.artifact_type != "knowledge_candidate":
+                raise ResearchInboxError(
+                    f"inbox artifact {path.name} is not a knowledge candidate"
+                )
+            if artifact.payload.get("executable") is not False:
+                raise ResearchInboxError(
+                    f"inbox artifact {path.name} is not explicitly non-executable"
+                )
+            if artifact.artifact_id in seen_ids:
+                raise ResearchInboxError(
+                    f"duplicate artifact_id in inbox: {artifact.artifact_id}"
+                )
+            seen_ids.add(artifact.artifact_id)
+            verified.append(artifact)
+        return verified
 
     def _ensure_rag_schema(self) -> None:
-        """Create the facts table if it doesn't exist."""
         self.rag_db_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(str(self.rag_db_path)) as conn:
-            conn.execute("""
+        with sqlite3.connect(str(self.rag_db_path)) as connection:
+            connection.execute(
+                """
                 CREATE TABLE IF NOT EXISTS agentic_facts (
                     id          TEXT PRIMARY KEY,
                     source      TEXT NOT NULL,
                     topic       TEXT,
                     content     TEXT NOT NULL,
-                    confidence  REAL DEFAULT 1.0,
+                    confidence  REAL NOT NULL,
                     created_at  REAL NOT NULL
                 )
-            """)
+                """
+            )
 
-    def _load_research_memory(self) -> List[Dict[str, Any]]:
-        """Load evolution_memory.json from JAYA_RESEARCH."""
-        if not self.memory_path.exists():
-            return []
-        try:
-            with open(self.memory_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            # The memory file may be a list or a dict with 'discoveries' key
-            if isinstance(data, list):
-                return data
-            if isinstance(data, dict):
-                return data.get("discoveries", data.get("entries", []))
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("[Bridge] Failed to load research memory: %s", exc)
-        return []
-
-    def _entry_id(self, entry: Dict[str, Any]) -> str:
-        """Stable deterministic ID from entry content hash."""
-        raw = json.dumps(entry, sort_keys=True, default=str).encode()
-        return hashlib.sha256(raw).hexdigest()[:32]
-
-    def _already_synced(self, conn: sqlite3.Connection, entry_id: str) -> bool:
-        cursor = conn.execute(
-            "SELECT 1 FROM agentic_facts WHERE id = ?", (entry_id,)
+    @staticmethod
+    def _already_synced(connection: sqlite3.Connection, digest: str) -> bool:
+        return (
+            connection.execute(
+                "SELECT 1 FROM agentic_facts WHERE id = ?", (digest,)
+            ).fetchone()
+            is not None
         )
-        return cursor.fetchone() is not None
 
-    def _to_fact(self, entry: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert a research memory entry into a structured RAG fact."""
-        # Common keys used by JAYA_RESEARCH evolution_memory
-        topic = (
-            entry.get("topic")
-            or entry.get("query")
-            or entry.get("name")
-            or "Unknown Discovery"
-        )
-        content_parts = []
-        if entry.get("summary"):
-            content_parts.append(f"Summary: {entry['summary']}")
-        if entry.get("hypothesis"):
-            content_parts.append(f"Hypothesis: {entry['hypothesis']}")
-        if entry.get("findings"):
-            findings = entry["findings"]
-            if isinstance(findings, list):
-                content_parts.append("Findings: " + "; ".join(str(f) for f in findings[:5]))
-            else:
-                content_parts.append(f"Findings: {findings}")
-        if not content_parts:
-            content_parts.append(json.dumps(entry, default=str)[:512])
-
+    @staticmethod
+    def _to_fact(artifact: VerifiedResearchArtifact) -> dict[str, Any]:
+        statement = str(artifact.payload.get("statement") or "").strip()
+        if not statement:
+            raise ResearchInboxError(
+                f"knowledge candidate {artifact.artifact_id} has no statement"
+            )
         return {
-            "topic": str(topic),
-            "content": "\n".join(content_parts),
-            "confidence": float(entry.get("confidence", 0.9)),
+            "topic": artifact.subject,
+            "content": statement,
+            "confidence": artifact.confidence,
         }
 
+    @staticmethod
     def _insert_fact(
-        self, conn: sqlite3.Connection, entry_id: str, fact: Dict[str, Any]
+        connection: sqlite3.Connection,
+        digest: str,
+        fact: dict[str, Any],
     ) -> None:
-        conn.execute(
-            """INSERT INTO agentic_facts (id, source, topic, content, confidence, created_at)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+        connection.execute(
+            """
+            INSERT INTO agentic_facts
+                (id, source, topic, content, confidence, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
             (
-                entry_id,
+                digest,
                 "research_bridge",
                 fact["topic"],
                 fact["content"],
@@ -179,22 +226,18 @@ class ResearchBridge:
                 time.time(),
             ),
         )
-        logger.debug("[Bridge] Inserted fact: %s", fact["topic"])
 
 
-# ── CLI entry point ────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
-    bridge = ResearchBridge()
-
     import argparse
-    parser = argparse.ArgumentParser(description="JAYA Research → Core Discovery Bridge")
-    parser.add_argument("--status", action="store_true", help="Show bridge status without syncing")
-    args = parser.parse_args()
 
-    if args.status:
-        result = bridge.status()
-    else:
-        result = bridge.sync()
-
+    parser = argparse.ArgumentParser(
+        description="Verify and ingest the configured Core research inbox"
+    )
+    parser.add_argument(
+        "--status", action="store_true", help="inspect without ingesting artifacts"
+    )
+    arguments = parser.parse_args()
+    bridge = ResearchBridge()
+    result = bridge.status() if arguments.status else bridge.sync()
     print(json.dumps(result, indent=2))

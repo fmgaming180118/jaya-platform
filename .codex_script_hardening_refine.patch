@@ -1,0 +1,254 @@
+diff --git a/JAYA_CORE/scripts/benchmark_phase1_ir.py b/JAYA_CORE/scripts/benchmark_phase1_ir.py
+index 8d970fc..31ea9ac 100644
+--- a/JAYA_CORE/scripts/benchmark_phase1_ir.py
++++ b/JAYA_CORE/scripts/benchmark_phase1_ir.py
+@@ -18,6 +18,10 @@ from pathlib import Path
+ from typing import List, Sequence, Tuple
+ 
+ ROOT = Path(__file__).resolve().parents[1]
++WORKSPACE_ROOT = ROOT.parent
++BENCHMARK_REPORT_ROOT = (WORKSPACE_ROOT / "reports" / "benchmarks").resolve(
++    strict=False
++)
+ sys.path.insert(0, str(ROOT))
+ 
+ from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor  # noqa: E402
+@@ -239,12 +243,28 @@ def _build_parser() -> argparse.ArgumentParser:
+     return p
+ 
+ 
++def _resolve_json_output(path: str) -> Path:
++    candidate = Path(path).expanduser()
++    if not candidate.is_absolute():
++        candidate = Path.cwd() / candidate
++    output = candidate.resolve(strict=False)
++    try:
++        output.relative_to(BENCHMARK_REPORT_ROOT)
++    except ValueError as exc:
++        raise ValueError(
++            f"benchmark JSON must stay inside {BENCHMARK_REPORT_ROOT}: {output}"
++        ) from exc
++    if output.suffix.casefold() != ".json":
++        raise ValueError(f"benchmark output must use .json: {output}")
++    return output
++
++
+ def _write_json(path: str, results: Sequence[BenchmarkResult]) -> None:
+     data = {
+         "results": [asdict(r) for r in results],
+         "best": asdict(min(results, key=lambda x: (x.warm_p50_ms, x.warm_p95_ms))),
+     }
+-    out_path = Path(path)
++    out_path = _resolve_json_output(path)
+     out_path.parent.mkdir(parents=True, exist_ok=True)
+     out_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+ 
+diff --git a/JAYA_CORE/scripts/backup_source.py b/JAYA_CORE/scripts/backup_source.py
+index b0da2b6..6e14dab 100644
+--- a/JAYA_CORE/scripts/backup_source.py
++++ b/JAYA_CORE/scripts/backup_source.py
+@@ -89,6 +89,14 @@ def create_backup(
+     mirror_dir: Path | None = None,
+ ) -> Path:
+     """Create, verify, and optionally mirror a source archive."""
++    source_dir = resolve_contained(
++        source_dir,
++        must_exist=True,
++        directory=True,
++    )
++    backup_dir = resolve_contained(backup_dir)
++    if mirror_dir is not None:
++        mirror_dir = resolve_mirror_dir(mirror_dir, source_dir=source_dir)
+     if _is_relative_to(backup_dir, source_dir):
+         raise ValueError("backup directory cannot be inside the source directory")
+ 
+diff --git a/JAYA_CORE/scripts/convert_to_gguf.py b/JAYA_CORE/scripts/convert_to_gguf.py
+index ec06fdf..be9c76d 100644
+--- a/JAYA_CORE/scripts/convert_to_gguf.py
++++ b/JAYA_CORE/scripts/convert_to_gguf.py
+@@ -152,20 +152,25 @@ def merge_adapter(
+     except ImportError as exc:
+         raise RuntimeError("conversion requires torch, transformers, and peft") from exc
+ 
+-    base = AutoModelForCausalLM.from_pretrained(
+-        base_model,
+-        torch_dtype=torch.float16,
+-        device_map="cpu",
+-        trust_remote_code=trust_remote_code,
+-    )
+-    model = PeftModel.from_pretrained(base, str(adapter_path))
+-    merged = model.merge_and_unload()
+-    merged.save_pretrained(merged_dir)
+-    tokenizer = AutoTokenizer.from_pretrained(
+-        base_model,
+-        trust_remote_code=trust_remote_code,
+-    )
+-    tokenizer.save_pretrained(merged_dir)
++    try:
++        base = AutoModelForCausalLM.from_pretrained(
++            base_model,
++            torch_dtype=torch.float16,
++            device_map="cpu",
++            trust_remote_code=trust_remote_code,
++        )
++        model = PeftModel.from_pretrained(base, str(adapter_path))
++        merged = model.merge_and_unload()
++        merged.save_pretrained(merged_dir)
++        tokenizer = AutoTokenizer.from_pretrained(
++            base_model,
++            trust_remote_code=trust_remote_code,
++        )
++        tokenizer.save_pretrained(merged_dir)
++    except Exception as exc:
++        raise RuntimeError(
++            f"model merge failed for {base_model}: {type(exc).__name__}"
++        ) from exc
+ 
+ 
+ def verify_gguf(path: Path) -> None:
+@@ -300,7 +305,7 @@ def convert(args: argparse.Namespace) -> tuple[Path, Path]:
+                     str(quantizer),
+                     str(f16_path),
+                     str(staged_final),
+-                    args.quantization,
++                    args.quantization.upper(),
+                 ],
+                 cwd=llama_cpp_dir,
+                 timeout_seconds=args.timeout_seconds,
+@@ -325,10 +330,10 @@ def convert(args: argparse.Namespace) -> tuple[Path, Path]:
+         "created_at": datetime.now(UTC).isoformat(),
+     }
+     staged_manifest = manifest_path.with_suffix(manifest_path.suffix + ".tmp")
+-    staged_manifest.write_text(
+-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+-        encoding="utf-8",
+-    )
++    with staged_manifest.open("x", encoding="utf-8") as handle:
++        handle.write(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n")
++        handle.flush()
++        os.fsync(handle.fileno())
+     staged_manifest.replace(manifest_path)
+     return final_path, manifest_path
+ 
+diff --git a/JAYA_RESEARCH/scripts/process_ta_fachri.py b/JAYA_RESEARCH/scripts/process_ta_fachri.py
+index 18a2aff..ce3bd80 100644
+--- a/JAYA_RESEARCH/scripts/process_ta_fachri.py
++++ b/JAYA_RESEARCH/scripts/process_ta_fachri.py
+@@ -56,6 +56,15 @@ def resolve_output_dir(raw_path: str | os.PathLike[str]) -> Path:
+     return output_dir
+ 
+ 
++def resolve_output_child(parent: Path, *parts: str) -> Path:
++    """Resolve a generated child and refuse symlink/path escapes."""
++    resolved_parent = parent.resolve(strict=True)
++    child = resolved_parent.joinpath(*parts).resolve(strict=False)
++    if not _is_relative_to(child, resolved_parent):
++        raise ValueError(f"output artifact escapes {resolved_parent}: {child}")
++    return child
++
++
+ class TugasAkhirProcessor:
+     """Process Tugas Akhir PDF and create structured markdown output"""
+ 
+@@ -63,20 +72,34 @@ class TugasAkhirProcessor:
+         self.pdf_path = resolve_pdf_path(pdf_path)
+         self.output_dir = resolve_output_dir(output_dir)
+         self.output_dir.mkdir(parents=True, exist_ok=True)
++        self.output_dir = self.output_dir.resolve(strict=True)
+ 
+         # Initialize LLM for analysis
+         self.teacher = Teacher(model_type="reasoning")
+ 
+         # Folder name from PDF
+         self.folder_name = self.sanitize_folder_name(self.pdf_path.name)
+-        self.journal_folder = self.output_dir / self.folder_name
++        self.journal_folder = resolve_output_child(
++            self.output_dir,
++            self.folder_name,
++        )
++        if self.journal_folder.exists() and not self.journal_folder.is_dir():
++            raise ValueError(
++                f"journal output is not a directory: {self.journal_folder}"
++            )
+         self.journal_folder.mkdir(parents=True, exist_ok=True)
++        self.journal_folder = self.journal_folder.resolve(strict=True)
++
++    @staticmethod
++    def sanitize_folder_name(name: str) -> str:
++        """Create a bounded, traversal-safe folder name from a PDF filename."""
++        stem = Path(name).stem
++        sanitized = re.sub(r"[^\w\-_]", "_", stem).strip("._")
++        return (sanitized or "document")[:100]
+ 
+-    def sanitize_folder_name(self, name: str) -> str:
+-        """Create safe folder name from PDF filename"""
+-        name = name.replace(".pdf", "")
+-        name = re.sub(r"[^\w\-_]", "_", name)
+-        return name[:100]
++    def artifact_path(self, *parts: str) -> Path:
++        """Return a path contained by this document's journal directory."""
++        return resolve_output_child(self.journal_folder, *parts)
+ 
+     def extract_with_pdfplumber(self) -> Dict[str, Any]:
+         """Extract text, tables using pdfplumber"""
+@@ -105,7 +128,7 @@ class TugasAkhirProcessor:
+     def extract_images_with_pymupdf(self) -> List[Dict[str, Any]]:
+         """Extract images using PyMuPDF"""
+         images = []
+-        images_folder = self.journal_folder / "images"
++        images_folder = self.artifact_path("images")
+         images_folder.mkdir(parents=True, exist_ok=True)
+ 
+         doc = fitz.open(str(self.pdf_path))
+@@ -423,7 +446,7 @@ Format output sebagai JSON dengan keys:
+ 
+         try:
+             # Copy PDF to output folder
+-            pdf_copy = self.journal_folder / self.pdf_path.name
++            pdf_copy = self.artifact_path(self.pdf_path.name)
+             shutil.copy2(self.pdf_path, pdf_copy)
+             print(f"✓ PDF disalin ke: {pdf_copy}")
+ 
+@@ -432,7 +455,7 @@ Format output sebagai JSON dengan keys:
+             pdfplumber_data = self.extract_with_pdfplumber()
+ 
+             # Save full text
+-            text_file = self.journal_folder / "full_text.txt"
++            text_file = self.artifact_path("full_text.txt")
+             with open(text_file, "w", encoding="utf-8") as f:
+                 f.write(pdfplumber_data["full_text"])
+             print(f"✓ Teks lengkap disimpan: {text_file}")
+@@ -452,7 +475,7 @@ Format output sebagai JSON dengan keys:
+             llm_analysis = self.analyze_with_llm(pdfplumber_data["full_text"])
+ 
+             # Save LLM analysis
+-            analysis_file = self.journal_folder / "analysis.json"
++            analysis_file = self.artifact_path("analysis.json")
+             with open(analysis_file, "w", encoding="utf-8") as f:
+                 json.dump(llm_analysis, f, ensure_ascii=False, indent=2)
+             print(f"✓ Analisis LLM disimpan: {analysis_file}")
+@@ -463,13 +486,13 @@ Format output sebagai JSON dengan keys:
+                 pdfplumber_data, images, llm_analysis, references_text
+             )
+ 
+-            md_file = self.journal_folder / f"{self.folder_name}.md"
++            md_file = self.artifact_path(f"{self.folder_name}.md")
+             with open(md_file, "w", encoding="utf-8") as f:
+                 f.write(markdown_content)
+             print(f"✓ Markdown dibuat: {md_file}")
+ 
+             # Save references
+-            ref_file = self.journal_folder / "references.txt"
++            ref_file = self.artifact_path("references.txt")
+             with open(ref_file, "w", encoding="utf-8") as f:
+                 f.write(references_text)
+             print(f"✓ Referensi disimpan: {ref_file}")
+@@ -490,7 +513,7 @@ Format output sebagai JSON dengan keys:
+                 "images_folder": "images/",
+             }
+ 
+-            summary_file = self.journal_folder / "summary.json"
++            summary_file = self.artifact_path("summary.json")
+             with open(summary_file, "w", encoding="utf-8") as f:
+                 json.dump(summary, f, ensure_ascii=False, indent=2)
+ 

@@ -31,6 +31,6 @@ class SmartDeviceRegistry {
         val current = _devices.value.toMutableList()
         current.add(device)
         _devices.value = current
-        Log.d("SmartDeviceRegistry", "Registered new IoT device: ${device.name} in ${device.room}")
+        Log.i("SmartDeviceRegistry", "IoT device registration updated")
     }
 }

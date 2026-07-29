@@ -61,6 +61,13 @@ class MessageType(str, Enum):
     NAK = "nak"
 
 
+class IPCFailureCode(str, Enum):
+    """Stable failure codes returned by fail-closed IPC boundaries."""
+
+    NOT_AUTHORIZED = "NOT_AUTHORIZED"
+    NOT_IMPLEMENTED = "NOT_IMPLEMENTED"
+
+
 @dataclass
 class IPCMessage:
     """IPC message envelope."""
@@ -415,7 +422,7 @@ class BrainIPCClient:
         return response.payload
 
     async def execute_code(self, code: str, context: Dict = None) -> Dict[str, Any]:
-        """Execute arbitrary code in kernel context."""
+        """Request code execution through the fail-closed kernel boundary."""
         msg = IPCMessage.create(
             MessageType.SYS_EXEC_CODE,
             {"code": code, "context": context or {}},
@@ -692,17 +699,26 @@ class KernelIPCServer:
         return IPCMessage.response(message, True, {"status": "not_implemented"})
 
     async def _handle_exec_code(self, message: IPCMessage) -> IPCMessage:
-        # SECURITY: This should be heavily restricted or removed in production
-        code = message.payload.get("code", "")
-        context = message.payload.get("context", {})
+        """Reject direct execution until the ActionPlan protocol is integrated.
 
-        try:
-            # Execute in restricted context
-            local_vars = {"__builtins__": {}, **context}
-            exec(code, local_vars)
-            return IPCMessage.response(message, True, {"result": "executed"})
-        except Exception as e:
-            return IPCMessage.response(message, False, error=str(e))
+        An IPC payload is not authorization and cannot produce execution evidence.
+        The future implementation must accept a policy-authorized ActionPlan and
+        return a signed ExecutionReceipt from the policy-bound executor.
+        """
+
+        return IPCMessage.response(
+            message,
+            False,
+            data={
+                "code": IPCFailureCode.NOT_AUTHORIZED.value,
+                "execution_status": "PLAN_ONLY",
+                "required_evidence": "signed_execution_receipt",
+            },
+            error=(
+                "direct code execution is disabled; a policy-authorized "
+                "ActionPlan is required"
+            ),
+        )
 
     async def _handle_save_file(self, message: IPCMessage) -> IPCMessage:
         path = message.payload.get("path", "")

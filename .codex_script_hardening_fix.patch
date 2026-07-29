@@ -1,0 +1,66 @@
+diff --git a/JAYA_CORE/scripts/benchmark_phase1_ir.py b/JAYA_CORE/scripts/benchmark_phase1_ir.py
+index 6b0f367..8d970fc 100644
+--- a/JAYA_CORE/scripts/benchmark_phase1_ir.py
++++ b/JAYA_CORE/scripts/benchmark_phase1_ir.py
+@@ -20,8 +20,8 @@ from typing import List, Sequence, Tuple
+ ROOT = Path(__file__).resolve().parents[1]
+ sys.path.insert(0, str(ROOT))
+ 
+-from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor
+-from src.brain_v2.soul.lingua_logica import LinguaLogica
++from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor  # noqa: E402
++from src.brain_v2.soul.lingua_logica import LinguaLogica  # noqa: E402
+ 
+ DESKTOP_ACTION_INTENTS: Sequence[str] = (
+     "open desktop",
+@@ -142,11 +142,13 @@ def evaluate_gate(results: Sequence[BenchmarkResult], gate: GateConfig) -> GateS
+     for r in results:
+         if r.warm_p50_ms > gate.max_warm_p50_ms:
+             failures.append(
+-                f"{r.label}: warm_p50_ms={r.warm_p50_ms:.4f} > {gate.max_warm_p50_ms:.4f}"
++                f"{r.label}: warm_p50_ms={r.warm_p50_ms:.4f} > "
++                f"{gate.max_warm_p50_ms:.4f}"
+             )
+         if r.warm_p95_ms > gate.max_warm_p95_ms:
+             failures.append(
+-                f"{r.label}: warm_p95_ms={r.warm_p95_ms:.4f} > {gate.max_warm_p95_ms:.4f}"
++                f"{r.label}: warm_p95_ms={r.warm_p95_ms:.4f} > "
++                f"{gate.max_warm_p95_ms:.4f}"
+             )
+         if r.cache_hit_rate < gate.min_hit_rate:
+             failures.append(
+@@ -154,11 +156,13 @@ def evaluate_gate(results: Sequence[BenchmarkResult], gate: GateConfig) -> GateS
+             )
+         if r.warm_p50_ms > r.cold_p50_ms:
+             failures.append(
+-                f"{r.label}: warm_p50_ms={r.warm_p50_ms:.4f} worse than cold_p50_ms={r.cold_p50_ms:.4f}"
++                f"{r.label}: warm_p50_ms={r.warm_p50_ms:.4f} worse than "
++                f"cold_p50_ms={r.cold_p50_ms:.4f}"
+             )
+         if r.warm_p95_ms > r.cold_p95_ms:
+             failures.append(
+-                f"{r.label}: warm_p95_ms={r.warm_p95_ms:.4f} worse than cold_p95_ms={r.cold_p95_ms:.4f}"
++                f"{r.label}: warm_p95_ms={r.warm_p95_ms:.4f} worse than "
++                f"cold_p95_ms={r.cold_p95_ms:.4f}"
+             )
+     return GateStatus(passed=(len(failures) == 0), failures=failures)
+ 
+diff --git a/JAYA_RESEARCH/scripts/process_ta_fachri.py b/JAYA_RESEARCH/scripts/process_ta_fachri.py
+index e2bc342..18a2aff 100644
+--- a/JAYA_RESEARCH/scripts/process_ta_fachri.py
++++ b/JAYA_RESEARCH/scripts/process_ta_fachri.py
+@@ -1,4 +1,5 @@
+ #!/usr/bin/env python3
++# ruff: noqa: E501
+ """
+ Process a single PDF (Tugas Akhir) - Extract text, images, tables, references
+ Creates organized folder with markdown file
+@@ -23,7 +24,7 @@ SRC_DIR = PROJECT_ROOT / "src"
+ sys.path.insert(0, str(SRC_DIR))
+ sys.path.insert(0, str(PROJECT_ROOT))
+ 
+-from teacher import Teacher
++from teacher import Teacher  # noqa: E402
+ 
+ 
+ def _is_relative_to(path: Path, root: Path) -> bool:

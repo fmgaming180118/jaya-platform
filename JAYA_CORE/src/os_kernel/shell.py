@@ -569,9 +569,14 @@ class ShellIntegration:
         if not scene_json:
             return {"success": False, "error": "scene required"}
 
-        from src.os_kernel.ui_spec import SceneGraph
+        from src.os_kernel.feature_compiler import compile_scene_to_feature
+
         scene = SceneGraph.from_json(scene_json)
-        output_path = compile_scene_to_feature(scene, self.shell.features_dir, feature_name)
+        output_path = compile_scene_to_feature(
+            scene,
+            self.shell.features_dir,
+            feature_name,
+        )
         return {"success": True, "feature_path": str(output_path)}
 
     async def _handle_mount_feature(self, params: Dict) -> Dict[str, Any]:

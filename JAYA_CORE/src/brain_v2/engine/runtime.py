@@ -46,6 +46,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, cast
 
+from src.brain_v2.model.readiness import (
+    ModelFailureCode,
+    ModelReadinessReport,
+    ModelReadinessState,
+    ModelUnavailableError,
+)
+
 logger = logging.getLogger("IronEngine")
 
 JAYA_IR_CACHE_SIZE = 768
@@ -189,13 +196,19 @@ class IronEngine:
                  enable_voice: bool = False,
                  enable_twin: bool = False,
                  omniverse_requested: bool = False,
-                 evolution_test_mode: bool = False):
+                 evolution_test_mode: bool = False,
+                 expected_model_sha256: str | None = None,
+                 tokenizer_path: str | None = None,
+                 model_probe: Callable[[Any, Any, Any], bool] | None = None):
         self.model_path          = model_path
         self.password            = password
         self.enable_voice        = enable_voice
         self.enable_twin         = enable_twin
         self.omniverse_requested = omniverse_requested
         self.evolution_test_mode = bool(evolution_test_mode)
+        self._expected_model_sha256 = expected_model_sha256
+        self._tokenizer_path = tokenizer_path
+        self._model_probe = model_probe
 
         self.is_awake = False
         self.twin: Optional[Any] = None
@@ -231,9 +244,15 @@ class IronEngine:
         # V18 additions
         self.nano_mode:         bool          = False   # True when pure-NumPy path
         self._nano_model:      Optional[Any] = None   # NanoModel instance
+        self._nano_tokenizer:  Optional[Any] = None
+        self._model_readiness = ModelReadinessReport(
+            ModelReadinessState.UNAVAILABLE,
+            ModelFailureCode.NOT_LOADED,
+        )
         self._meta_cognitive:  Optional[Any] = None   # Pillar 38 MetaCognitivePlanner
         self._self_bootstrap:  Optional[Any] = None   # Pillar 28 SelfBootstrap
         self._live_evolver:    Optional[Any] = None   # LiveEvolver for micro-evolution
+        self._auto_research_patch: Optional[Any] = None
         self._indonesian_responder: Optional[Any] = None  # Pillar 21 — Indonesian NLG
         self._agentic_source_policy: Dict[str, Dict[str, Any]] = {
             "local_rag": {
@@ -294,6 +313,15 @@ class IronEngine:
             logger.warning("Model file not found (%s) — proceeding in stub mode",
                            self.model_path)
             self._startup_issues.append("model_file_missing_stub_mode")
+            self._model_readiness = ModelReadinessReport(
+                ModelReadinessState.UNAVAILABLE,
+                ModelFailureCode.ARTIFACT_MISSING,
+            )
+
+        if not self._model_readiness.ready:
+            issue = f"model_{self._model_readiness.code.value}"
+            if issue not in self._startup_issues:
+                self._startup_issues.append(issue)
 
         self.is_awake = True
 
@@ -323,75 +351,120 @@ class IronEngine:
         """Return startup and degraded-mode summary for production operations."""
         degraded = len(self._startup_issues) > 0
         return {
-            "ok": not degraded,
+            "ok": not degraded and self._model_readiness.ready,
             "degraded_mode": degraded,
             "issues": list(self._startup_issues),
             "model_path": self.model_path,
             "nano_mode": self.nano_mode,
+            "model_readiness": self._model_readiness.as_dict(),
         }
 
+    @property
+    def model_readiness(self) -> ModelReadinessReport:
+        """Return the typed, redacted inference readiness report."""
+
+        return self._model_readiness
+
+    def is_ready(self) -> bool:
+        """Service readiness contract; ``is_awake`` alone is insufficient."""
+
+        return self.is_awake and self._model_readiness.ready
+
     def _try_load_nano_model(self) -> None:
-        """V18: attempt to load NanoModel from IRON_BODY_PACKED section.
+        """Load a checksum-bound Nano artifact and run real inference."""
 
-        Reads the first 128 bytes of the .jay header and checks for the
-        PACKED_WEIGHTS flag (bit 42).  If present, unpacks 2-bit weights
-        into a NanoModel (pure NumPy, zero Numba dependency).
-        """
-        import struct
-        PACKED_WEIGHTS_BIT = 1 << 42
+        self.nano_mode = False
+        self._nano_model = None
+        self._nano_tokenizer = None
         try:
-            with open(self.model_path, "rb") as f:
-                header = f.read(128)
-            if len(header) < 16:
-                return
-            flags = struct.unpack_from("<Q", header, 8)[0]
-            if not (flags & PACKED_WEIGHTS_BIT):
-                logger.info("[V18] PACKED_WEIGHTS flag not set — legacy model path")
-                return
-
-            from src.brain_v2.format.packer import unpack_state_dict
-            from src.brain_v2.model.nano_inference import (
-                NANO_CONFIG,
-                STANDARD_CONFIG,
-                NanoModel,
+            from src.brain_v2.model.nano_artifact import (
+                NanoArtifactError,
+                load_verified_nano_artifact,
             )
-            # unpack_state_dict returns dict[str, Any] after our update
-            NANO_PROFILE_BIT = 1 << 43
-            cfg = NANO_CONFIG if (flags & NANO_PROFILE_BIT) else STANDARD_CONFIG
-            model = NanoModel(config=cfg)
 
-            try:
-                section_offset = 128
-                SECTION_HDR = 24
-                FOOTER_SIZE = 32
-                file_size = os.path.getsize(self.model_path)
-                with open(self.model_path, "rb") as f:
-                    raw = f.read()
-                while section_offset + SECTION_HDR <= file_size - FOOTER_SIZE:
-                    sec_type   = struct.unpack_from("<I", raw, section_offset)[0]
-                    sec_size   = struct.unpack_from("<q", raw, section_offset + 8)[0]
-                    sec_off_pl = struct.unpack_from("<q", raw, section_offset + 16)[0]
-                    if sec_type == 6 and sec_size > 0:
-                        payload = raw[sec_off_pl : sec_off_pl + sec_size]
-                        # type hints help static analysers understand the mapping
-                        state_dict: dict[str, Any] = unpack_state_dict(payload)
-                        model.load_state_dict(state_dict)
-                        logger.info("[V18] NanoModel loaded from IRON_BODY_PACKED (%d B packed)", sec_size)
-                        break
-                    section_offset += SECTION_HDR
-                else:
-                    model.random_init()
-                    logger.info("[V18] IRON_BODY_PACKED not found — random-init NanoModel")
-            except Exception as exc:
-                model.random_init()
-                logger.warning("[V18] weight unpack failed (%s) — random-init NanoModel", exc)
+            loaded = load_verified_nano_artifact(
+                self.model_path,
+                expected_sha256=self._expected_model_sha256,
+                tokenizer_path=self._tokenizer_path,
+            )
+        except NanoArtifactError as exc:
+            degraded_codes = {
+                ModelFailureCode.CHECKSUM_MISSING,
+                ModelFailureCode.CONFIG_INVALID,
+                ModelFailureCode.RANDOM_WEIGHTS,
+                ModelFailureCode.TOKENIZER_INVALID,
+                ModelFailureCode.TOKENIZER_MISSING,
+            }
+            state = (
+                ModelReadinessState.DEGRADED
+                if exc.code in degraded_codes
+                else ModelReadinessState.UNAVAILABLE
+            )
+            self._model_readiness = ModelReadinessReport(state, exc.code)
+            logger.warning("Nano artifact rejected: %s", exc.code.value)
+            return
 
-            self._nano_model = model
-            self.nano_mode   = True
-            logger.info("[V18] NANO_MODE=True | config=%s", cfg)
+        from src.brain_v2.model.nano_inference import (
+            NANO_CONFIG,
+            STANDARD_CONFIG,
+            NanoModel,
+        )
 
-        except Exception as exc:
-            logger.warning("[V18] NanoModel load failed (%s) — legacy path", exc)
+        config = NANO_CONFIG if loaded.nano_profile else STANDARD_CONFIG
+        required_config = ("d_model", "n_layers", "n_heads", "vocab_size")
+        if any(loaded.config.get(key) != config[key] for key in required_config):
+            self._model_readiness = ModelReadinessReport(
+                ModelReadinessState.UNAVAILABLE,
+                ModelFailureCode.CONFIG_INVALID,
+                artifact_sha256=loaded.artifact_sha256,
+                tokenizer_sha256=loaded.tokenizer_sha256,
+            )
+            logger.warning("Nano artifact rejected: config_invalid")
+            return
+
+        model = NanoModel(config=config)
+        try:
+            model.load_state_dict(
+                loaded.state_dict,
+                artifact_sha256=loaded.artifact_sha256,
+            )
+            token_ids = loaded.tokenizer.encode("jaya readiness probe")
+            if not token_ids or any(
+                isinstance(token_id, bool)
+                or not isinstance(token_id, int)
+                or not 0 <= token_id < model.vocab_size
+                for token_id in token_ids
+            ):
+                raise ModelUnavailableError(ModelFailureCode.TOKENIZER_INVALID)
+
+            logits = model.forward(token_ids)
+            import numpy as np
+
+            if (
+                logits.shape != (len(token_ids), model.vocab_size)
+                or not np.all(np.isfinite(logits))
+                or not np.any(logits != 0)
+            ):
+                raise ModelUnavailableError(ModelFailureCode.PROBE_FAILED)
+            if self._model_probe is not None and not bool(
+                self._model_probe(model, loaded.tokenizer, logits)
+            ):
+                raise ModelUnavailableError(ModelFailureCode.PROBE_FAILED)
+            model.record_probe_success(loaded.tokenizer_sha256)
+        except ModelUnavailableError as exc:
+            model.record_probe_failure(exc.code)
+        except Exception:
+            model.record_probe_failure(ModelFailureCode.PROBE_FAILED)
+
+        self._model_readiness = model.readiness
+        if not model.readiness.ready:
+            logger.warning("Nano inference probe failed: %s", model.readiness.code.value)
+            return
+
+        self._nano_model = model
+        self._nano_tokenizer = loaded.tokenizer
+        self.nano_mode = True
+        logger.info("NANO_MODE ready with verified artifact and tokenizer")
 
     def _init_twin(self):
         try:
@@ -570,14 +643,9 @@ class IronEngine:
         except ImportError as exc:
             logger.warning("MorphicKernel unavailable: %s", exc)
 
-        try:
-            from src.brain_v2.engine.auto_research_patch import (
-                QuantizedAttentionSparsityEngine,
-            )
-            self._auto_research_patch = QuantizedAttentionSparsityEngine()
-            logger.info("[Autonomous Research Patch] QuantizedAttentionSparsityEngine integrated into IronEngine")
-        except ImportError as exc:
-            logger.warning("Auto Research Patch unavailable: %s", exc)
+        # The legacy auto_research_patch module is deliberately quarantined.
+        # Runtime changes may enter Core only through the signed EvolutionGate.
+        self._auto_research_patch = None
 
         try:
             from src.brain_v2.engine.evolution_gate import (
@@ -969,6 +1037,7 @@ class IronEngine:
         startup = self.startup_summary()
         checks: Dict[str, bool] = {
             "engine_awake": bool(status.get("is_awake")),
+            "model_ready": self._model_readiness.ready,
             "lingua_ready": isinstance(status.get("lingua"), dict),
             "jaya_ir_ready": isinstance(status.get("jaya_ir"), dict),
             "zero_trust_ready": isinstance(status.get("zero_trust"), dict),
@@ -996,6 +1065,7 @@ class IronEngine:
 
         gates: Dict[str, bool] = {
             "health_ok": bool(health.get("ok")),
+            "model_ready": self._model_readiness.ready,
             "observability_ready": isinstance(status.get("meta_cognitive"), dict),
             "resource_monitor_ready": isinstance(status.get("resource_mon"), dict),
             "policy_guardrails_ready": isinstance(guardrails, dict) and ("risk_level" in guardrails),
@@ -1995,6 +2065,7 @@ class IronEngine:
             "resource_mon":   self._resource_mon.status()    if self._resource_mon    else None,
             # V18 additions
             "nano_mode":      self.nano_mode,
+            "model_readiness": self._model_readiness.as_dict(),
             "meta_cognitive": (self._meta_cognitive.status()
                                if self._meta_cognitive is not None else None),
             "self_bootstrap": (self._self_bootstrap.status()

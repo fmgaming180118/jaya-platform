@@ -1,0 +1,76 @@
+"""Deterministic route-contract validation for the Research API."""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from typing import Iterable
+
+from fastapi import FastAPI
+from fastapi.routing import APIRoute
+
+_PATH_PARAMETER = re.compile(r"\{[^}:]+(?P<converter>:[^}]+)?\}")
+_IGNORED_METHODS = frozenset({"HEAD", "OPTIONS"})
+
+
+class RouteContractError(RuntimeError):
+    """Raised when two endpoints compete for the same method and path shape."""
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class RouteRecord:
+    method: str
+    path: str
+    normalized_path: str
+    endpoint: str
+
+
+def _normalize_path(path: str) -> str:
+    """Ignore parameter names while retaining explicit path converters."""
+
+    def replace(match: re.Match[str]) -> str:
+        return "{" + (match.group("converter") or "") + "}"
+
+    return _PATH_PARAMETER.sub(replace, path.rstrip("/") or "/")
+
+
+def iter_route_records(app: FastAPI) -> Iterable[RouteRecord]:
+    for route in app.routes:
+        if not isinstance(route, APIRoute):
+            continue
+        endpoint = f"{route.endpoint.__module__}.{route.endpoint.__qualname__}"
+        for method in sorted((route.methods or set()) - _IGNORED_METHODS):
+            yield RouteRecord(
+                method=method.upper(),
+                path=route.path,
+                normalized_path=_normalize_path(route.path),
+                endpoint=endpoint,
+            )
+
+
+def validate_route_contract(app: FastAPI) -> tuple[RouteRecord, ...]:
+    """Return a stable route inventory or fail closed on ambiguous routes."""
+    records = tuple(sorted(iter_route_records(app)))
+    seen: dict[tuple[str, str], RouteRecord] = {}
+    conflicts: list[tuple[RouteRecord, RouteRecord]] = []
+    for record in records:
+        key = (record.method, record.normalized_path)
+        previous = seen.setdefault(key, record)
+        if previous.endpoint != record.endpoint or previous.path != record.path:
+            conflicts.append((previous, record))
+    if conflicts:
+        details = "; ".join(
+            f"{left.method} {left.normalized_path}: "
+            f"{left.endpoint} conflicts with {right.endpoint}"
+            for left, right in sorted(conflicts)
+        )
+        raise RouteContractError(f"Ambiguous Research API route contract: {details}")
+    return records
+
+
+__all__ = [
+    "RouteContractError",
+    "RouteRecord",
+    "iter_route_records",
+    "validate_route_contract",
+]

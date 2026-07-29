@@ -33,14 +33,14 @@ class NetworkDiscoveryManager(context: Context) {
         }
 
         override fun onServiceFound(service: NsdServiceInfo) {
-            Log.d("NetworkDiscovery", "Service found: ${service.serviceName}")
+            Log.d("NetworkDiscovery", "Compatible service discovered")
             if (service.serviceType == serviceType) {
                 nsdManager.resolveService(service, resolveListener)
             }
         }
 
         override fun onServiceLost(service: NsdServiceInfo) {
-            Log.d("NetworkDiscovery", "Service lost: ${service.serviceName}")
+            Log.d("NetworkDiscovery", "Compatible service lost")
             _discoveredServers.value = _discoveredServers.value.filter { it.name != service.serviceName }
         }
 
@@ -67,7 +67,7 @@ class NetworkDiscoveryManager(context: Context) {
         }
 
         override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
-            Log.d("NetworkDiscovery", "Service resolved: ${serviceInfo.host}:${serviceInfo.port}")
+            Log.d("NetworkDiscovery", "Compatible service endpoint resolved")
             val host = serviceInfo.host
             val port = serviceInfo.port
             val url = "http://${host.hostAddress}:$port/"

@@ -1,186 +1,211 @@
-"""
-JAYA Memory Manager & Milestone Compiler.
-Ensures ultra-lightweight memory footprint (< 200 MB) across millions to trillions of iterations.
-Provides SQLite WAL indexing, milestone .jay package compilation, and automatic garbage collection.
-"""
+"""Research-owned SQLite maintenance and review-only milestone packaging."""
 
-import os
-import sys
+from __future__ import annotations
+
 import gc
+import hashlib
 import json
-import time
-import shutil
+import os
 import sqlite3
+import time
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any, Protocol
+
+
+class EcosystemBoundaryError(RuntimeError):
+    """Raised when Research is asked to mutate another module directly."""
+
+
+class EcosystemPublisher(Protocol):
+    """Public adapter implemented by a separately authorized promotion gate."""
+
+    def publish(
+        self,
+        artifact_path: Path,
+        metadata: Mapping[str, Any],
+    ) -> Mapping[str, Any]:
+        """Publish one immutable candidate and return an audit receipt."""
+        ...
 
 
 class MemoryManager:
-    """
-    Manages SQLite indexes, WAL journal mode, milestone .jay compilations,
-    and automatic memory/disk garbage collection.
-    """
+    """Maintain Research state without copying it into runtime modules."""
 
-    def __init__(self, db_path: Optional[Path] = None, packages_dir: Optional[Path] = None):
-        src_dir = Path(__file__).resolve().parent
-        self.db_path = db_path or (src_dir.parent / "data" / "agentic_jarvis.db")
-        self.packages_dir = packages_dir or (src_dir.parent / "data" / "packages")
+    def __init__(
+        self,
+        db_path: Path | None = None,
+        packages_dir: Path | None = None,
+        *,
+        milestone_interval: int = 50,
+    ) -> None:
+        source_dir = Path(__file__).resolve().parent
+        self.db_path = Path(
+            db_path or source_dir.parent / "data" / "agentic_jarvis.db"
+        ).resolve()
+        self.packages_dir = Path(
+            packages_dir or source_dir.parent / "data" / "packages"
+        ).resolve()
+        if int(milestone_interval) <= 0:
+            raise ValueError("milestone_interval must be positive")
+        self.milestone_interval = int(milestone_interval)
         self.packages_dir.mkdir(parents=True, exist_ok=True)
-        self.milestone_interval = 50  # Compile .jay package every 50 patches milestone
 
-    def optimize_sqlite_database(self) -> Dict[str, Any]:
-        """
-        Applies WAL journal mode, fast pragmas, and B-tree indexes on SQLite database.
-        Ensures search latency < 3ms across millions of records.
-        """
-        if not self.db_path.exists():
+    def optimize_sqlite_database(self) -> dict[str, Any]:
+        """Enable bounded SQLite settings and indexes on Research-owned state."""
+        if not self.db_path.is_file():
             return {"success": False, "error": "Database file missing"}
-
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            with conn:
-                # Enable Write-Ahead Logging (WAL) & Fast Synchronous Mode
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA synchronous=NORMAL;")
-                conn.execute("PRAGMA temp_store=MEMORY;")
-                conn.execute("PRAGMA cache_size=-64000;")  # 64 MB cache limit
+            with sqlite3.connect(str(self.db_path)) as connection:
+                connection.execute("PRAGMA journal_mode=WAL;")
+                connection.execute("PRAGMA synchronous=NORMAL;")
+                connection.execute("PRAGMA temp_store=MEMORY;")
+                connection.execute("PRAGMA cache_size=-64000;")
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_patches_applied_at "
+                    "ON jarvis_patches(applied_at DESC);"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_patches_topic "
+                    "ON jarvis_patches(topic);"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_directives_status "
+                    "ON proactive_directives(status);"
+                )
+        except (OSError, sqlite3.Error) as exc:
+            return {"success": False, "error": str(exc)}
+        return {"success": True, "wal_enabled": True, "indexes_active": True}
 
-                # Create optimized B-tree indexes
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_patches_applied_at ON jarvis_patches(applied_at DESC);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_patches_topic ON jarvis_patches(topic);")
-                conn.execute("CREATE INDEX IF NOT EXISTS idx_directives_status ON proactive_directives(status);")
-
-            conn.close()
-            print("[MEMORY MANAGER] [OK] SQLite WAL mode & B-tree indexes optimized.")
-            return {"success": True, "wal_enabled": True, "indexes_active": True}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    def check_and_compile_milestone(self) -> Dict[str, Any]:
-        """
-        Checks patch count in agentic_jarvis.db. If milestone interval reached,
-        compiles a new .jay milestone package and prunes old package snapshots.
-        """
-        if not self.db_path.exists():
+    def check_and_compile_milestone(self) -> dict[str, Any]:
+        """Create a non-executable candidate at each configured milestone."""
+        if not self.db_path.is_file():
             return {"compiled": False, "reason": "No DB"}
-
         try:
-            conn = sqlite3.connect(str(self.db_path))
-            count = conn.execute("SELECT COUNT(*) FROM jarvis_patches").fetchone()[0]
-            conn.close()
+            with sqlite3.connect(str(self.db_path)) as connection:
+                row = connection.execute(
+                    "SELECT COUNT(*) FROM jarvis_patches"
+                ).fetchone()
+        except sqlite3.Error as exc:
+            return {"compiled": False, "error": str(exc)}
+        count = int(row[0] if row else 0)
+        milestone = count // self.milestone_interval
+        if count <= 0 or count % self.milestone_interval:
+            return {
+                "compiled": False,
+                "total_patches": count,
+                "next_milestone": (milestone + 1) * self.milestone_interval,
+            }
 
-            # Check if milestone reached
-            milestone_num = count // self.milestone_interval
-            if count > 0 and count % self.milestone_interval == 0:
-                package_name = f"JAYA_MILESTONE_v{count}_m{milestone_num}.jay"
-                package_path = self.packages_dir / package_name
+        package_name = f"JAYA_MILESTONE_v{count}_m{milestone}.jay"
+        package_path = self.packages_dir / package_name
+        unsigned = {
+            "candidate_format": "jaya-research-milestone/1",
+            "package_name": package_name,
+            "milestone": milestone,
+            "total_patches": count,
+            "compiled_at": time.time(),
+            "status": "PENDING_REVIEW",
+            "executable": False,
+        }
+        canonical = json.dumps(
+            unsigned,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+        payload = {
+            **unsigned,
+            "content_sha256": hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        }
+        package_path.write_text(
+            json.dumps(payload, indent=2),
+            encoding="utf-8",
+        )
+        self.prune_old_packages(keep_latest=3)
+        return {
+            "compiled": True,
+            "package_name": package_name,
+            "milestone": milestone,
+            "total_patches": count,
+        }
 
-                # Package payload (.jay format)
-                payload = {
-                    "package_name": package_name,
-                    "milestone": milestone_num,
-                    "total_patches": count,
-                    "compiled_at": time.time(),
-                    "signature": f"JAYSPEC-v2.1-{count:06d}"
-                }
+    def prune_old_packages(self, keep_latest: int = 3) -> int:
+        """Remove old Research-owned snapshots and return the removal count."""
+        if int(keep_latest) < 1:
+            raise ValueError("keep_latest must be at least one")
+        packages = sorted(
+            self.packages_dir.glob("JAYA_MILESTONE_*.jay"),
+            key=os.path.getmtime,
+        )
+        obsolete = packages[: -int(keep_latest)]
+        for package in obsolete:
+            package.unlink()
+        return len(obsolete)
 
-                with open(package_path, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2)
-
-                print(f"[MEMORY MANAGER] [MILESTONE] Compiled new .jay package: {package_name}")
-
-                # Prune old package snapshots (keep latest 3)
-                self.prune_old_packages(keep_latest=3)
-
-                return {
-                    "compiled": True,
-                    "package_name": package_name,
-                    "milestone": milestone_num,
-                    "total_patches": count
-                }
-
-            return {"compiled": False, "total_patches": count, "next_milestone": (milestone_num + 1) * self.milestone_interval}
-        except Exception as e:
-            return {"compiled": False, "error": str(e)}
-
-    def prune_old_packages(self, keep_latest: int = 3):
-        """
-        Garbage collector for .jay packages. Keeps latest N milestones and prunes older ones.
-        """
-        try:
-            packages = sorted(self.packages_dir.glob("JAYA_MILESTONE_*.jay"), key=os.path.getmtime)
-            if len(packages) > keep_latest:
-                to_delete = packages[:-keep_latest]
-                for p in to_delete:
-                    p.unlink()
-                    print(f"[MEMORY MANAGER] [PRUNED] Removed old package snapshot: {p.name}")
-        except Exception as e:
-            print(f"[MEMORY MANAGER] Prune warning: {e}")
-
-    def enforce_memory_cap(self, max_ram_mb: int = 200) -> Dict[str, Any]:
-        """
-        Triggers Python garbage collection and clears unused memory caches.
-        Ensures RAM consumption stays below 200 MB cap.
-        """
+    @staticmethod
+    def enforce_memory_cap(max_ram_mb: int = 200) -> dict[str, Any]:
+        """Collect Python garbage and report, rather than claim, process RSS."""
+        if int(max_ram_mb) <= 0:
+            raise ValueError("max_ram_mb must be positive")
         collected = gc.collect()
         rss_mb = 0.0
-
         try:
             import psutil
+
             process = psutil.Process(os.getpid())
             rss_mb = round(process.memory_info().rss / (1024 * 1024), 2)
-        except Exception:
+        except (ImportError, OSError):
             pass
-
-        print(f"[MEMORY MANAGER] [RAM CAP] Garbage collected {collected} objects. Current RSS: {rss_mb} MB (Cap: {max_ram_mb} MB)")
         return {
             "objects_collected": collected,
             "current_rss_mb": rss_mb,
-            "cap_mb": max_ram_mb,
-            "within_cap": rss_mb <= max_ram_mb if rss_mb > 0 else True
+            "cap_mb": int(max_ram_mb),
+            "within_cap": rss_mb <= int(max_ram_mb) if rss_mb > 0 else None,
+        }
+
+    def sync_to_ecosystem(
+        self,
+        publisher: EcosystemPublisher | None = None,
+    ) -> dict[str, Any]:
+        """Publish candidates through an injected boundary; never copy the DB."""
+        if publisher is None:
+            raise EcosystemBoundaryError(
+                "direct ecosystem synchronization is disabled; inject an "
+                "authorized artifact publisher"
+            )
+
+        receipts: list[Mapping[str, Any]] = []
+        for package in sorted(self.packages_dir.glob("JAYA_MILESTONE_*.jay")):
+            receipt = publisher.publish(
+                package.resolve(),
+                {
+                    "producer": "JAYA_RESEARCH",
+                    "artifact_kind": "milestone_candidate",
+                    "review_required": True,
+                    "database_included": False,
+                },
+            )
+            if not isinstance(receipt, Mapping):
+                raise EcosystemBoundaryError(
+                    "artifact publisher returned an invalid audit receipt"
+                )
+            receipts.append(dict(receipt))
+        return {
+            "success": True,
+            "artifacts_published": len(receipts),
+            "database_copied": False,
+            "receipts": [dict(receipt) for receipt in receipts],
         }
 
 
-    def sync_to_ecosystem(self) -> Dict[str, Any]:
-        """
-        Synchronizes LoRA adapters, SQLite database, and .jay packages
-        across JAYA_CORE, JAYA_AGENT, and JAYA_ANDROID targets.
-        """
-        src_dir = Path(__file__).resolve().parent
-        root_dir = src_dir.parent.parent
-        targets = [
-            root_dir / "JAYA_CORE" / "data",
-            root_dir / "JAYA_AGENT" / "data",
-            root_dir / "JAYA_ANDROID" / "assets"
-        ]
-
-        synced_count = 0
-        for target in targets:
-            try:
-                target.mkdir(parents=True, exist_ok=True)
-                # Copy active database
-                if self.db_path.exists():
-                    shutil.copy2(self.db_path, target / "agentic_jarvis.db")
-                    synced_count += 1
-            except Exception as e:
-                print(f"[MEMORY MANAGER] Sync warning for {target}: {e}")
-
-        print(f"[MEMORY MANAGER] [UNIVERSAL SYNC] Successfully synced database & adapters across {synced_count} ecosystem targets.")
-        return {"success": True, "targets_synced": synced_count}
-
-
 if __name__ == "__main__":
-    import shutil
-    mm = MemoryManager()
-    print("=== TEST FASE 3 & 4: MEMORY MANAGER & ECOSYSTEM SYNC ===")
-    res_sqlite = mm.optimize_sqlite_database()
-    print("SQLite Optimization:", res_sqlite)
-
-    res_milestone = mm.check_and_compile_milestone()
-    print("Milestone Check:", res_milestone)
-
-    res_ram = mm.enforce_memory_cap(max_ram_mb=200)
-    print("RAM Cap Assurance:", res_ram)
-
-    res_sync = mm.sync_to_ecosystem()
-    print("Ecosystem Sync:", res_sync)
+    manager = MemoryManager()
+    print("SQLite Optimization:", manager.optimize_sqlite_database())
+    print("Milestone Check:", manager.check_and_compile_milestone())
+    print("RAM Cap Assurance:", manager.enforce_memory_cap(max_ram_mb=200))
+    try:
+        sync_result = manager.sync_to_ecosystem()
+    except EcosystemBoundaryError as exc:
+        sync_result = {"success": False, "error": str(exc)}
+    print("Ecosystem Sync:", sync_result)

@@ -64,6 +64,9 @@ interface ChatDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertUserPreference(pref: UserPreference)
 
+    @Query("DELETE FROM user_preferences WHERE `key` = :key")
+    suspend fun deletePreference(key: String)
+
     // Vector RAG
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmbeddings(embeddings: List<FileEmbedding>)

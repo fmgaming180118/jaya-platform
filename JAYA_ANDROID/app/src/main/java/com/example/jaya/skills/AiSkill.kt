@@ -10,5 +10,7 @@ interface AiSkill {
 data class SkillResult(
     val content: String,
     val attachedFileContent: String? = null,
-    val attachedFileName: String? = null
+    val attachedFileName: String? = null,
+    val success: Boolean = true,
+    val errorCode: String? = null,
 )

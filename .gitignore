@@ -53,12 +53,21 @@ dist/
 build/
 .eggs/
 htmlcov/
+# Kotlin/Gradle incremental compiler state (for example JAYA_ANDROID/.kotlin).
+.kotlin/
 .coverage
 .pytest_cache/
 
 # ─── DATA PRIBADI, RUNTIME & DATABASE (Data User & Vector Store) ────────────
 data/
 **/data/
+# A package named `data` inside a source tree is code, not runtime user data.
+# Re-include only source-file extensions; databases/uploads remain ignored.
+!**/src/**/data/
+!**/src/**/data/**/*.py
+!**/src/**/data/**/*.kt
+!**/src/**/data/**/*.java
+!**/src/**/data/**/*.ts
 workspaces/
 **/workspaces/
 logs/

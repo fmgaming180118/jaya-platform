@@ -1,0 +1,139 @@
+{
+  "version": "0.1",
+  "id": "6e783f5f-de50-4d01-8700-3ace6dd28800",
+  "name": "Test Dialog",
+  "description": "Test dialog for compiler",
+  "root": {
+    "id": "4e93d291-be88-4430-9893-f81422c5b245",
+    "type": "window",
+    "label": "Test",
+    "placeholder": "",
+    "value": null,
+    "options": [],
+    "children": [
+      {
+        "id": "66fd47be-250d-4961-a623-ff98e7fe8a80",
+        "type": "panel",
+        "label": "",
+        "placeholder": "",
+        "value": null,
+        "options": [],
+        "children": [
+          {
+            "id": "327f83d7-3c54-4c26-8a76-a0a5aa532b0c",
+            "type": "label",
+            "label": "Hello World",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {}
+          },
+          {
+            "id": "d837a9bb-0bda-4e0c-aca6-12819de78862",
+            "type": "button",
+            "label": "Click Me",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [
+              {
+                "event": "click",
+                "action": "jaya:run_task",
+                "payload": {},
+                "debounce_ms": 0,
+                "once": false
+              }
+            ],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {
+              "variant": "primary"
+            }
+          }
+        ],
+        "style": {},
+        "layout": "flex_col",
+        "rect": null,
+        "events": [],
+        "bindings": [],
+        "visible": true,
+        "enabled": true,
+        "metadata": {}
+      }
+    ],
+    "style": {},
+    "layout": "flex_col",
+    "rect": {
+      "x": {
+        "value": 0,
+        "unit": "px"
+      },
+      "y": {
+        "value": 0,
+        "unit": "px"
+      },
+      "width": null,
+      "height": {
+        "value": 300.0,
+        "unit": "px"
+      }
+    },
+    "events": [],
+    "bindings": [],
+    "visible": true,
+    "enabled": true,
+    "metadata": {
+      "boolean_literal_probe": true
+    }
+  },
+  "styles": {
+    "color_primary": "#0066CC",
+    "color_secondary": "#6C757D",
+    "color_success": "#28A745",
+    "color_warning": "#FFC107",
+    "color_danger": "#DC3545",
+    "color_background": "#FFFFFF",
+    "color_surface": "#F8F9FA",
+    "color_text": "#212529",
+    "color_text_muted": "#6C757D",
+    "color_border": "#DEE2E6",
+    "spacing_xs": "4px",
+    "spacing_sm": "8px",
+    "spacing_md": "16px",
+    "spacing_lg": "24px",
+    "spacing_xl": "32px",
+    "font_family": "system-ui, -apple-system, sans-serif",
+    "font_size_sm": "12px",
+    "font_size_md": "14px",
+    "font_size_lg": "18px",
+    "font_size_xl": "24px",
+    "font_weight_normal": 400,
+    "font_weight_medium": 500,
+    "font_weight_bold": 700,
+    "border_radius_sm": "4px",
+    "border_radius_md": "8px",
+    "border_radius_lg": "12px",
+    "border_width": "1px",
+    "shadow_sm": "0 1px 2px rgba(0,0,0,0.05)",
+    "shadow_md": "0 4px 6px rgba(0,0,0,0.1)",
+    "shadow_lg": "0 10px 15px rgba(0,0,0,0.1)",
+    "transition_fast": "150ms ease",
+    "transition_normal": "250ms ease",
+    "transition_slow": "350ms ease"
+  },
+  "global_state": {},
+  "metadata": {}
+}

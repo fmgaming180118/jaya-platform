@@ -28,7 +28,7 @@ class JayaTextToSpeechManager(context: Context) : TextToSpeech.OnInitListener {
         if (isReady && tts != null) {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "JayaTTSID")
         } else {
-            Log.w("JayaTTS", "TTS not ready yet. Speech skipped: '$text'")
+            Log.w("JayaTTS", "TTS not ready; speech was skipped")
         }
     }
 

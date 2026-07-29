@@ -68,6 +68,8 @@ def _run_component(
         "-m",
         "pytest",
         component.test_path.as_posix(),
+        "-p",
+        "no:cacheprovider",
     ]
     if collect_only:
         command.append("--collect-only")

@@ -33,6 +33,14 @@ from typing import Any
 
 import numpy as np
 
+from src.brain_v2.model.readiness import (
+    ModelFailureCode,
+    ModelReadinessReport,
+    ModelReadinessState,
+    ModelUnavailableError,
+    normalize_sha256,
+)
+
 logger = logging.getLogger("NanoInference")
 
 # ---------------------------------------------------------------------------
@@ -181,11 +189,21 @@ class NanoModel:
         self.model_profile: str = cfg.get("model_profile", "NANO")
         self._weights: dict[str, Any] | None = None
         self._initialized = False
+        self._weight_origin = "none"
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.UNAVAILABLE,
+            ModelFailureCode.NOT_LOADED,
+        )
 
     # ------------------------------------------------------------------
 
     def random_init(self) -> None:
-        """Initialise all weights randomly from {-1, 0, +1}."""
+        """Initialise test/training weights, never a deployable model.
+
+        This method remains available for explicit unit tests and offline
+        training utilities. Runtime inference must load a checksum-bound
+        artifact instead.
+        """
         rng = np.random.default_rng()  # unseeded — each call gives different weights
         d, v, _ = self.d_model, self.vocab_size, self.n_heads
         ffn_dim = d * 4
@@ -210,22 +228,148 @@ class NanoModel:
             "output_head": rand_ternary(d, v),
         }
         self._initialized = True
+        self._weight_origin = "random"
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.DEGRADED,
+            ModelFailureCode.RANDOM_WEIGHTS,
+        )
         logger.debug("[NanoModel] random_init complete (%s, d=%d, L=%d)",
                      self.model_profile, self.d_model, self.n_layers)
 
-    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+    def load_state_dict(
+        self,
+        state_dict: dict[str, Any],
+        *,
+        artifact_sha256: str | None = None,
+    ) -> None:
         """Load weights from a pre-built state-dict (int8 arrays).
 
         Accepts the dict produced by :func:`~src.brain_v2.format.packer.
         unpack_state_dict`, which maps string keys to NumPy arrays.
         """
-        self._weights = state_dict
+        self._weights = self._validate_and_normalize_state_dict(state_dict)
         self._initialized = True
+        digest = normalize_sha256(artifact_sha256)
+        self._weight_origin = "artifact" if digest else "unverified"
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.DEGRADED,
+            (
+                ModelFailureCode.TOKENIZER_MISSING
+                if digest
+                else ModelFailureCode.CHECKSUM_MISSING
+            ),
+            artifact_sha256=digest,
+        )
+
+    def _validate_and_normalize_state_dict(
+        self,
+        state_dict: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(state_dict, dict):
+            raise ModelUnavailableError(ModelFailureCode.WEIGHTS_INVALID)
+
+        raw_layers = state_dict.get("layers")
+        if isinstance(raw_layers, dict):
+            try:
+                layers = [raw_layers[index] for index in range(self.n_layers)]
+            except (KeyError, TypeError):
+                try:
+                    layers = [raw_layers[str(index)] for index in range(self.n_layers)]
+                except (KeyError, TypeError) as exc:
+                    raise ModelUnavailableError(
+                        ModelFailureCode.WEIGHTS_INVALID
+                    ) from exc
+        elif isinstance(raw_layers, (list, tuple)):
+            layers = list(raw_layers)
+        else:
+            layers = [
+                state_dict.get(f"layer_{index}") for index in range(self.n_layers)
+            ]
+
+        if len(layers) != self.n_layers or any(
+            not isinstance(layer, dict) for layer in layers
+        ):
+            raise ModelUnavailableError(ModelFailureCode.WEIGHTS_INVALID)
+
+        d = self.d_model
+        expected_shapes = {
+            "Wq": (d, d),
+            "Wk": (d, d),
+            "Wv": (d, d),
+            "Wo": (d, d),
+            "W1": (d, d * 4),
+            "W2": (d * 4, d),
+        }
+
+        def verified_array(value: Any, shape: tuple[int, ...]) -> np.ndarray:
+            array = np.asarray(value)
+            if array.shape != shape or not np.issubdtype(array.dtype, np.integer):
+                raise ModelUnavailableError(ModelFailureCode.WEIGHTS_INVALID)
+            normalized = array.astype(np.int8, copy=True)
+            if not np.all(np.isin(normalized, (-1, 0, 1))):
+                raise ModelUnavailableError(ModelFailureCode.WEIGHTS_INVALID)
+            return normalized
+
+        embeddings = verified_array(
+            state_dict.get("embeddings"),
+            (self.vocab_size, d),
+        )
+        output_head = verified_array(
+            state_dict.get("output_head"),
+            (d, self.vocab_size),
+        )
+        normalized_layers: list[dict[str, np.ndarray]] = []
+        for layer in layers:
+            normalized_layers.append(
+                {
+                    key: verified_array(layer.get(key), shape)
+                    for key, shape in expected_shapes.items()
+                }
+            )
+        return {
+            "embeddings": embeddings,
+            "layers": normalized_layers,
+            "output_head": output_head,
+        }
+
+    @property
+    def readiness(self) -> ModelReadinessReport:
+        return self._readiness
+
+    def record_probe_success(self, tokenizer_sha256: str) -> None:
+        """Mark an artifact model ready only after a verified real probe."""
+
+        tokenizer_digest = normalize_sha256(tokenizer_sha256)
+        artifact_digest = self._readiness.artifact_sha256
+        if (
+            not self._initialized
+            or self._weight_origin != "artifact"
+            or artifact_digest is None
+            or tokenizer_digest is None
+        ):
+            raise ModelUnavailableError(ModelFailureCode.PROBE_FAILED)
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.READY,
+            ModelFailureCode.READY,
+            artifact_sha256=artifact_digest,
+            tokenizer_sha256=tokenizer_digest,
+        )
+
+    def record_probe_failure(self, code: ModelFailureCode) -> None:
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.DEGRADED,
+            code,
+            artifact_sha256=self._readiness.artifact_sha256,
+            tokenizer_sha256=self._readiness.tokenizer_sha256,
+        )
+
+    def _require_initialized(self) -> dict[str, Any]:
+        if not self._initialized or self._weights is None:
+            raise ModelUnavailableError(ModelFailureCode.NOT_LOADED)
+        return self._weights
 
     def get_state_dict(self) -> dict:
-        if not self._initialized:
-            self.random_init()
-        return self._weights  # type: ignore[return-value]
+        return self._require_initialized()
 
     def get_config(self) -> dict[str, Any]:
         return {
@@ -252,12 +396,10 @@ class NanoModel:
         -------
         np.ndarray shape (seq_len, vocab_size) — logits (float32)
         """
-        if not self._initialized:
-            self.random_init()
-        assert self._weights is not None
-
-        w = self._weights
+        w = self._require_initialized()
         ids = np.asarray(token_ids, dtype=np.int32)
+        if ids.ndim != 1 or ids.size == 0:
+            raise ValueError("token_ids must be a non-empty one-dimensional sequence")
         ids = np.clip(ids, 0, self.vocab_size - 1)
 
         # Embedding lookup
@@ -296,11 +438,9 @@ class NanoModel:
 
     def get_weight_buffers(self) -> list[tuple[str, np.ndarray]]:
         """Return a flat list of (key, weight_array) for all mutable weights."""
-        if not self._initialized:
-            self.random_init()
-        assert self._weights is not None
+        weights = self._require_initialized()
         result: list[tuple[str, np.ndarray]] = []
-        w = self._weights
+        w = weights
         result.append(("embeddings", w["embeddings"]))
         for i, layer in enumerate(w["layers"]):
             for k, v in layer.items():
@@ -310,24 +450,54 @@ class NanoModel:
 
     def set_weight(self, key: str, new_val: np.ndarray) -> None:
         """Replace a single weight buffer (for LiveEvolver mutation)."""
-        if not self._initialized:
-            self.random_init()
-        assert self._weights is not None
+        weights = self._require_initialized()
         if key == "embeddings":
-            self._weights["embeddings"] = new_val
+            expected_shape = (self.vocab_size, self.d_model)
+            target: str | tuple[int, str] = "embeddings"
         elif key == "output_head":
-            self._weights["output_head"] = new_val
+            expected_shape = (self.d_model, self.vocab_size)
+            target = "output_head"
         elif key.startswith("layer_"):
             parts = key.split(".", 1)
             layer_idx = int(parts[0].split("_")[1])
             w_name = parts[1]
-            self._weights["layers"][layer_idx][w_name] = new_val
+            if not 0 <= layer_idx < self.n_layers:
+                raise KeyError(f"Unknown weight key: {key!r}")
+            current = weights["layers"][layer_idx].get(w_name)
+            if current is None:
+                raise KeyError(f"Unknown weight key: {key!r}")
+            expected_shape = current.shape
+            target = (layer_idx, w_name)
         else:
             raise KeyError(f"Unknown weight key: {key!r}")
+        normalized = np.asarray(new_val)
+        if (
+            normalized.shape != expected_shape
+            or not np.issubdtype(normalized.dtype, np.integer)
+            or not np.all(np.isin(normalized, (-1, 0, 1)))
+        ):
+            raise ValueError("weight must be a ternary integer array with matching shape")
+        normalized = normalized.astype(np.int8, copy=True)
+        if isinstance(target, tuple):
+            weights["layers"][target[0]][target[1]] = normalized
+        else:
+            weights[target] = normalized
+        self._weight_origin = "mutation"
+        self._readiness = ModelReadinessReport(
+            ModelReadinessState.DEGRADED,
+            ModelFailureCode.UNVERIFIED_MUTATION,
+            artifact_sha256=self._readiness.artifact_sha256,
+            tokenizer_sha256=self._readiness.tokenizer_sha256,
+        )
 
     # ------------------------------------------------------------------
 
     def __repr__(self) -> str:
+        if not self._initialized:
+            return (
+                f"NanoModel(profile={self.model_profile}, state="
+                f"{self._readiness.state.value})"
+            )
         total = sum(arr.size for _, arr in self.get_weight_buffers())
         size_kb = total * 2 / 8 / 1024  # 2-bit per param
         return (f"NanoModel(profile={self.model_profile}, d={self.d_model}, "

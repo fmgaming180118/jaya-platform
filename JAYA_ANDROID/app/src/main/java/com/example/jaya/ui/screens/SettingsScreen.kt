@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -25,6 +26,7 @@ fun SettingsScreen(
 ) {
     val apiKey by viewModel.apiKey.collectAsStateWithLifecycle()
     val baseUrl by viewModel.baseUrl.collectAsStateWithLifecycle()
+    val settingsError by viewModel.settingsError.collectAsStateWithLifecycle()
 
     var tempApiKey by remember(apiKey) { mutableStateOf(apiKey) }
     var tempBaseUrl by remember(baseUrl) { mutableStateOf(baseUrl) }
@@ -61,7 +63,8 @@ fun SettingsScreen(
                 label = { Text("API Key") },
                 leadingIcon = { Icon(Icons.Default.Key, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth(),
-                supportingText = { Text("Leave empty to use the default bundled key.") }
+                visualTransformation = PasswordVisualTransformation(),
+                supportingText = { Text("Stored with AndroidKeyStore; no default key is bundled.") }
             )
             
             Spacer(Modifier.height(16.dp))
@@ -73,6 +76,14 @@ fun SettingsScreen(
                 leadingIcon = { Icon(Icons.Default.Link, contentDescription = null) },
                 modifier = Modifier.fillMaxWidth()
             )
+            settingsError?.let { error ->
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = error,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
 
             Spacer(Modifier.height(24.dp))
 

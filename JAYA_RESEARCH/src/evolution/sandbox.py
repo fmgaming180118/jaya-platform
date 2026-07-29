@@ -1,79 +1,149 @@
-import subprocess
-import sys
-import os
-import time
+"""Fail-closed staging boundary for model-generated experiment code.
+
+This module intentionally does not implement a process sandbox.  A public,
+audited isolated runner does not exist in JAYA Research yet, so generated code
+can only be exported as an immutable simulation candidate for review.
+"""
+
+from __future__ import annotations
+
+import ast
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Any
+
+from optimizer import CandidateProposalError, Optimizer
+
+MAX_CANDIDATE_CHARS = 1_000_000
+
+
+def contains_unbounded_loop(code: str) -> bool:
+    """Return whether *code* contains an obvious unconditional loop."""
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.While):
+            continue
+        if isinstance(node.test, ast.Constant) and bool(node.test.value) is True:
+            return True
+    return False
+
 
 class EvolutionSandbox:
-    """
-    A safe execution environment for the Digital Twin.
-    Ensures that AI generated code can only run within specific bounds.
-    For this MVP, we enforce that code operations happen in `src/playground`.
-    """
-    def __init__(self, playground_dir="src/playground"):
+    """Compatibility facade that stages code and never executes it."""
+
+    def __init__(
+        self,
+        playground_dir: str | Path = "src/playground",
+        *,
+        source_root: str | Path | None = None,
+        outbox_dir: str | Path | None = None,
+    ) -> None:
+        # Retained for callers that display the historic path.  It is not
+        # created or used as an execution directory.
         self.playground_dir = Path(playground_dir)
-        self.playground_dir.mkdir(parents=True, exist_ok=True)
+        resolved_source_root = (
+            Path(source_root).resolve()
+            if source_root is not None
+            else Path(__file__).resolve().parents[1]
+        )
+        self.optimizer = Optimizer(
+            source_root=resolved_source_root,
+            outbox_dir=outbox_dir,
+        )
+
+    @staticmethod
+    def _validate_candidate(candidate_name: str, code: str) -> None:
+        name = Path(candidate_name)
+        if name.name != candidate_name or name.suffix != ".py":
+            raise CandidateProposalError(
+                "Candidate name must be a plain .py filename"
+            )
+        if not code.strip():
+            raise CandidateProposalError("Candidate code must not be empty")
+        if len(code) > MAX_CANDIDATE_CHARS:
+            raise CandidateProposalError("Candidate code exceeds the size limit")
+        try:
+            unbounded = contains_unbounded_loop(code)
+        except SyntaxError as exc:
+            raise CandidateProposalError(
+                f"Candidate is not valid Python: line {exc.lineno}"
+            ) from exc
+        if unbounded:
+            raise CandidateProposalError(
+                "Unbounded loop rejected by the candidate policy"
+            )
+
+    def stage_candidate(
+        self,
+        code: str,
+        *,
+        candidate_name: str = "experiment_candidate.py",
+        purpose: str = "review-only experiment proposal",
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Export code as a non-executable simulation artifact."""
+        self._validate_candidate(candidate_name, code)
+        return self.optimizer.propose_candidate(
+            original_code="",
+            proposed_code=code,
+            target_name=candidate_name,
+            focus=purpose,
+            extra_payload={
+                "execution_policy": "BLOCKED_NO_ISOLATED_RUNNER",
+                "execution_backend": "UNAVAILABLE",
+                "simulation_only": True,
+                "empirical_result": False,
+                **dict(metadata or {}),
+            },
+        )
 
     def write_experiment(self, filename: str, code: str) -> Path:
-        """Writes AI code to the playground."""
-        # Security check: Prevent path traversal
-        if ".." in filename or filename.startswith("/"):
-            raise ValueError("Security Violation: Cannot write outside playground.")
-        
-        target_path = self.playground_dir / filename
-        with open(target_path, 'w', encoding='utf-8') as f:
-            f.write(code)
-        return target_path
+        """Compatibility method: stage an artifact instead of writing a script."""
+        receipt = self.stage_candidate(code, candidate_name=filename)
+        return Path(receipt["artifact_path"])
 
-    def run_code(self, code: str, timeout=10) -> Dict[str, Any]:
-        """
-        Writes and executes Python code in the sandbox environment.
-        """
-        temp_name = f"temp_exp_{int(time.time() * 1000)}.py"
+    def run_code(
+        self,
+        code: str,
+        timeout: int = 10,
+        *,
+        candidate_name: str = "experiment_candidate.py",
+    ) -> dict[str, Any]:
+        """Stage code for review; execution is deliberately unavailable."""
         try:
-            target = self.write_experiment(temp_name, code)
-            success, output = self.run_experiment(temp_name, timeout=timeout)
-            return {
-                "success": success,
-                "output": output,
-                "error": "" if success else output
-            }
-        except Exception as e:
-            return {"success": False, "error": str(e), "output": str(e)}
-        finally:
-            self.cleanup(temp_name)
-
-    def run_experiment(self, filename: str, timeout=10) -> Tuple[bool, str]:
-        """
-        Runs a script from the playground in a separate subprocess.
-        Returns: (success: bool, output: str)
-        """
-        target_path = self.playground_dir / filename
-        if not target_path.exists():
-            return False, "File not found."
-
-        try:
-            # Run in a separate process
-            result = subprocess.run(
-                [sys.executable, str(target_path)],
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                cwd=str(self.playground_dir) # Isolate execution cwd
+            receipt = self.stage_candidate(
+                code,
+                candidate_name=candidate_name,
+                metadata={"requested_timeout_seconds": int(timeout)},
             )
-            
-            output = result.stdout + result.stderr
-            success = result.returncode == 0
-            return success, output
+        except (CandidateProposalError, OSError, ValueError) as exc:
+            return {
+                "status": "CANDIDATE_REJECTED",
+                "success": False,
+                "output": "",
+                "error": str(exc),
+                "candidate_executed": False,
+                "source_mutated": False,
+            }
+        return {
+            **receipt,
+            "success": False,
+            "output": "",
+            "error": "Execution blocked: no audited isolated runner is available",
+        }
 
-        except subprocess.TimeoutExpired:
-            return False, "Execution Timed Out (Safety Limit Reached)."
-        except Exception as e:
-            return False, f"System Error: {str(e)}"
+    def run_experiment(
+        self,
+        filename: str,
+        timeout: int = 10,
+    ) -> tuple[bool, str]:
+        """Refuse legacy file execution without reading or importing the file."""
+        del filename, timeout
+        return (
+            False,
+            "BLOCKED_NO_ISOLATED_RUNNER: legacy file execution is disabled",
+        )
 
-    def cleanup(self, filename: str):
-        """Removes an experiment file."""
-        target_path = self.playground_dir / filename
-        if target_path.exists():
-            target_path.unlink()
+    def cleanup(self, filename: str) -> bool:
+        """Compatibility no-op; this boundary never creates executable files."""
+        del filename
+        return False
