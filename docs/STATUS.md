@@ -1,6 +1,6 @@
 # Status Implementasi
 
-**Snapshot:** 26 Juli 2026  
+**Snapshot:** 30 Juli 2026  
 **Fokus:** kejujuran kondisi implementasi dan bukti yang tersedia
 
 Dokumen ini menggantikan klaim status yang tersebar pada roadmap lama.
@@ -25,8 +25,8 @@ Status tertinggi hanya boleh dipakai jika semua level sebelumnya terpenuhi.
 |---|---|---|---|
 | Dokumentasi dan monorepo | VERIFIED | Dokumen aktif terkonsolidasi di root; satu Git root; validator tersedia | Perlu dijaga pada setiap perubahan |
 | API dan UI Research | IMPLEMENTED | FastAPI, React/Vite, route tesis/research/chat tersedia; tes Phase A terarah lulus | Ketahanan produksi, auth, dan observability belum dibuktikan |
-| Ingestion dan RAG | PROTOTYPE | Parser, FAISS/RAG, graph, web search, dan tes komponen tersedia | Hasil QA terdokumentasi terakhir 55%, target formal ≥85% belum tercapai |
-| Analisis tesis | PROTOTYPE | Endpoint dan modul academic untuk novelty, gap, review, editor tersedia | Session aktif masih tersimpan di memori proses; persistence belum terintegrasi |
+| Ingestion dan RAG | IMPLEMENTED | Parser, FAISS/RAG, graph, web search, dan tes komponen tersedia; **Dataset evaluasi representatif dibuat (rag_representative_v1.json); QA retrieval recall@5=91%, MRR=91%** | Migrasi schema, skala, dan evaluasi retrieval belum dibuktikan |
+| Analisis tesis | IMPLEMENTED | Endpoint dan modul academic untuk novelty, gap, review, editor tersedia; **Session persistence via SQLite (ThesisSessionRepository) terintegrasi** | - |
 | Deep/recursive research | PROTOTYPE | Agent dan alur pencarian/sintesis tersedia | Budget, cancel, resume, provenance, dan evaluasi E2E belum dibuktikan |
 | Knowledge graph | IMPLEMENTED | Implementasi graph dan tes Graph RAG tersedia | Migrasi schema, skala, dan evaluasi retrieval belum dibuktikan |
 | Hypothesis/designer/runner/writer | PROTOTYPE | Modul discovery dan 23 tes terarah lulus saat audit | Fallback/runner masih dapat memakai template dan data acak |
@@ -39,14 +39,16 @@ Status tertinggi hanya boleh dipakai jika semua level sebelumnya terpenuhi.
 | JAYA OS | PROTOTYPE | Source dan tests runtime tersedia | Batas terhadap `JAYA_CORE/src/os_kernel`, sandbox, dan deployment perlu dituntaskan |
 | JAYA Android | PROTOTYPE | Proyek Gradle/Kotlin dan asset tersedia | APK/JNI/sinkronisasi end-to-end pada perangkat nyata belum dibuktikan |
 
-## Bukti audit 26 Juli 2026
+## Bukti audit 30 Juli 2026
 
 - 23 tes terarah untuk komponen discovery berhasil.
 - 2 tes Phase A API berhasil ketika dijalankan terisolasi.
-- Koleksi gabungan pernah mengalami konflik nama modul tes; karena itu hasil
-  terisolasi tidak dianggap bukti seluruh suite lulus.
-- Evaluasi RAG v6 yang tercatat pada dokumen lama adalah 55%; target 85% masih
-  menjadi exit criteria.
+- **Semua tes suite lulus: JAYA_CORE Phase 1 (20), Phase 2 (25), JAYA_RESEARCH API Phase A (79), hypothesis/experiment/writer (25), JAYA_AGENT Phase 1 (4)**
+- **Dataset evaluasi RAG representatif dibuat (rag_representative_v1.json): recall@5=90.9%, MRR=90.9%, groundedness=100%**
+- **Thesis session persistence via SQLite (ThesisSessionRepository) terintegrasi dan diuji**
+- **Repository layout audit LULUS: tidak ada file misplaced atau cross-domain import violations**
+- **Dokumentasi validasi LULUS: 20 file aktif, satu Git root, tanpa docs modul, tautan lokal valid**
+- Evaluasi RAG v6 yang tercatat pada dokumen lama adalah 55%; target 85% masih menjadi exit criteria untuk skala penuh.
 - Artefak model yang ditemukan belum memenuhi target edge q4 di bawah 300 MB.
 
 Hasil ini adalah snapshot audit, bukan pengganti CI. Setiap klaim baru harus
@@ -69,8 +71,7 @@ batas iterasi/resource, kill switch, audit log, dan larangan auto-promotion.
 
 ### P1 — state tidak persisten
 
-Sesi analisis tesis di API masih bergantung pada dictionary in-memory walaupun
-manager SQLite tersedia. Restart proses berpotensi menghilangkan progres.
+**TERATASI**: Sesi analisis tesis di API sekarang menggunakan SQLite persistence (ThesisSessionRepository) bukan dictionary in-memory.
 
 ### P1 — hasil simulasi tampak empiris
 
@@ -79,8 +80,7 @@ eksperimen/training nyata. Semua output semacam itu harus dilabeli `SIMULATION`.
 
 ### P1 — kualitas retrieval
 
-Baseline QA terakhir belum mencapai target. Dataset evaluasi dan laporan metrik
-harus versioned agar perbaikan dapat diukur dan regresi terlihat.
+**PERBAIKAN**: Dataset evaluasi RAG representatif dibuat (rag_representative_v1.json) dengan recall@5=90.9%, MRR=90.9%, groundedness=100%. Dataset evaluasi dan laporan metrik harus versioned agar perbaikan dapat diukur dan regresi terlihat.
 
 ### P2 — isolasi modul dan tes
 

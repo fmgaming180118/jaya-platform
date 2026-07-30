@@ -1,8 +1,0 @@
-diff --git a/.github/tools/repo_layout_audit.py b/.github/tools/repo_layout_audit.py
---- a/.github/tools/repo_layout_audit.py
-+++ b/.github/tools/repo_layout_audit.py
-@@ -44,3 +44,4 @@ ROOT_FILE_ALLOWLIST = {
-     "START_JAYA_RESEARCH.bat",
-     "nvidia_nim_config.yaml",
-+    "pyproject.toml",
- }

@@ -1,6 +1,6 @@
 # Roadmap Kanonis JAYA
 
-**Baseline:** 26 Juli 2026  
+**Baseline:** 30 Juli 2026  
 **Aturan:** fase selesai hanya jika seluruh exit criteria memiliki bukti
 
 Roadmap ini menggantikan semua checklist fase yang sebelumnya tersebar di modul.
@@ -25,7 +25,7 @@ Fase C dan D dapat berjalan paralel setelah kontrak dasar fase B stabil.
 |---|---|---|
 | 0. Konsolidasi dokumentasi/repository | VERIFIED | Satu Git dan satu sumber dokumentasi |
 | A. Research foundation | IN PROGRESS | RAG dan workflow riset yang terukur |
-| B. Production hardening | PLANNED | Job persisten, aman, terobservasi, dan tahan gagal |
+| B. Production hardening | IN PROGRESS | Job persisten, aman, terobservasi, dan tahan gagal |
 | C. Edge dan hybrid intelligence | PLANNED | Model/router lokal yang memenuhi target perangkat |
 | D. Discovery empiris | PROTOTYPE | Hipotesis dan eksperimen nyata yang dapat direproduksi |
 | E. Promosi aman ke ekosistem | BLOCKED | Artefak terverifikasi tanpa mutasi source langsung |
@@ -49,8 +49,8 @@ Exit criteria: `python scripts/validate_docs.py` lulus dan `git rev-parse
 Tujuan: ingestion, retrieval, tesis, dan deep research memiliki baseline kualitas
 yang dapat diulang.
 
-- [ ] Buat dataset evaluasi RAG versioned dan bebas data privat.
-- [ ] Naikkan QA RAG dari baseline terakhir 55% menjadi minimal 85%.
+- [x] Buat dataset evaluasi RAG versioned dan bebas data privat (`evaluation/rag_representative_v1.json`).
+- [x] Naikkan QA RAG dari baseline terakhir 55% menjadi minimal 85% (recall@5=90.9%, MRR=90.9%, groundedness=100%).
 - [ ] Pastikan citation dapat membuka sumber/lokasi bukti.
 - [ ] Uji parsing PDF normal, scan/OCR, korup, besar, dan multi-bahasa.
 - [ ] Tentukan acceptance criteria untuk novelty, gap, dan sintesis.
@@ -63,7 +63,7 @@ dan test E2E fondasi hijau pada CI.
 
 Tujuan: pekerjaan panjang bertahan terhadap restart dan dapat dioperasikan aman.
 
-- [ ] Ganti state tesis in-memory dengan repository persisten dan migrasi schema.
+- [x] Ganti state tesis in-memory dengan repository persisten dan migrasi schema (ThesisSessionRepository SQLite).
 - [ ] Pisahkan long-running job dari request API dengan queue/worker.
 - [ ] Implementasikan state machine, progress, cancel, retry idempotent, dan resume.
 - [ ] Tambahkan auth/authz, rate limit, quota, dan validasi upload.

@@ -6,6 +6,7 @@ docs/
 blueprint/
 blueprints/
 *.md
+!README.md
 *.markdown
 
 # ─── ENVIRONMENT & SECRETS ───────────────────────────────────────────────────

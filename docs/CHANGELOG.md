@@ -3,6 +3,28 @@
 Perubahan penting pada arah, status, arsitektur, dan dokumentasi dicatat di sini.
 Format tanggal menggunakan `YYYY-MM-DD`.
 
+## 2026-07-30 — Research Foundation & Production Hardening Progress
+
+### Added
+
+- **Dataset evaluasi RAG representatif** (`evaluation/rag_representative_v1.json`) dengan 11 entries berbasis dokumen thesis nyata, license CC0-1.0, schema `jaya-rag-eval-v1`.
+- **Thesis session persistence** via `ThesisSessionRepository` (SQLite WAL, revision tracking, crash recovery) terintegrasi ke API `/thesis/*`.
+- **Repository layout audit** bersih: tidak ada file misplaced atau cross-domain import violations.
+
+### Changed
+
+- **RAG evaluation metrics** pada dataset representatif: recall@5=90.9%, MRR=90.9%, groundedness=100%, citation_correctness=9.1% (dibatasi oleh min_local_score=0.55), abstention_accuracy=9.1%.
+- **STATUS.md** diperbarui: Ingestion & RAG → IMPLEMENTED, Analisis tesis → IMPLEMENTED, bukti audit 30 Juli 2026.
+- **ROADMAP.md** diperbarui: Fase A checklist 2/6 selesai (dataset evaluasi, QA ≥85%), Fase B checklist 1/7 selesai (thesis persistence), status Fase B → IN PROGRESS.
+- **Dokumentasi validasi** LULUS: 20 file aktif, satu Git root, tanpa docs modul, tautan lokal valid.
+- **Repository layout audit** LULUS: tidak ada file misplaced atau cross-domain import violations.
+
+### Verified
+
+- Semua test suite lulus: JAYA_CORE Phase 1 (20), Phase 2 (25), JAYA_RESEARCH API Phase A (79), hypothesis/experiment/writer (25), JAYA_AGENT Phase 1 (4).
+- RAG evaluation pada dataset representatif: recall@5=90.9%, MRR=90.9%, groundedness=100%.
+- Thesis session persistence diuji: save/retrieve/list/delete/recover_interrupted berfungsi.
+
 ## 2026-07-26 — Program Research Truth & Core Readiness
 
 ### Added

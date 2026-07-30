@@ -5,6 +5,7 @@ description = "Root tooling and quality-gate configuration for the JAYA monorepo
 requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
+pythonpath = ["JAYA_RESEARCH/src", "JAYA_CORE/src", "JAYA_AGENT/src", "JAYA_OS/src", "JAYA_RESEARCH", "JAYA_CORE", "JAYA_AGENT", "JAYA_OS", "."]
 addopts = "--strict-markers --import-mode=importlib"
 markers = [
   "integration: crosses a process, provider, model, or subsystem boundary",
@@ -18,6 +19,8 @@ norecursedirs = [
   ".venv",
   "docs/archive",
   "JAYA_CORE/llama.cpp",
+  "blueprint*",
+  "blueprints*",
   "node_modules",
   "data",
   "build",

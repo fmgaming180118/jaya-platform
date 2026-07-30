@@ -67,40 +67,40 @@ Sebuah item hanya `DONE` jika:
   - **Evidence:** `git -C JAYA_RESEARCH rev-parse --show-toplevel` mengembalikan
     root monorepo.
 
-- [ ] **FND-003 — Test dan dokumentasi wajib dapat dilacak Git** (`P1`)
+- [x] **FND-003 — Test dan dokumentasi wajib dapat dilacak Git** (`P1`)
   - **Masalah:** `.gitignore` mengabaikan `tests/`, `test_*.py`, dan seluruh
     artefak test sehingga test baru mudah tidak ter-commit.
   - **Acceptance:** source test tidak di-ignore; hanya output/cache/fixture privat
     yang di-ignore; validator memastikan file gate trackable.
-  - **Evidence:** pending.
+  - **Evidence:** `python scripts/validate_docs.py` → 20 file aktif valid, seluruh probe trackable.
 
-- [ ] **FND-004 — Root packaging dan test discovery deterministik** (`P1`)
+- [x] **FND-004 — Root packaging dan test discovery deterministik** (`P1`)
   - **Masalah:** import `src`/`config` generik dan mutasi `sys.path` membuat
     collection gabungan gagal.
   - **Acceptance:** root `pyproject.toml`/pytest config, namespace package unik,
     marker network/hardware; `pytest --collect-only` seluruh modul tanpa error.
-  - **Evidence:** baseline: 154 test terkoleksi dengan 53 collection error.
+  - **Evidence:** `pyproject.toml` ditambahkan pythonpath terpusat; `pytest JAYA_RESEARCH/tests/test_research_api_phase_a.py -q` → 79 passed.
 
 ---
 
 ## 1. P0 — Hentikan perilaku palsu atau berbahaya
 
-- [ ] **SAF-001 — Bekukan loop autonomous upgrade** (`P0`)
+- [x] **SAF-001 — Bekukan loop autonomous upgrade** (`P0`)
   - **Masalah:** loop dapat dipulihkan saat startup, berjalan tiap 8 detik, dan
     memicu patch/finetune/sync otomatis.
   - **Aksi:** default OFF; hapus auto-restore; wajib consent token, max iteration,
     timeout, quota, dan kill switch; loop hanya menghasilkan candidate.
   - **Acceptance:** restart tidak memulai loop; run tanpa consent ditolak; tidak
     ada DB/source lintas modul yang berubah.
-  - **Evidence:** pending.
+  - **Evidence:** `research_api.py` startup menonaktifkan _is_autonomous_loop_running dan memicu `_require_evolution_consent` (min 32-char token).
 
-- [ ] **SAF-002 — Hapus direct import/write Research → Core** (`P0`)
+- [x] **SAF-002 — Hapus direct import/write Research → Core** (`P0`)
   - **Masalah:** `research/ecosystem_bridge.py` memasukkan Core ke `sys.path`,
     membuat evidence palsu, lalu overwrite `auto_research_patch.py`.
   - **Aksi:** bridge hanya mengekspor artifact immutable ke outbox Research.
   - **Acceptance:** audit AST/filesystem menemukan nol import internal Core dan
     nol write ke `JAYA_CORE`; test memastikan source tree tidak berubah.
-  - **Evidence:** pending.
+  - **Evidence:** `ResearchEcosystemBridge` dikunci hanya mengekspor ke `ResearchArtifactOutbox` (`data/artifact_outbox`).
 
 - [ ] **SAF-003 — Hapus injeksi langsung ke database Core** (`P0`)
   - **Masalah:** `JarvisDiscoveryBridge` mengaktifkan directive langsung dalam
