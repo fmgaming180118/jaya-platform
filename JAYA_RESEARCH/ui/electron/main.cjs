@@ -1,17 +1,28 @@
 const { app, BrowserWindow } = require('electron');
-const path = require('path');
-const { spawn } = require('child_process');
 
 let mainWindow;
-let apiProcess;
+
+function trustedStartUrl() {
+  const rawUrl = process.env.ELECTRON_START_URL;
+  if (!rawUrl) {
+    throw new Error('ELECTRON_START_URL is required; start Electron through an npm launcher script.');
+  }
+  const parsed = new URL(rawUrl);
+  const loopbackHosts = new Set(['localhost', '127.0.0.1', '[::1]']);
+  if (parsed.protocol !== 'http:' || !loopbackHosts.has(parsed.hostname)) {
+    throw new Error('ELECTRON_START_URL must use HTTP on an explicit loopback host.');
+  }
+  return parsed.toString();
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false, // For MVP ease
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
     },
     titleBarStyle: 'hidden', // Modern look
     titleBarOverlay: {
@@ -20,25 +31,10 @@ function createWindow() {
     },
   });
 
-  const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '../dist/index.html')}`;
-  mainWindow.loadURL(startUrl);
+  mainWindow.loadURL(trustedStartUrl());
 
   mainWindow.on('closed', function () {
     mainWindow = null;
-  });
-}
-
-function startPythonBackend() {
-  const scriptPath = path.join(__dirname, '../../src/network/research_api.py');
-  // Adjust python command based on env (python/python3)
-  apiProcess = spawn('python', [scriptPath]);
-
-  apiProcess.stdout.on('data', (data) => {
-    console.log(`[API]: ${data}`);
-  });
-
-  apiProcess.stderr.on('data', (data) => {
-    console.error(`[API Error]: ${data}`);
   });
 }
 
@@ -49,7 +45,6 @@ app.on('ready', () => {
 
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
-    if (apiProcess) apiProcess.kill();
     app.quit();
   }
 });

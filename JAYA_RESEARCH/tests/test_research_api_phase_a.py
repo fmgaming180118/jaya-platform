@@ -70,8 +70,10 @@ def test_ingest_endpoint(mock_get_engines):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == "success"
+    assert payload["status"] == "INDEXED"
     assert payload["chunks_added"] == 1
+    assert payload["source_uri"].startswith("sources/")
+    assert payload["promotable"] is False
 
 
 @patch("network.research_api.get_engines")
@@ -88,10 +90,10 @@ def test_recursive_research_endpoint(mock_get_engines):
     assert payload["query"] == "RAG"
     assert payload["depth_reached"] >= 1
     assert payload["sources"]
-    assert (
-        "Vector Context" in payload["synthesis"]
-        or "Graph Context" in payload["synthesis"]
-    )
+    assert payload["status"] == "ANSWERED"
+    assert payload["citations"]
+    assert payload["promotable"] is False
+    assert payload["artifact_uri"].startswith("artifacts/deep_research/")
 
 
 @pytest.fixture
@@ -458,8 +460,6 @@ def test_research_job_is_durable_idempotent_and_reports_real_completion(
     tmp_path: Path,
 ) -> None:
     repository = DurableJobRepository(tmp_path / "jobs.db")
-    ingested_reports: list[tuple[str, str]] = []
-
     class FakeResearchAgent:
         def __init__(self, *, topic: str, focus_areas: str, workspace: str):
             assert topic == "Grounded systems"
@@ -470,17 +470,8 @@ def test_research_job_is_durable_idempotent_and_reports_real_completion(
             assert human_in_loop is False
             return "Evidence-labelled research report"
 
-    class FakeGraph:
-        def ingest_document(self, report: str, title: str) -> None:
-            ingested_reports.append((report, title))
-
     monkeypatch.setattr(research_api, "_job_repository", repository)
     monkeypatch.setattr(research_api, "ResearchAgent", FakeResearchAgent)
-    monkeypatch.setattr(
-        research_api,
-        "get_engines",
-        lambda _workspace: (DummyRAG(), FakeGraph()),
-    )
     request_payload = {
         "topic": "Grounded systems",
         "focus_areas": "provenance",
@@ -506,12 +497,12 @@ def test_research_job_is_durable_idempotent_and_reports_real_completion(
     job_id = first.json()["job"]["job_id"]
     stored = repository.get(job_id)
     assert stored.state.value == "SUCCEEDED"
-    assert stored.result["evidence_status"] == "UNVERIFIED_RESEARCH_REPORT"
+    assert stored.result["evidence_status"] == "UNVERIFIED_SYNTHESIS"
+    assert stored.result["promotable"] is False
+    assert stored.result["citation_coverage"] is None
     assert stored.result["core_mutated"] is False
     assert len(stored.result["report_sha256"]) == 64
-    assert ingested_reports == [
-        ("Evidence-labelled research report", "Research: Grounded systems")
-    ]
+    assert stored.result["artifact_uri"].startswith("artifacts/research_jobs/")
 
     status_response = client.get(f"/jobs/{job_id}")
     assert status_response.status_code == 200

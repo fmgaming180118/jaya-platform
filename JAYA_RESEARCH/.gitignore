@@ -88,6 +88,7 @@ desktop.ini
 .coverage
 htmlcov/
 .pytest_cache/
+.pytest_tmp_*/
 *.log
 *.tmp
 *.bak

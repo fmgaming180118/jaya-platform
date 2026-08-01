@@ -1,588 +1,584 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import {
-    Play, RotateCw, CheckCircle2, FileText, FlaskConical,
-    AlertCircle, Sparkles, Zap, Database, Square, Activity,
-    Brain, ChevronRight, Clock, BarChart2, Shield, Cpu, RefreshCw
+    AlertCircle,
+    Ban,
+    BookOpen,
+    CheckCircle2,
+    Database,
+    FileText,
+    FlaskConical,
+    Hash,
+    Layers3,
+    Link2,
+    LoaderCircle,
+    RotateCcw,
+    Search,
+    Shield,
 } from 'lucide-react';
 import clsx from 'clsx';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+
 import api from '../services/api';
 
-const API_BASE = 'http://localhost:8000';
+const STATUS_PRESENTATION = {
+    ANSWERED: {
+        label: 'Evidence ditemukan',
+        description: 'Jawaban disusun secara ekstraktif dari evidence yang ditampilkan.',
+        tone: 'emerald',
+        icon: CheckCircle2,
+    },
+    ABSTAINED_NO_EVIDENCE: {
+        label: 'Abstain — evidence tidak ditemukan',
+        description: 'Sistem tidak membuat jawaban tanpa sumber yang dapat ditelusuri.',
+        tone: 'amber',
+        icon: Ban,
+    },
+    ABSTAINED_LOW_CONFIDENCE: {
+        label: 'Abstain — confidence evidence rendah',
+        description: 'Candidate retrieval berada di bawah ambang penerimaan lokal.',
+        tone: 'amber',
+        icon: AlertCircle,
+    },
+    CONFLICTING_EVIDENCE: {
+        label: 'Evidence saling bertentangan',
+        description: 'Tidak ada klaim rekonsiliasi; sumber perlu diperiksa secara manual.',
+        tone: 'red',
+        icon: AlertCircle,
+    },
+};
 
-// Format unix timestamp to relative time
-function formatRelTime(ts) {
-    if (!ts) return '—';
-    const diff = Math.floor(Date.now() / 1000 - ts);
-    if (diff < 5)  return 'baru saja';
-    if (diff < 60) return `${diff}d lalu`;
-    if (diff < 3600) return `${Math.floor(diff / 60)}m lalu`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}j lalu`;
-    return new Date(ts * 1000).toLocaleDateString('id-ID');
+const TONE_CLASSES = {
+    emerald: 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300',
+    amber: 'bg-amber-500/10 border-amber-500/30 text-amber-300',
+    red: 'bg-red-500/10 border-red-500/30 text-red-300',
+    slate: 'bg-slate-500/10 border-slate-500/30 text-slate-300',
+};
+
+function statusPresentation(status) {
+    return STATUS_PRESENTATION[status] || {
+        label: status || 'Status tidak tersedia',
+        description: 'Backend mengembalikan status yang belum dikenal UI. Periksa artefak dan sumber.',
+        tone: 'slate',
+        icon: AlertCircle,
+    };
 }
 
-function ConfidencePill({ value }) {
-    const pct = Math.round((value || 0) * 100);
-    const color = pct >= 70 ? 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30'
-        : pct >= 50 ? 'text-amber-400 bg-amber-500/15 border-amber-500/30'
-        : 'text-red-400 bg-red-500/15 border-red-500/30';
+function asObject(value) {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+function citationLocation(citation) {
+    const parts = [];
+    if (citation.page_number !== null && citation.page_number !== undefined) {
+        parts.push(`halaman ${citation.page_number}`);
+    }
+    if (citation.span_start !== null && citation.span_start !== undefined) {
+        const end = citation.span_end ?? '?';
+        parts.push(`span ${citation.span_start}–${end}`);
+    }
+    return parts.length ? parts.join(' · ') : 'lokasi rinci tidak tersedia';
+}
+
+function sourceView(source, index) {
+    const item = asObject(source);
+    const metadata = {
+        ...asObject(item.document),
+        ...asObject(item.metadata),
+    };
+    return {
+        id: metadata.source_id || metadata.source_uri || `source-${index + 1}`,
+        uri: metadata.source_uri || metadata.path || metadata.file_name || '',
+        title: metadata.title || metadata.file_name || metadata.source_id || `Source ${index + 1}`,
+        page: metadata.page_number,
+        license: metadata.license_id || metadata.license || 'UNKNOWN',
+        score: Number.isFinite(Number(item.score)) ? Number(item.score) : null,
+        scoreKind: item.score_kind || 'UNSPECIFIED',
+        depth: item.retrieval_depth,
+        content: String(item.content || item.snippet || '').trim(),
+    };
+}
+
+function StatusBanner({ status }) {
+    const presentation = statusPresentation(status);
+    const Icon = presentation.icon;
     return (
-        <span className={clsx('text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border', color)}>
-            {pct}%
-        </span>
+        <div className={clsx('rounded-2xl border p-4 flex items-start gap-3', TONE_CLASSES[presentation.tone])}>
+            <Icon size={18} className="mt-0.5 shrink-0" />
+            <div>
+                <p className="text-sm font-bold">{presentation.label}</p>
+                <p className="text-[11px] opacity-80 mt-1 leading-relaxed">{presentation.description}</p>
+                <code className="inline-block mt-2 text-[10px] font-mono opacity-75">{status || 'UNKNOWN'}</code>
+            </div>
+        </div>
     );
 }
 
-function PatchDetail({ patch, onClose }) {
-    if (!patch) return null;
-    const confidence = Math.round((patch.bayes_confidence || 0) * 100);
-    const novelty = Math.round((patch.novelty_score || 0) * 100);
+function EvidenceSummary({ result }) {
+    const citations = Array.isArray(result.citations) ? result.citations : [];
+    const sources = Array.isArray(result.sources) ? result.sources : [];
+    return (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <SummaryCard icon={Database} label="Sources" value={sources.length} />
+            <SummaryCard icon={Link2} label="Citations" value={citations.length} />
+            <SummaryCard icon={Layers3} label="Depth reached" value={result.depth_reached ?? 0} />
+            <SummaryCard
+                icon={Shield}
+                label="Promotion gate"
+                value={result.promotable === true ? 'Review eligible' : 'Non-promotable'}
+            />
+        </div>
+    );
+}
+
+function SummaryCard({ icon: Icon, label, value }) {
+    return (
+        <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
+            <p className="text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Icon size={11} /> {label}
+            </p>
+            <p className="mt-2 text-sm font-bold text-slate-200 break-words">{value}</p>
+        </div>
+    );
+}
+
+function PromotionNotice({ promotable }) {
+    const eligible = promotable === true;
+    return (
+        <div className={clsx(
+            'rounded-xl border p-3 flex items-start gap-2.5',
+            eligible
+                ? 'bg-sky-500/8 border-sky-500/25 text-sky-200'
+                : 'bg-amber-500/8 border-amber-500/25 text-amber-200'
+        )}>
+            <Shield size={15} className="mt-0.5 shrink-0" />
+            <div>
+                <p className="text-xs font-bold">
+                    {eligible ? 'Candidate eligible untuk review terpisah' : 'Candidate non-promotable'}
+                </p>
+                <p className="text-[10px] opacity-80 mt-1 leading-relaxed">
+                    {eligible
+                        ? 'Status ini bukan verified, applied, atau deployed. Gate Core dan persetujuan manusia tetap wajib.'
+                        : 'Evidence belum memenuhi promotion gate. Tidak ada perubahan pada JAYA_CORE atau sistem lain.'}
+                </p>
+            </div>
+        </div>
+    );
+}
+
+function CitationCard({ citation, index }) {
+    const item = asObject(citation);
+    const score = Number(item.retrieval_score);
+    return (
+        <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4 space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <p className="text-xs font-bold text-sky-300">
+                        {item.citation_id || `CIT-${index + 1}`}
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-mono mt-1 break-all">
+                        {item.source_id || 'source_id tidak tersedia'}
+                    </p>
+                </div>
+                <span className={clsx(
+                    'px-2 py-1 rounded-lg border text-[9px] font-bold uppercase tracking-wide',
+                    item.provenance_complete
+                        ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-300'
+                        : 'bg-amber-500/10 border-amber-500/25 text-amber-300'
+                )}>
+                    {item.provenance_complete ? 'Provenance lengkap' : 'Provenance belum lengkap'}
+                </span>
+            </div>
+
+            <blockquote className="text-[11px] text-slate-300 leading-relaxed border-l-2 border-sky-500/40 pl-3">
+                {item.snippet || 'Snippet tidak tersedia.'}
+            </blockquote>
+
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[10px]">
+                <MetadataRow label="Source URI" value={item.source_uri || 'tidak tersedia'} mono />
+                <MetadataRow label="Lokasi" value={citationLocation(item)} />
+                <MetadataRow label="License" value={item.license_id || 'UNKNOWN'} />
+                <MetadataRow
+                    label="Retrieval score"
+                    value={Number.isFinite(score) ? `${score.toFixed(4)} (${item.score_kind || 'UNSPECIFIED'})` : 'tidak tersedia'}
+                />
+                <MetadataRow label="Chunk SHA-256" value={item.chunk_sha256 || 'tidak tersedia'} mono />
+                <MetadataRow label="Accessed at" value={item.accessed_at || 'tidak tersedia'} />
+            </dl>
+        </div>
+    );
+}
+
+function SourceCard({ source, index }) {
+    const item = sourceView(source, index);
+    return (
+        <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 space-y-2">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <p className="text-[11px] font-bold text-slate-200 truncate">{item.title}</p>
+                    <p className="text-[9px] text-slate-600 font-mono break-all mt-0.5">{item.uri || item.id}</p>
+                </div>
+                {item.score !== null && (
+                    <span className="text-[9px] font-mono text-sky-300 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded">
+                        {item.score.toFixed(4)}
+                    </span>
+                )}
+            </div>
+            {item.content && (
+                <p className="text-[10px] text-slate-400 leading-relaxed line-clamp-4">{item.content}</p>
+            )}
+            <div className="flex flex-wrap gap-1.5 text-[9px] text-slate-500">
+                <span className="px-1.5 py-0.5 rounded bg-white/[0.04]">license: {item.license}</span>
+                {item.page !== undefined && item.page !== null && (
+                    <span className="px-1.5 py-0.5 rounded bg-white/[0.04]">page: {item.page}</span>
+                )}
+                {item.depth !== undefined && (
+                    <span className="px-1.5 py-0.5 rounded bg-white/[0.04]">depth: {item.depth}</span>
+                )}
+                <span className="px-1.5 py-0.5 rounded bg-white/[0.04]">score kind: {item.scoreKind}</span>
+            </div>
+        </div>
+    );
+}
+
+function MetadataRow({ label, value, mono = false }) {
+    return (
+        <div className="min-w-0">
+            <dt className="text-slate-600 uppercase tracking-wide">{label}</dt>
+            <dd className={clsx('text-slate-300 mt-0.5 break-all', mono && 'font-mono')}>{value}</dd>
+        </div>
+    );
+}
+
+function ArtifactPanel({ result }) {
+    return (
+        <div className="rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] p-4">
+            <div className="flex items-center gap-2 text-purple-300 mb-3">
+                <FileText size={15} />
+                <h3 className="text-xs font-bold">Artefak candidate</h3>
+            </div>
+            <dl className="space-y-3 text-[10px]">
+                <MetadataRow label="Artifact URI" value={result.artifact_uri || 'tidak tersedia'} mono />
+                <MetadataRow label="Artifact SHA-256" value={result.artifact_sha256 || 'tidak tersedia'} mono />
+            </dl>
+            <p className="text-[10px] text-purple-200/60 mt-3 leading-relaxed">
+                URI dan checksum memungkinkan artefak diaudit. Keberadaan artefak tidak berarti hasil telah diverifikasi atau diterapkan.
+            </p>
+        </div>
+    );
+}
+
+function ResearchResult({ result }) {
+    const citations = Array.isArray(result.citations) ? result.citations : [];
+    const sources = Array.isArray(result.sources) ? result.sources : [];
+    const answeredWithoutCitation = result.status === 'ANSWERED' && citations.length === 0;
 
     return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="h-full overflow-y-auto space-y-4 pr-1"
+        <motion.section
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-4"
         >
-            {/* Header */}
-            <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/[0.08]">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-400 flex items-center justify-center">
-                            <Brain size={16} />
-                        </div>
-                        <div>
-                            <p className="text-[10px] font-mono text-slate-500">PATCH ID</p>
-                            <p className="text-xs font-bold text-emerald-300 font-mono">{patch.patch_id}</p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="text-slate-500 hover:text-white text-[11px] transition-colors">✕ Tutup</button>
-                </div>
-                <h3 className="text-sm font-bold text-slate-100 mb-1">{patch.topic}</h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed">{patch.statement}</p>
-            </div>
+            <StatusBanner status={result.status} />
+            <EvidenceSummary result={result} />
+            <PromotionNotice promotable={result.promotable} />
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                    <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1"><BarChart2 size={10} /> Bayesian Confidence</p>
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div
-                                className={clsx('h-full rounded-full transition-all', confidence >= 70 ? 'bg-emerald-500' : confidence >= 50 ? 'bg-amber-500' : 'bg-red-500')}
-                                style={{ width: `${confidence}%` }}
-                            />
-                        </div>
-                        <span className="text-xs font-bold text-slate-200">{confidence}%</span>
-                    </div>
-                </div>
-                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-                    <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1"><Sparkles size={10} /> Novelty Score</p>
-                    <div className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${novelty}%` }} />
-                        </div>
-                        <span className="text-xs font-bold text-slate-200">{novelty}%</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* Meta */}
-            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-2">
-                <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 flex items-center gap-1"><Cpu size={10} /> Target System</span>
-                    <span className="text-slate-200 font-mono">{patch.target_system || 'JAYA_CORE_BRAIN'}</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 flex items-center gap-1"><Database size={10} /> SQLite Status</span>
-                    <span className="text-emerald-400 font-bold">✓ APPLIED</span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 flex items-center gap-1"><Zap size={10} /> LLM Generated</span>
-                    <span className={patch.llm_generated ? 'text-sky-400' : 'text-slate-400'}>
-                        {patch.llm_generated ? '✓ Ya (NVIDIA NIM)' : 'Template Synthesis'}
-                    </span>
-                </div>
-                <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 flex items-center gap-1"><Clock size={10} /> Diterapkan</span>
-                    <span className="text-slate-300">{formatRelTime(patch.applied_at)}</span>
-                </div>
-            </div>
-
-            {/* Falsifiability */}
-            {patch.falsifiability && (
-                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                    <p className="text-[10px] font-bold text-amber-400 mb-1 flex items-center gap-1">
-                        <Shield size={10} /> Kriteria Falsifiabilitas
+            {answeredWithoutCitation && (
+                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-200 flex items-start gap-2">
+                    <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                    <p className="text-[10px] leading-relaxed">
+                        Backend menandai hasil ANSWERED tanpa citation. Perlakukan sebagai contract violation dan jangan gunakan synthesis sebagai evidence.
                     </p>
-                    <p className="text-[11px] text-slate-300 leading-relaxed">{patch.falsifiability}</p>
                 </div>
             )}
 
-            {/* Full Markdown report */}
-            <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.06] prose prose-invert max-w-none text-xs leading-relaxed">
-                <ReactMarkdown>
-                    {`# Laporan Penemuan Ilmiah\n\n**Patch ID**: \`${patch.patch_id}\`\n\n**Topik**: ${patch.topic}\n\n## Hipotesis\n\n${patch.statement}\n\n## Analisis\n\n- **Kepercayaan Bayesian**: ${confidence}% — ${confidence >= 70 ? 'Hipotesis diterima dengan keyakinan tinggi' : confidence >= 50 ? 'Hipotesis perlu validasi lanjutan' : 'Keyakinan rendah, butuh eksperimen ulang'}\n- **Skor Novelty**: ${novelty}% — ${novelty >= 80 ? 'Penemuan sangat baru, belum ada di literatur sebelumnya' : 'Penemuan baru dengan basis riset yang ada'}\n\n## Dampak ke JAYA_CORE\n\nPatch ini diinjeksi langsung ke database \`agentic_jarvis.db\` tabel \`jarvis_patches\` dan \`proactive_directives\`, memungkinkan JAYA merespons secara proaktif berdasarkan penemuan ini.`}
-                </ReactMarkdown>
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5">
+                <div className="flex items-center gap-2 mb-4">
+                    <BookOpen size={15} className="text-sky-300" />
+                    <h2 className="text-sm font-bold text-slate-100">Synthesis ekstraktif</h2>
+                </div>
+                <div className="prose prose-invert prose-sm max-w-none text-slate-300 text-xs leading-relaxed">
+                    <ReactMarkdown>{String(result.synthesis || 'Tidak ada synthesis yang dikembalikan.')}</ReactMarkdown>
+                </div>
             </div>
-        </motion.div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-start">
+                <div className="xl:col-span-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                        <h2 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                            <Link2 size={13} className="text-sky-300" /> Citations
+                        </h2>
+                        <span className="text-[9px] text-slate-500">{citations.length} item</span>
+                    </div>
+                    <div className="space-y-3">
+                        {citations.length > 0 ? citations.map((citation, index) => (
+                            <CitationCard
+                                key={citation?.citation_id || citation?.chunk_sha256 || index}
+                                citation={citation}
+                                index={index}
+                            />
+                        )) : (
+                            <EmptyEvidence message="Tidak ada citation. Sistem seharusnya abstain jika evidence tidak tersedia." />
+                        )}
+                    </div>
+                </div>
+                <ArtifactPanel result={result} />
+            </div>
+
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                    <h2 className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                        <Database size={13} className="text-emerald-300" /> Retrieved sources
+                    </h2>
+                    <span className="text-[9px] text-slate-500">{sources.length} item</span>
+                </div>
+                {sources.length > 0 ? (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        {sources.map((source, index) => (
+                            <SourceCard
+                                key={`${sourceView(source, index).id}-${index}`}
+                                source={source}
+                                index={index}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <EmptyEvidence message="Tidak ada source retrieval untuk query ini." />
+                )}
+            </div>
+        </motion.section>
     );
 }
 
+function EmptyEvidence({ message }) {
+    return (
+        <div className="rounded-xl border border-dashed border-white/10 p-6 text-center">
+            <Database size={20} className="mx-auto text-slate-700 mb-2" />
+            <p className="text-[10px] text-slate-500">{message}</p>
+        </div>
+    );
+}
+
+function validateInputs(query, depthValue, maxSourcesValue) {
+    const normalizedQuery = query.trim();
+    const depth = Number(depthValue);
+    const maxSourcesPerLevel = Number(maxSourcesValue);
+    if (!normalizedQuery) return { error: 'Pertanyaan riset wajib diisi.' };
+    if (normalizedQuery.length > 8_000) return { error: 'Pertanyaan maksimal 8.000 karakter.' };
+    if (!Number.isInteger(depth) || depth < 1 || depth > 5) {
+        return { error: 'Depth harus berupa bilangan bulat antara 1 dan 5.' };
+    }
+    if (!Number.isInteger(maxSourcesPerLevel) || maxSourcesPerLevel < 1 || maxSourcesPerLevel > 10) {
+        return { error: 'Sources per level harus berupa bilangan bulat antara 1 dan 10.' };
+    }
+    return { query: normalizedQuery, depth, maxSourcesPerLevel };
+}
+
 export default function ResearchPage({ workspaceId }) {
-    const [patches, setPatches] = useState([]);
-    const [totalPatches, setTotalPatches] = useState(0);
-    const [selectedPatch, setSelectedPatch] = useState(null);
-    // null = belum tahu (sedang sync dengan backend), true/false = sudah tahu
-    const [isLoopRunning, setIsLoopRunning] = useState(null);
-    const [isTogglingLoop, setIsTogglingLoop] = useState(false);
-    const [loopIteration, setLoopIteration] = useState(0);
-    const [latestResult, setLatestResult] = useState(null);
-    const [dbExists, setDbExists] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
-    const [topic, setTopic] = useState('');
-    const [isRunningManual, setIsRunningManual] = useState(false);
-    // true saat pertama kali sync backend (UI baru dibuka/reload)
-    const [isInitialSync, setIsInitialSync] = useState(true);
+    const activeWorkspace = workspaceId || 'default';
+    const [query, setQuery] = useState('');
+    const [depth, setDepth] = useState('3');
+    const [maxSourcesPerLevel, setMaxSourcesPerLevel] = useState('5');
+    const [result, setResult] = useState(null);
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
-    const loopPollRef = useRef(null);
-    const patchesPollRef = useRef(null);
+    const queryLength = query.length;
+    const validation = useMemo(
+        () => validateInputs(query, depth, maxSourcesPerLevel),
+        [query, depth, maxSourcesPerLevel]
+    );
 
-    // Fetch patches from SQLite via API
-    const fetchPatches = useCallback(async (showRefresh = false) => {
-        if (showRefresh) setIsRefreshing(true);
+    const runResearch = async (event) => {
+        event.preventDefault();
+        if (validation.error) {
+            setError(validation.error);
+            return;
+        }
+        setIsLoading(true);
+        setError('');
         try {
-            const res = await fetch(`${API_BASE}/evolution/patches?limit=100`);
-            const data = await res.json();
-            if (data.patches) {
-                setPatches(data.patches);
-                setTotalPatches(data.total || data.patches.length);
-                setDbExists(data.db_exists || false);
+            const response = await api.startRecursiveResearch(
+                validation.query,
+                activeWorkspace,
+                validation.depth,
+                validation.maxSourcesPerLevel
+            );
+            if (!response || typeof response !== 'object' || typeof response.status !== 'string') {
+                throw new Error('Backend mengembalikan response deep research yang tidak valid.');
             }
-        } catch (e) {
-            console.error('[ResearchPage] Failed to fetch patches:', e);
+            setResult(response);
+        } catch (requestError) {
+            const code = requestError?.code ? `[${requestError.code}] ` : '';
+            setError(`${code}${requestError?.message || 'Deep research gagal dijalankan.'}`);
         } finally {
-            if (showRefresh) setIsRefreshing(false);
-        }
-    }, []);
-
-    // Fetch loop status — on first call, mark sync done
-    const fetchLoopStatus = useCallback(async (isFirst = false) => {
-        try {
-            const res = await fetch(`${API_BASE}/evolution/loop-status`);
-            const data = await res.json();
-            setIsLoopRunning(data.is_running || false);
-            setLoopIteration(data.loop_iteration_count || 0);
-            if (data.latest_upgrade) setLatestResult(data.latest_upgrade);
-        } catch (e) {
-            console.error('[ResearchPage] Loop status error:', e);
-            // Jika backend tidak bisa dijangkau, anggap tidak running
-            if (isFirst) setIsLoopRunning(false);
-        } finally {
-            if (isFirst) setIsInitialSync(false);
-        }
-    }, []);
-
-    const [logs, setLogs] = useState([]);
-    const [autoScroll, setAutoScroll] = useState(true);
-    const logContainerRef = useRef(null);
-    const logsPollRef = useRef(null);
-
-    // Fetch live terminal execution logs from API
-    const fetchLogs = useCallback(async () => {
-        try {
-            const res = await fetch(`${API_BASE}/evolution/logs?limit=50`);
-            const data = await res.json();
-            if (data.logs) {
-                setLogs(data.logs);
-            }
-        } catch (e) {
-            // Silently ignore log fetch notice
-        }
-    }, []);
-
-    // Initial sync dengan backend — inilah yang membuat UI tahu status real
-    useEffect(() => {
-        fetchPatches();
-        fetchLoopStatus(true);
-        fetchLogs();
-    }, []);
-
-    // Polling: patches every 5s, loop status every 3s, logs every 2s
-    useEffect(() => {
-        patchesPollRef.current = setInterval(() => fetchPatches(), 5000);
-        loopPollRef.current = setInterval(() => fetchLoopStatus(false), 3000);
-        logsPollRef.current = setInterval(() => fetchLogs(), 2000);
-        return () => {
-            clearInterval(patchesPollRef.current);
-            clearInterval(loopPollRef.current);
-            clearInterval(logsPollRef.current);
-        };
-    }, []);
-
-    // Auto-scroll logs to bottom
-    useEffect(() => {
-        if (autoScroll && logContainerRef.current) {
-            logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-        }
-    }, [logs, autoScroll]);
-
-    // Toggle loop
-    const toggleLoop = async () => {
-        setIsTogglingLoop(true);
-        try {
-            const endpoint = isLoopRunning
-                ? `${API_BASE}/evolution/stop-autonomous-loop`
-                : `${API_BASE}/evolution/start-autonomous-loop`;
-            const res = await fetch(endpoint, { method: 'POST' });
-            const data = await res.json();
-            setIsLoopRunning(data.is_running || false);
-        } catch (e) {
-            console.error('[ResearchPage] Toggle loop error:', e);
-        } finally {
-            setIsTogglingLoop(false);
+            setIsLoading(false);
         }
     };
 
-    // Manual single research trigger
-    const runManualUpgrade = async () => {
-        setIsRunningManual(true);
-        try {
-            const url = topic.trim()
-                ? `${API_BASE}/evolution/auto-upgrade?custom_topic=${encodeURIComponent(topic.trim())}`
-                : `${API_BASE}/evolution/auto-upgrade`;
-            const res = await fetch(url, { method: 'POST' });
-            const data = await res.json();
-            if (data.result) {
-                setLatestResult(data.result);
-                setTopic('');
-                // Immediately refresh patches
-                setTimeout(() => fetchPatches(), 1000);
-            }
-        } catch (e) {
-            console.error('[ResearchPage] Manual upgrade error:', e);
-        } finally {
-            setIsRunningManual(false);
-        }
+    const resetResearch = () => {
+        setResult(null);
+        setError('');
+        setQuery('');
+        setDepth('3');
+        setMaxSourcesPerLevel('5');
     };
 
     return (
-        <div className="p-6 h-full overflow-y-auto bg-[#0b0c10] text-slate-100 font-sans flex flex-col gap-6">
-            {/* ─── Header ─── */}
-            <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-5 border-b border-white/[0.06]">
-                <div>
-                    <h1 className="text-xl font-bold mb-1 flex items-center gap-3">
-                        <span className="p-2 bg-white/[0.05] border border-white/[0.08] rounded-xl text-slate-200">
-                            <FlaskConical size={20} />
-                        </span>
-                        Autonomous Discovery Engine
-                    </h1>
-                    <p className="text-slate-400 text-[11px] ml-1">
-                        Riset otonom JAYA — setiap penemuan diinjeksi langsung ke <code className="text-slate-300">agentic_jarvis.db</code>
-                    </p>
-                </div>
-
-                <div className="flex items-center gap-3 flex-wrap">
-                    {/* DB Status Badge */}
-                    <div className={clsx(
-                        'px-3 py-1.5 rounded-lg text-[10px] font-bold border flex items-center gap-1.5',
-                        dbExists
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                            : 'bg-red-500/10 border-red-500/30 text-red-400'
-                    )}>
-                        <Database size={10} />
-                        <span>{dbExists ? `DB Aktif · ${totalPatches} patch` : 'DB belum dibuat'}</span>
-                    </div>
-
-                    {/* Refresh */}
-                    <button
-                        onClick={() => fetchPatches(true)}
-                        disabled={isRefreshing}
-                        className="p-2 rounded-lg bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.08] text-slate-400 hover:text-white transition-all"
-                        title="Refresh daftar penemuan"
-                    >
-                        <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-                    </button>
-
-                    {/* START / STOP — disabled & shows spinner saat initial sync */}
-                    <button
-                        onClick={toggleLoop}
-                        disabled={isTogglingLoop || isInitialSync || isLoopRunning === null}
-                        className={clsx(
-                            'px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 border disabled:opacity-50 disabled:cursor-not-allowed',
-                            isInitialSync || isLoopRunning === null
-                                ? 'bg-white/[0.05] border-white/[0.1] text-slate-400'
-                                : isLoopRunning
-                                    ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300'
-                                    : 'bg-emerald-600/20 hover:bg-emerald-600/35 border-emerald-500/40 text-emerald-300'
-                        )}
-                        title={
-                            isInitialSync ? 'Menyinkronkan status dengan backend...'
-                            : isLoopRunning ? 'Klik untuk menghentikan loop'
-                            : 'Klik untuk memulai loop otonom'
-                        }
-                    >
-                        {/* Loading saat sync awal */}
-                        {(isInitialSync || isLoopRunning === null) ? (
-                            <><RotateCw size={13} className="animate-spin" /><span>Menyinkronkan...</span></>
-                        ) : isTogglingLoop ? (
-                            <><RotateCw size={13} className="animate-spin" /><span>Memproses...</span></>
-                        ) : isLoopRunning ? (
-                            <><Square size={12} className="fill-amber-400 text-amber-400" /><span>Hentikan Loop</span></>
-                        ) : (
-                            <><Play size={12} className="fill-emerald-400 text-emerald-400" /><span>Mulai Loop Otonom</span></>
-                        )}
-                        {isLoopRunning && !isInitialSync && (
-                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                        )}
-                    </button>
-
-                    {/* Manual topic */}
-                    <div className="flex gap-1.5 bg-white/[0.03] p-1 rounded-xl border border-white/[0.07]">
-                        <input
-                            value={topic}
-                            onChange={e => setTopic(e.target.value)}
-                            placeholder="Topik spesifik (opsional)..."
-                            className="bg-transparent text-slate-100 px-3 py-1 text-[11px] w-44 focus:outline-none placeholder:text-slate-600"
-                            onKeyDown={e => e.key === 'Enter' && runManualUpgrade()}
-                        />
-                        <button
-                            onClick={runManualUpgrade}
-                            disabled={isRunningManual}
-                            className="bg-slate-200 hover:bg-white text-slate-900 px-3 py-1 rounded-lg flex items-center gap-1 text-[11px] font-bold transition-all disabled:opacity-50"
-                        >
-                            {isRunningManual
-                                ? <RotateCw size={12} className="animate-spin" />
-                                : <Zap size={12} />
-                            }
-                            <span>Run</span>
-                        </button>
-                    </div>
-                </div>
-            </header>
-
-            {/* ─── Initial Sync Banner ─── */}
-            <AnimatePresence>
-                {isInitialSync && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        className="px-4 py-3 rounded-xl bg-slate-500/8 border border-slate-500/20 flex items-center gap-3"
-                    >
-                        <RotateCw size={14} className="text-slate-400 animate-spin shrink-0" />
-                        <p className="text-[11px] text-slate-400">
-                            Menyinkronkan status dengan backend… tombol akan aktif setelah koneksi terkonfirmasi.
-                        </p>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ─── Loop Active Banner ─── */}
-            <AnimatePresence>
-                {isLoopRunning && !isInitialSync && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        className="px-4 py-3 rounded-xl bg-emerald-500/8 border border-emerald-500/25 flex items-center justify-between gap-4"
-                    >
+        <div className="min-h-full bg-[#0b0c10] text-slate-100 p-5 lg:p-7 overflow-y-auto">
+            <div className="max-w-6xl mx-auto space-y-6">
+                <header className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-white/[0.07]">
+                    <div>
                         <div className="flex items-center gap-3">
-                            <Activity size={16} className="text-emerald-400 animate-pulse shrink-0" />
-                            <div>
-                                <p className="text-xs font-bold text-emerald-300">Loop Riset Otonom Aktif</p>
-                                <p className="text-[10px] text-slate-400">
-                                    Iterasi #{loopIteration} · State disimpan ke SQLite — aman meski UI di-reload atau backend restart
-                                </p>
-                            </div>
-                        </div>
-                        <button
-                            onClick={toggleLoop}
-                            className="px-3 py-1 bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold rounded-lg transition-all shrink-0"
-                        >
-                            Stop
-                        </button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-
-            {/* ─── Live Execution Terminal Console ─── */}
-            <div className="rounded-2xl bg-[#050608] border border-white/[0.08] p-4 flex flex-col gap-2 font-mono shadow-2xl">
-                <div className="flex items-center justify-between pb-2 border-b border-white/[0.06] text-xs">
-                    <div className="flex items-center gap-2">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                        <span className="font-bold text-slate-300 tracking-wider text-[11px]">LIVE EXECUTION STREAM</span>
-                        {isLoopRunning && (
-                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 font-sans">
-                                Siklus Otonom Running
+                            <span className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 text-sky-300">
+                                <FlaskConical size={20} />
                             </span>
-                        )}
-                    </div>
-                    <div className="flex items-center gap-3 text-[10px] text-slate-400 font-sans">
-                        <button
-                            onClick={() => setAutoScroll(!autoScroll)}
-                            className={clsx(
-                                "px-2 py-0.5 rounded transition-all border",
-                                autoScroll ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300" : "bg-white/5 border-white/10 text-slate-500"
-                            )}
-                        >
-                            {autoScroll ? "Auto-scroll ON" : "Auto-scroll OFF"}
-                        </button>
-                        <button
-                            onClick={() => setLogs([])}
-                            className="hover:text-white transition-colors"
-                        >
-                            Bersihkan Log
-                        </button>
-                    </div>
-                </div>
-
-                <div
-                    ref={logContainerRef}
-                    className="h-36 overflow-y-auto space-y-1.5 text-[11px] pr-2 scrollbar-thin scrollbar-thumb-white/10"
-                >
-                    {logs.length === 0 ? (
-                        <p className="text-slate-600 italic text-[10px]">Menunggu log eksekusi riset otonom...</p>
-                    ) : (
-                        logs.map((log, idx) => {
-                            const msg = log.message || '';
-                            let colorClass = 'text-slate-300';
-                            if (msg.includes('[AUTONOMOUS LOOP]')) colorClass = 'text-emerald-400 font-bold';
-                            else if (msg.includes('[LoRA TRAINER]')) colorClass = 'text-sky-400 font-bold';
-                            else if (msg.includes('[MEMORY MANAGER]') || msg.includes('[MILESTONE]')) colorClass = 'text-amber-400 font-bold';
-                            else if (msg.includes('[UNIVERSAL SYNC]')) colorClass = 'text-purple-400 font-bold';
-                            else if (msg.includes('[AUTO-UPGRADE]')) colorClass = 'text-cyan-300 font-bold';
-                            else if (msg.includes('❌') || msg.includes('Error')) colorClass = 'text-red-400 font-bold';
-
-                            return (
-                                <div key={idx} className="flex items-start gap-2 leading-relaxed hover:bg-white/[0.02] px-1 rounded transition-colors">
-                                    <span className="text-slate-600 text-[10px] shrink-0 select-none">[{log.timestamp}]</span>
-                                    <span className={clsx('break-all', colorClass)}>{msg}</span>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-            </div>
-
-            {/* ─── Latest Discovery Toast ─── */}
-            <AnimatePresence>
-                {latestResult && (
-                    <motion.div
-                        key={latestResult.patch_id}
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="px-4 py-3 rounded-xl bg-sky-500/8 border border-sky-500/20 flex items-start justify-between gap-4"
-                    >
-                        <div className="flex items-start gap-3">
-                            <CheckCircle2 size={16} className="text-sky-400 shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                                <p className="text-[10px] font-bold text-sky-300 flex items-center gap-2 flex-wrap">
-                                    <span>Penemuan Baru Berhasil Diinjeksi ke JAYA_CORE!</span>
-                                    <code className="bg-sky-500/15 px-1.5 py-0.5 rounded font-mono text-sky-200">{latestResult.patch_id}</code>
-                                </p>
-                                <p className="text-[10px] text-slate-400 mt-0.5 line-clamp-2">{latestResult.statement}</p>
+                            <div>
+                                <p className="text-[10px] uppercase tracking-[0.2em] text-sky-400 font-bold">Phase A</p>
+                                <h1 className="text-xl font-bold">Deep Research berbasis evidence</h1>
                             </div>
                         </div>
-                        <button onClick={() => setLatestResult(null)} className="text-slate-500 hover:text-white text-[10px] shrink-0">✕</button>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                        <p className="text-[11px] text-slate-400 mt-3 max-w-2xl leading-relaxed">
+                            Retrieval berjalan secara bounded. JAYA menjawab hanya dari evidence yang dapat ditelusuri,
+                            menampilkan konflik, atau abstain ketika bukti tidak memadai.
+                        </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2 min-w-48">
+                        <p className="text-[9px] uppercase tracking-wider text-slate-600">Workspace boundary</p>
+                        <p className="text-xs font-mono text-slate-300 mt-1 break-all">{activeWorkspace}</p>
+                    </div>
+                </header>
 
-            {/* ─── Main Content: List + Detail ─── */}
-            <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-                {/* ─ Patch List ─ */}
-                <div className="lg:col-span-4 flex flex-col gap-3 min-h-0">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                            <Brain size={11} /> Daftar Penemuan &amp; Patch
-                        </h3>
-                        <span className="text-[10px] font-bold text-slate-400 bg-white/[0.05] px-2 py-0.5 rounded-full">
-                            {totalPatches}
-                        </span>
+                <form onSubmit={runResearch} className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5 space-y-4">
+                    <div>
+                        <div className="flex items-center justify-between gap-3 mb-2">
+                            <label htmlFor="research-query" className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                                <Search size={13} className="text-sky-300" /> Pertanyaan riset
+                            </label>
+                            <span className={clsx('text-[9px] font-mono', queryLength > 8_000 ? 'text-red-400' : 'text-slate-600')}>
+                                {queryLength}/8000
+                            </span>
+                        </div>
+                        <textarea
+                            id="research-query"
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            maxLength={8_001}
+                            rows={5}
+                            disabled={isLoading}
+                            placeholder="Contoh: Bukti apa yang mendukung penggunaan provenance SHA-256 pada evaluasi retrieval?"
+                            className="w-full resize-y rounded-xl border border-white/[0.1] bg-black/20 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500/40 disabled:opacity-60"
+                        />
                     </div>
 
-                    <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-                        <AnimatePresence initial={false}>
-                            {patches.length === 0 ? (
-                                <div className="h-48 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center text-slate-600 gap-2">
-                                    <Database size={24} />
-                                    <p className="text-xs text-center">
-                                        {dbExists
-                                            ? 'Belum ada patch. Mulai Loop Otonom!'
-                                            : 'Database belum ada. Mulai Loop Otonom untuk membuatnya.'}
-                                    </p>
-                                </div>
-                            ) : patches.map((patch, idx) => (
-                                <motion.div
-                                    key={patch.patch_id}
-                                    initial={{ opacity: 0, y: -8 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: idx * 0.02 }}
-                                    onClick={() => setSelectedPatch(patch)}
-                                    className={clsx(
-                                        'p-3.5 rounded-xl border cursor-pointer transition-all group relative overflow-hidden',
-                                        selectedPatch?.patch_id === patch.patch_id
-                                            ? 'bg-white/[0.06] border-white/20 shadow-md'
-                                            : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] hover:border-white/[0.12]'
-                                    )}
-                                >
-                                    <div className="flex items-start justify-between gap-2 mb-1.5">
-                                        <h4 className="text-[11px] font-bold text-slate-200 line-clamp-1 flex-1">{patch.topic}</h4>
-                                        <ConfidencePill value={patch.bayes_confidence} />
-                                    </div>
-                                    <p className="text-[10px] text-slate-500 line-clamp-2 mb-2 leading-relaxed">{patch.statement}</p>
-                                    <div className="flex items-center justify-between text-[10px] text-slate-600">
-                                        <span className="font-mono">{patch.patch_id?.slice(-14)}</span>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-emerald-600 flex items-center gap-0.5"><CheckCircle2 size={9} /> Applied</span>
-                                            <span>{formatRelTime(patch.applied_at)}</span>
-                                        </div>
-                                    </div>
-                                    {selectedPatch?.patch_id === patch.patch_id && (
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
-                                            <ChevronRight size={14} />
-                                        </div>
-                                    )}
-                                </motion.div>
-                            ))}
-                        </AnimatePresence>
-                    </div>
-                </div>
-
-                {/* ─ Detail Viewer ─ */}
-                <div className="lg:col-span-8 min-h-0">
-                    <AnimatePresence mode="wait">
-                        {selectedPatch ? (
-                            <PatchDetail
-                                key={selectedPatch.patch_id}
-                                patch={selectedPatch}
-                                onClose={() => setSelectedPatch(null)}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <Layers3 size={11} /> Retrieval depth
+                            </span>
+                            <input
+                                type="number"
+                                min="1"
+                                max="5"
+                                step="1"
+                                value={depth}
+                                disabled={isLoading}
+                                onChange={(event) => setDepth(event.target.value)}
+                                className="mt-2 w-full bg-transparent text-sm font-bold text-slate-200 focus:outline-none disabled:opacity-60"
                             />
-                        ) : (
+                            <span className="text-[9px] text-slate-600">Batas backend: 1–5</span>
+                        </label>
+                        <label className="rounded-xl border border-white/[0.07] bg-black/10 p-3">
+                            <span className="text-[10px] uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                <Database size={11} /> Sources per level
+                            </span>
+                            <input
+                                type="number"
+                                min="1"
+                                max="10"
+                                step="1"
+                                value={maxSourcesPerLevel}
+                                disabled={isLoading}
+                                onChange={(event) => setMaxSourcesPerLevel(event.target.value)}
+                                className="mt-2 w-full bg-transparent text-sm font-bold text-slate-200 focus:outline-none disabled:opacity-60"
+                            />
+                            <span className="text-[9px] text-slate-600">Batas backend: 1–10</span>
+                        </label>
+                    </div>
+
+                    <AnimatePresence>
+                        {error && (
                             <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                className="h-full min-h-64 rounded-2xl border border-dashed border-white/10 flex flex-col items-center justify-center text-slate-600 gap-3"
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0 }}
+                                role="alert"
+                                className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-red-200 flex items-start gap-2"
                             >
-                                <FileText size={32} className="opacity-30" />
-                                <p className="text-xs">Pilih penemuan untuk melihat laporan lengkap</p>
-                                {!isLoopRunning && patches.length === 0 && (
-                                    <button
-                                        onClick={toggleLoop}
-                                        className="mt-2 px-4 py-2 bg-emerald-600/20 hover:bg-emerald-600/35 border border-emerald-500/40 text-emerald-300 text-xs font-bold rounded-xl transition-all flex items-center gap-2"
-                                    >
-                                        <Play size={12} className="fill-emerald-400" />
-                                        Mulai Loop Otonom Sekarang
-                                    </button>
-                                )}
+                                <AlertCircle size={15} className="mt-0.5 shrink-0" />
+                                <p className="text-[11px] leading-relaxed">{error}</p>
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                        <p className="text-[10px] text-slate-500 leading-relaxed max-w-xl">
+                            Hasil adalah candidate research. Tidak ada instalasi, injeksi, atau mutasi JAYA_CORE dari halaman ini.
+                        </p>
+                        <div className="flex gap-2 shrink-0">
+                            {(result || query) && (
+                                <button
+                                    type="button"
+                                    onClick={resetResearch}
+                                    disabled={isLoading}
+                                    className="px-3 py-2 rounded-xl border border-white/[0.1] bg-white/[0.03] text-slate-400 hover:text-white hover:bg-white/[0.06] transition-colors text-xs flex items-center gap-1.5 disabled:opacity-50"
+                                >
+                                    <RotateCcw size={12} /> Reset
+                                </button>
+                            )}
+                            <button
+                                type="submit"
+                                disabled={isLoading || Boolean(validation.error)}
+                                className="px-4 py-2 rounded-xl border border-sky-500/35 bg-sky-500/15 text-sky-200 hover:bg-sky-500/25 transition-colors text-xs font-bold flex items-center gap-2 disabled:opacity-45 disabled:cursor-not-allowed"
+                            >
+                                {isLoading ? (
+                                    <><LoaderCircle size={13} className="animate-spin" /> Meneliti...</>
+                                ) : (
+                                    <><Search size={13} /> Jalankan deep research</>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                <AnimatePresence mode="wait">
+                    {isLoading && !result ? (
+                        <motion.div
+                            key="loading"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="rounded-2xl border border-dashed border-sky-500/20 bg-sky-500/[0.025] p-10 text-center"
+                        >
+                            <LoaderCircle size={24} className="animate-spin mx-auto text-sky-300" />
+                            <p className="text-xs font-bold text-slate-300 mt-3">Menjalankan retrieval bounded</p>
+                            <p className="text-[10px] text-slate-600 mt-1">Tidak ada jawaban generatif tanpa evidence.</p>
+                        </motion.div>
+                    ) : result ? (
+                        <ResearchResult key={`${result.artifact_sha256 || result.query}-${result.status}`} result={result} />
+                    ) : (
+                        <motion.div
+                            key="empty"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="rounded-2xl border border-dashed border-white/10 p-10 text-center"
+                        >
+                            <Hash size={25} className="mx-auto text-slate-700" />
+                            <p className="text-xs font-bold text-slate-400 mt-3">Belum ada artefak research</p>
+                            <p className="text-[10px] text-slate-600 mt-1">Masukkan pertanyaan untuk mengambil evidence dari workspace ini.</p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </div>
     );

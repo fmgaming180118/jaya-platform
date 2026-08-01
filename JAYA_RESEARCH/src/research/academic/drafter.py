@@ -1,172 +1,283 @@
-import os
-from typing import List, Dict
-from src.teacher import Teacher
+"""Evidence-bound thesis drafting helpers.
+
+Language-model providers are optional and lazy.  Their output is never trusted
+to create bibliography entries or citation identifiers.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Callable, Sequence
+from typing import Any
+
+from research.academic.contracts import (
+    AcademicGenerationResult,
+    AcademicGenerationStatus,
+    AcademicTextProvider,
+    ProviderFactory,
+    annotate_unsupported_claims,
+    call_provider,
+    canonical_bibliography,
+    default_provider_factory,
+    normalize_evidence_ids,
+    safe_provider_error_code,
+    strip_generated_bibliography,
+    supplied_references,
+    unknown_citation_ids,
+)
+
 
 class ThesisDrafter:
-    """
-    Helps draft academic content for the Digital Twin.
-    """
-    def __init__(self):
-        # Use the 'reasoning' model for high-quality writing
-        self.writer = Teacher(model_type="reasoning")
+    """Draft academic material while keeping evidence provenance explicit."""
 
-    def generate_literature_review(self, topic: str, papers: List[Dict]) -> str:
-        """
-        Synthesizes a Literature Review chapter from a list of papers.
-        """
-        if not papers:
-            return "## Literature Review\n\nNo papers found to review."
+    def __init__(
+        self,
+        writer: AcademicTextProvider | None = None,
+        *,
+        provider_factory: ProviderFactory | None = None,
+    ) -> None:
+        self.writer = writer
+        self._provider_factory = provider_factory or default_provider_factory
 
-        # Prepare context from papers
-        paper_context = ""
-        for i, p in enumerate(papers, 1):
-            source = p.get('source', 'Unknown')
-            paper_context += f"Paper {i}:\nTitle: {p['title']}\nYear: {p['published']}\nSource: {source}\nAbstract: {p['summary']}\n\n"
+    def _provider(self) -> AcademicTextProvider:
+        if self.writer is None:
+            self.writer = self._provider_factory()
+        return self.writer
 
-        prompt = f"""
-        You are an Academic Research Assistant writing a Thesis.
-        
-        TOPIC: {topic}
-        
-        TASK: Write a "Literature Review" chapter based ONLY on the provided papers.
-        
-        REQUIREMENTS:
-        1.  **Academic Tone**: Formal, objective, and precise.
-        2.  **Synthesis**: Do not just list papers. Group them by themes or methodology. Compare and contrast.
-        3.  **Citations**: Use citation markers like [1], [2] corresponding to the list.
-        4.  **Structure**:
-            - **Introduction**: Brief overview of the state of the art.
-            - **Thematic Analysis**: Discuss the papers grouped by concepts.
-            - **Gaps**: Identify what is missing in the current research (based on these papers).
-            - **Conclusion**: Summary.
-        
-        PAPERS:
-        {paper_context}
-        
-        OUTPUT FORMAT: Markdown.
-        """
-        
-        print(f"[Drafter] Writing Literature Review for {topic} with {len(papers)} papers...")
-        review_content = self.writer.generate_completion(prompt)
-        
-        # Append Bibliography
-        bibliography = "\n\n## References\n"
-        for i, p in enumerate(papers, 1):
-            bibliography += f"[{i}] {p['authors'][0] if p['authors'] else 'Unknown'} et al. ({p['published']}). *{p['title']}*. {p.get('source', '')}. [Link]({p['pdf_link']})\n"
-            
-        return review_content + bibliography
+    def generate_literature_review_result(
+        self,
+        topic: str,
+        papers: Sequence[dict[str, Any]],
+    ) -> AcademicGenerationResult:
+        """Return a grounded literature synthesis plus canonical references."""
+        normalized_topic = " ".join(topic.split())
+        if not normalized_topic:
+            raise ValueError("topic must not be empty")
+
+        references = supplied_references(papers)
+        evidence_ids = tuple(record.evidence_id for record in references)
+        bibliography = canonical_bibliography(references)
+        if not references:
+            return AcademicGenerationResult(
+                status=AcademicGenerationStatus.ABSTAINED_INSUFFICIENT_EVIDENCE,
+                content=(
+                    "## Literature Review\n\n"
+                    "[ABSTAINED: no paper with an explicit supplied evidence ID "
+                    "and title was available.]"
+                ),
+            )
+
+        paper_by_id: dict[str, dict[str, str]] = {}
+        allowed = set(evidence_ids)
+        for paper in papers:
+            records = supplied_references((paper,))
+            if not records or records[0].evidence_id not in allowed:
+                continue
+            record = records[0]
+            if record.evidence_id in paper_by_id:
+                continue
+            paper_by_id[record.evidence_id] = {
+                "evidence_id": record.evidence_id,
+                "title": str(paper.get("title") or ""),
+                "published": str(paper.get("published") or paper.get("year") or ""),
+                "source": str(paper.get("source") or ""),
+                "summary": str(paper.get("summary") or paper.get("abstract") or ""),
+            }
+
+        prompt = (
+            "Write a literature review in Markdown using ONLY the supplied records. "
+            "Every substantive factual claim must end with one or more exact "
+            "citation markers from ALLOWED_EVIDENCE_IDS. If a claim cannot be "
+            "supported, append [UNSUPPORTED: no supplied evidence ID]. Do not "
+            "create a References/Bibliography section, authors, titles, years, "
+            "links, identifiers, or publication-readiness claims. Include "
+            "Introduction, Thematic Analysis, Gaps Requiring Verification, and "
+            "Conclusion. Treat an absent observation as unknown, never as proof.\n\n"
+            f"TOPIC: {normalized_topic}\n"
+            f"ALLOWED_EVIDENCE_IDS: {json.dumps(evidence_ids)}\n"
+            f"RECORDS: {json.dumps(list(paper_by_id.values()), ensure_ascii=False)}"
+        )
+        try:
+            generated = call_provider(self._provider(), prompt)
+        except Exception as error:
+            return AcademicGenerationResult(
+                status=AcademicGenerationStatus.PROVIDER_UNAVAILABLE,
+                content=(
+                    "## Literature Review\n\n"
+                    "[PROVIDER_UNAVAILABLE: synthesis was not generated; supplied "
+                    "references remain available for human review.]\n\n"
+                    f"## References\n\n{bibliography}"
+                ),
+                evidence_ids=evidence_ids,
+                provider_error_code=safe_provider_error_code(error),
+            )
+
+        generated = strip_generated_bibliography(generated)
+        unknown = unknown_citation_ids(generated, evidence_ids)
+        if unknown:
+            return AcademicGenerationResult(
+                status=AcademicGenerationStatus.INVALID_PROVIDER_OUTPUT,
+                content=(
+                    "## Literature Review\n\n"
+                    "[ABSTAINED: the text provider emitted citation IDs outside "
+                    "the supplied evidence set.]\n\n"
+                    f"## References\n\n{bibliography}"
+                ),
+                evidence_ids=evidence_ids,
+                provider_error_code="unknown_citation_id",
+            )
+
+        grounded, unsupported_count = annotate_unsupported_claims(
+            generated,
+            evidence_ids,
+        )
+        content = f"{grounded}\n\n## References\n\n{bibliography}"
+        return AcademicGenerationResult(
+            status=AcademicGenerationStatus.COMPLETE_HUMAN_REVIEW_REQUIRED,
+            content=content,
+            evidence_ids=evidence_ids,
+            unsupported_claim_count=unsupported_count,
+        )
+
+    def generate_literature_review(
+        self,
+        topic: str,
+        papers: Sequence[dict[str, Any]],
+    ) -> str:
+        """Compatibility wrapper returning the bounded Markdown content."""
+        return self.generate_literature_review_result(topic, papers).content
+
+    def generate_outline_result(self, topic: str) -> AcademicGenerationResult:
+        """Create a deterministic planning scaffold without making claims."""
+        normalized_topic = " ".join(topic.split())
+        if not normalized_topic:
+            raise ValueError("topic must not be empty")
+        content = f"""# Thesis Proposal Outline: {normalized_topic}
+
+> Planning scaffold only. It contains no research findings or bibliography and requires human review.
+
+## 1. Introduction
+
+- Define the background using supplied, citable evidence.
+- State the problem, objectives, scope, and falsifiable research questions.
+
+## 2. Literature Review
+
+- Synthesize only traceable sources and attach evidence IDs to substantive claims.
+- Record unresolved gaps as candidates requiring verification.
+
+## 3. Methodology
+
+- Specify data provenance, license, sampling, controls, metrics, and reproduction protocol.
+
+## 4. Expected Results
+
+- Describe evaluation criteria without asserting an outcome before execution.
+
+## 5. References
+
+- Add only sources verified and supplied by the researcher.
+"""
+        return AcademicGenerationResult(
+            status=AcademicGenerationStatus.COMPLETE_HUMAN_REVIEW_REQUIRED,
+            content=content.rstrip(),
+        )
 
     def generate_outline(self, topic: str) -> str:
-        """
-        Generates a standard Thesis Outline for the topic.
-        """
-        prompt = f"""
-        Generate a comprehensive Thesis Proposal Outline for the topic: "{topic}".
-        
-        The outline should follow standard academic structure:
-        1. Introduction (Background, Problem Statement, Objectives, Scope)
-        2. Literature Review (Overview of key keys)
-        3. Methodology (Proposed approach, tools, data)
-        4. Expected Results
-        5. References
-        
-        Provide a brief description for what should specifically go into each section for THIS topic.
-        """
-        return self.writer.generate_completion(prompt)
+        return self.generate_outline_result(topic).content
 
-    def export_to_latex(self, markdown_content: str, title: str = "Thesis Draft") -> str:
-        """
-        Converts simple Markdown to a basic LaTeX template.
-        """
-        latex_body = markdown_content
-        
-        # Simple replacements (Regex would be better for robust conversion)
-        latex_body = latex_body.replace("# ", r"\chapter{").replace("## ", r"\section{").replace("### ", r"\subsection{")
-        latex_body = latex_body.replace("**", r"\textbf{").replace("*", r"\textit{")
-        # Close braces for headers (Heuristic: assumes headers are on single lines)
-        lines = []
-        for line in latex_body.split('\n'):
-            if line.strip().startswith(r"\chapter{") or line.strip().startswith(r"\section{") or line.strip().startswith(r"\subsection{"):
-                lines.append(line.strip() + "}")
+    def export_to_latex(
+        self,
+        markdown_content: str,
+        title: str = "Thesis Draft",
+    ) -> str:
+        """Convert basic Markdown headings into a review-labelled LaTeX draft."""
+        lines: list[str] = []
+        for line in markdown_content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("### "):
+                lines.append(f"\\subsection{{{stripped[4:]}}}")
+            elif stripped.startswith("## "):
+                lines.append(f"\\section{{{stripped[3:]}}}")
+            elif stripped.startswith("# "):
+                lines.append(f"\\chapter{{{stripped[2:]}}}")
             else:
                 lines.append(line)
-        
         latex_body = "\n".join(lines)
-
-        template = r"""
-\documentclass[12pt, a4paper]{report}
-\usepackage{graphicx}
-\usepackage{hyperref}
-\usepackage[utf8]{inputenc}
-
-\title{""" + title + r"""}
-\author{JAYA Research Assistant}
-\date{\today}
-
-\begin{document}
-
+        return rf"""
+\documentclass[12pt, a4paper]{{report}}
+\usepackage{{hyperref}}
+\usepackage[utf8]{{inputenc}}
+\title{{{title}}}
+\author{{JAYA Research automated draft -- human authorship review required}}
+\date{{\today}}
+\begin{{document}}
 \maketitle
+\textbf{{Status: Human scientific review required; not publication-ready.}}
 \tableofcontents
+{latex_body}
+\end{{document}}
+""".strip()
 
-""" + latex_body + r"""
-
-\end{document}
-        """
-        return template
-
-    def generate_system_design_chapter(self, topic: str, system_spec: str, diagram_types: List[str] = ["usecase", "class"]) -> str:
-        """
-        Generates the System Analysis and Design chapter, automatically creating,
-        validating, and embedding standard UML diagrams.
-        """
+    def generate_system_design_chapter(
+        self,
+        topic: str,
+        system_spec: str,
+        diagram_types: Sequence[str] = ("usecase", "class"),
+        *,
+        evidence_ids: Sequence[str] = (),
+        uml_factory: Callable[[], Any] | None = None,
+    ) -> str:
+        """Generate diagrams while clearly labelling unsupported explanations."""
         from research.uml_generator import UMLGenerator
-        uml_generator = UMLGenerator()
-        
-        chapter_content = f"# Bab III: Analisis dan Perancangan Sistem\n\n## 3.1 Deskripsi Umum Sistem\nTopik Penelitian: {topic}\n\nSpesifikasi Kebutuhan Sistem:\n{system_spec}\n\n"
-        
-        for dtype in diagram_types:
+
+        allowed_ids = normalize_evidence_ids(evidence_ids)
+        uml_generator = (uml_factory or UMLGenerator)()
+        chapter = (
+            "# Bab III: Analisis dan Perancangan Sistem\n\n"
+            "## 3.1 Deskripsi Umum Sistem\n\n"
+            f"Topik Penelitian: {topic}\n\nSpesifikasi Kebutuhan Sistem:\n{system_spec}"
+        )
+        if not allowed_ids:
+            chapter += "\n\n[UNSUPPORTED: no supplied evidence ID]"
+
+        for diagram_type in diagram_types:
             type_label = {
                 "usecase": "Use Case Diagram",
                 "class": "Class Diagram",
                 "sequence": "Sequence Diagram",
-                "activity": "Activity Diagram"
-            }.get(dtype, "UML Diagram")
-            
-            chapter_content += f"## 3.2 {type_label}\n"
-            
+                "activity": "Activity Diagram",
+            }.get(diagram_type, "UML Diagram")
+            chapter += f"\n\n## {type_label}\n\n"
             try:
-                code, url = uml_generator.generate_diagram(system_spec, dtype)
-                
-                # Generate explanation block using the writer
-                explanation_prompt = f"""
-                Berdasarkan spesifikasi berikut:
-                {system_spec}
-                
-                Dan kode diagram PlantUML berikut:
-                {code}
-                
-                Tulis deskripsi penjelasan akademis formal (1-2 paragraf) dalam bahasa Indonesia mengenai alur kerja dan rancangan diagram {type_label} tersebut sesuai dengan standar penulisan Tugas Akhir.
-                """
-                explanation = self.writer.ask(
-                    explanation_prompt,
-                    system_instruction="Kamu adalah akademisi senior. Tulis penjelasan diagram UML secara formal dan berbobot dalam Bahasa Indonesia."
+                code, url = uml_generator.generate_diagram(system_spec, diagram_type)
+            except Exception as error:
+                chapter += (
+                    "[DIAGRAM_UNAVAILABLE: generation failed; no diagram claim was "
+                    f"accepted. Error type: {type(error).__name__}]"
                 )
-                
-                chapter_content += f"Berikut adalah diagram {type_label} untuk rancangan sistem:\n\n"
-                chapter_content += f"![{type_label}]({url})\n\n"
-                chapter_content += f"### 3.2.1 Penjelasan {type_label}\n{explanation}\n\n"
-                
-                # Append raw code inside comments for reference
-                chapter_content += f"<!-- Raw PlantUML Source:\n{code}\n-->\n\n"
-                
-            except Exception as e:
-                chapter_content += f"⚠️ *Gagal merancang {type_label}: {e}*\n\n"
-                
-        return chapter_content
+                continue
 
-if __name__ == "__main__":
-    # Test
-    drafter = ThesisDrafter()
-    # print(drafter.generate_outline("Optimizing AI for Low-Resource Devices"))
-    md = "# Introduction\nThis is a test.\n## Background\nAI is growing."
-    print(drafter.export_to_latex(md))
+            chapter += f"![{type_label}]({url})\n\n```plantuml\n{code}\n```"
+            if not allowed_ids:
+                chapter += "\n\n[UNSUPPORTED: no supplied evidence ID]"
+                continue
+            prompt = (
+                "Explain this supplied system diagram in Indonesian academic prose. "
+                "Use only these exact evidence markers and add one to every factual "
+                f"claim: {list(allowed_ids)}. Do not add references.\n\n"
+                f"SPECIFICATION:\n{system_spec}\n\nPLANTUML:\n{code}"
+            )
+            try:
+                explanation = strip_generated_bibliography(
+                    call_provider(self._provider(), prompt)
+                )
+            except Exception:
+                chapter += "\n\n[PROVIDER_UNAVAILABLE: explanation was not generated.]"
+                continue
+            if unknown_citation_ids(explanation, allowed_ids):
+                chapter += "\n\n[ABSTAINED: explanation contained an unknown citation ID.]"
+                continue
+            explanation, _ = annotate_unsupported_claims(explanation, allowed_ids)
+            chapter += f"\n\n### Penjelasan {type_label}\n\n{explanation}"
+        return chapter

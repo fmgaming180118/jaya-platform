@@ -1,8 +1,68 @@
-import { API_BASE_URL, IS_DEV } from '../config/env';
+import { API_BASE_URL, IS_DEV } from '../config/env.js';
+import {
+    buildIngestTextRequest,
+    buildRecursiveResearchRequest,
+} from './contracts.js';
 
 // API log bus — DevPanel subscribes to ini
 let _logCallback = null;
 export const setApiLogCallback = (fn) => { _logCallback = fn; };
+
+// Credentials remain in memory and are never compiled into VITE_* variables.
+let _apiAccessToken = null;
+
+export class ApiError extends Error {
+    constructor(status, code, message) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
+export const setApiAccessToken = (token) => {
+    if (
+        typeof token !== 'string'
+        || token.length < 1
+        || token.length > 4_096
+        || token !== token.trim()
+        || Array.from(token).some(
+            (character) => /\s/u.test(character) || character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127
+        )
+    ) {
+        throw new TypeError('API access token must contain 1-4096 non-whitespace characters');
+    }
+    _apiAccessToken = token;
+};
+
+export const clearApiAccessToken = () => {
+    _apiAccessToken = null;
+};
+
+export const hasApiAccessToken = () => _apiAccessToken !== null;
+
+const authorizationHeaders = () => (
+    _apiAccessToken ? { Authorization: `Bearer ${_apiAccessToken}` } : {}
+);
+
+const responseError = async (response) => {
+    let payload = null;
+    try {
+        payload = await response.json();
+    } catch {
+        // A non-JSON proxy response is represented by its HTTP status only.
+    }
+    const detail = payload?.error ?? payload?.detail;
+    const code = typeof detail?.code === 'string'
+        ? detail.code
+        : `HTTP_${response.status}`;
+    const message = typeof detail?.message === 'string'
+        ? detail.message
+        : typeof detail === 'string'
+            ? detail
+            : `Request failed with HTTP ${response.status}`;
+    return new ApiError(response.status, code, message);
+};
 
 /**
  * Wrapper fetch yang otomatis mencatat request ke DevPanel log (hanya di DEV)
@@ -11,12 +71,18 @@ async function apiFetch(url, options = {}) {
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     const method = options.method || 'GET';
     const start = Date.now();
+    let responseReceived = false;
 
     try {
         const res = await fetch(fullUrl, {
             ...options,
-            headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+            headers: {
+                'Content-Type': 'application/json',
+                ...authorizationHeaders(),
+                ...(options.headers || {}),
+            },
         });
+        responseReceived = true;
         const duration = Date.now() - start;
 
         if (IS_DEV && _logCallback) {
@@ -25,11 +91,12 @@ async function apiFetch(url, options = {}) {
             });
         }
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        if (!res.ok) throw await responseError(res);
+        if (res.status === 204) return null;
         return res.json();
     } catch (err) {
         const duration = Date.now() - start;
-        if (IS_DEV && _logCallback) {
+        if (!responseReceived && IS_DEV && _logCallback) {
             _logCallback({ url: fullUrl, method, status: 0, ok: false, duration, timestamp: Date.now() });
         }
         throw err;
@@ -42,27 +109,77 @@ async function apiFetch(url, options = {}) {
 async function apiFetchMultipart(url, formData) {
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     const start = Date.now();
+    let responseReceived = false;
     try {
         const res = await fetch(fullUrl, {
             method: 'POST',
             body: formData,
+            headers: authorizationHeaders(),
             // JANGAN set Content-Type — browser otomatis set boundary multipart
         });
+        responseReceived = true;
         const duration = Date.now() - start;
         if (IS_DEV && _logCallback) {
             _logCallback({ url: fullUrl, method: 'POST', status: res.status, ok: res.ok, duration, timestamp: Date.now() });
         }
-        if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`HTTP ${res.status}: ${errText}`);
-        }
+        if (!res.ok) throw await responseError(res);
         return res.json();
     } catch (err) {
-        if (IS_DEV && _logCallback) {
+        if (!responseReceived && IS_DEV && _logCallback) {
             _logCallback({ url: fullUrl, method: 'POST', status: 0, ok: false, duration: 0, timestamp: Date.now() });
         }
         throw err;
     }
+}
+
+async function apiFetchResource(url) {
+    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+    const start = Date.now();
+    let responseReceived = false;
+    try {
+        const res = await fetch(fullUrl, { headers: authorizationHeaders() });
+        responseReceived = true;
+        if (IS_DEV && _logCallback) {
+            _logCallback({
+                url: fullUrl,
+                method: 'GET',
+                status: res.status,
+                ok: res.ok,
+                duration: Date.now() - start,
+                timestamp: Date.now(),
+            });
+        }
+        if (!res.ok) throw await responseError(res);
+        return res;
+    } catch (error) {
+        if (!responseReceived && IS_DEV && _logCallback) {
+            _logCallback({
+                url: fullUrl,
+                method: 'GET',
+                status: 0,
+                ok: false,
+                duration: Date.now() - start,
+                timestamp: Date.now(),
+            });
+        }
+        throw error;
+    }
+}
+
+async function downloadResource(url, fileName) {
+    const response = await apiFetchResource(url);
+    const blobUrl = URL.createObjectURL(await response.blob());
+    const anchor = document.createElement('a');
+    try {
+        anchor.href = blobUrl;
+        anchor.download = fileName;
+        document.body.appendChild(anchor);
+        anchor.click();
+    } finally {
+        anchor.remove();
+        URL.revokeObjectURL(blobUrl);
+    }
+    return { success: true };
 }
 
 export const api = {
@@ -93,16 +210,46 @@ export const api = {
         }),
 
     // --- Research ---
-    startResearch: (topic, focusAreas = '', workspaceId = 'default') =>
-        apiFetch('/research/autonomous', {
+    startResearch: (
+        topic,
+        focusAreas = '',
+        workspaceId = 'default',
+        maxQueries = 5,
+        idempotencyKey
+    ) => {
+        if (
+            typeof idempotencyKey !== 'string'
+            || idempotencyKey.length < 8
+            || idempotencyKey.length > 128
+        ) {
+            throw new TypeError('idempotencyKey must contain 8-128 characters');
+        }
+        return apiFetch('/research/autonomous', {
             method: 'POST',
-            body: JSON.stringify({ topic, focus_areas: focusAreas, workspace_id: workspaceId }),
-        }),
+            headers: { 'Idempotency-Key': idempotencyKey },
+            body: JSON.stringify({
+                topic,
+                focus_areas: focusAreas,
+                max_queries: maxQueries,
+                workspace_id: workspaceId,
+            }),
+        });
+    },
 
-    startRecursiveResearch: (topic, workspaceId = 'default', maxIterations = 3) =>
+    startRecursiveResearch: (
+        query,
+        workspaceId = 'default',
+        depth = 3,
+        maxSourcesPerLevel = 5
+    ) =>
         apiFetch('/research/recursive', {
             method: 'POST',
-            body: JSON.stringify({ topic, workspace_id: workspaceId, max_iterations: maxIterations }),
+            body: JSON.stringify(buildRecursiveResearchRequest({
+                query,
+                workspaceId,
+                depth,
+                maxSourcesPerLevel,
+            })),
         }),
 
     // --- Journal Search ---
@@ -113,10 +260,20 @@ export const api = {
         }),
 
     // --- Documents ---
-    ingestDocument: (filePath, workspaceId = 'default') =>
+    ingestText: (
+        text,
+        metadata = {},
+        workspaceId = 'default',
+        licenseId = 'UNKNOWN'
+    ) =>
         apiFetch('/ingest', {
             method: 'POST',
-            body: JSON.stringify({ file_path: filePath, workspace_id: workspaceId }),
+            body: JSON.stringify(buildIngestTextRequest({
+                text,
+                metadata,
+                workspaceId,
+                licenseId,
+            })),
         }),
 
     ingestVideo: (url) =>
@@ -128,8 +285,17 @@ export const api = {
     listDocuments: (workspaceId = 'default') =>
         apiFetch(`/documents?workspace_id=${workspaceId}`),
 
-    viewDocumentUrl: (workspaceId, filename) =>
-        `${API_BASE_URL}/documents/view/${encodeURIComponent(workspaceId)}/${encodeURIComponent(filename)}`,
+    readDocumentText: async (workspaceId, filename) => {
+        const response = await apiFetchResource(
+            `/documents/view/${encodeURIComponent(workspaceId)}/${encodeURIComponent(filename)}`
+        );
+        return response.text();
+    },
+
+    downloadDocument: (workspaceId, filename) => downloadResource(
+        `/documents/view/${encodeURIComponent(workspaceId)}/${encodeURIComponent(filename)}`,
+        filename
+    ),
 
     deleteDocument: (workspaceId, filename) =>
         apiFetch(`/documents/delete/${encodeURIComponent(workspaceId)}/${encodeURIComponent(filename)}`, {
@@ -244,19 +410,7 @@ export const api = {
      * @param {string} fileName - nama file yang disarankan
      */
     exportThesisReport: async (sessionId, fileName = 'laporan_ta.md') => {
-        const fullUrl = `${API_BASE_URL}/thesis/export/${sessionId}`;
-        const res = await fetch(fullUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        return { success: true };
+        return downloadResource(`/thesis/export/${encodeURIComponent(sessionId)}`, fileName);
     },
 
     // --- Dynamic Model Settings ---

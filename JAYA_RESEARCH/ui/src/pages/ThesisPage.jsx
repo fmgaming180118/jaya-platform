@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import {
     GraduationCap, Upload, FileText, CheckCircle2, AlertCircle,
-    RotateCw, Sparkles, Shield, MessageSquare, BookOpen, Target,
-    ChevronRight, Send, X, Microscope, TrendingUp, Brain, Swords,
+    RotateCw, Sparkles, Shield, MessageSquare, BookOpen,
+    Send, X, Microscope, TrendingUp, Brain, Swords,
     PenTool, Search, Download, ExternalLink, RefreshCw, Copy, Check,
     ChevronDown, Layers
 } from 'lucide-react';
@@ -164,7 +164,7 @@ function Section({ title, icon: Icon, color = 'yellow', children, defaultOpen = 
 
 // ─── Tab: Analisis ────────────────────────────────────────────────────────────
 
-function AnalysisTab({ analysis, sessionId }) {
+function AnalysisTab({ analysis }) {
     if (!analysis) return (
         <div className="flex flex-col items-center justify-center py-20 text-notebook-text-secondary">
             <Layers size={40} className="opacity-20 mb-3" />
@@ -619,7 +619,6 @@ const ThesisPage = ({ workspaceId }) => {
     const [sessionId, setSessionId]     = useState(null);
     const [uploadInfo, setUploadInfo]   = useState(null);
 
-    const [analyzing, setAnalyzing]           = useState(false);
     const [progress, setProgress]             = useState(0);
     const [steps, setSteps]                   = useState([]);
     const [analysisStatus, setAnalysisStatus] = useState('idle');
@@ -649,9 +648,9 @@ const ThesisPage = ({ workspaceId }) => {
     // ── Analyze ─────────────────────────────────────────────────────────────
     const handleAnalyze = async () => {
         if (!sessionId) return;
-        setAnalyzing(true); setAnalysisStatus('analyzing'); setAnalysisErr(null); setProgress(0); setSteps([]);
+        setAnalysisStatus('analyzing'); setAnalysisErr(null); setProgress(0); setSteps([]);
         try { await api.analyzeThesis(sessionId); } catch (e) {
-            setAnalysisErr(`Gagal memulai: ${e.message}`); setAnalysisStatus('error'); setAnalyzing(false); return;
+            setAnalysisErr(`Gagal memulai: ${e.message}`); setAnalysisStatus('error'); return;
         }
         pollingRef.current = setInterval(async () => {
             try {
@@ -659,10 +658,10 @@ const ThesisPage = ({ workspaceId }) => {
                 setProgress(s.progress ?? 0); setSteps(s.steps ?? []);
                 if (s.status === 'done') {
                     clearInterval(pollingRef.current); setAnalysis(s.analysis);
-                    setAnalysisStatus('done'); setAnalyzing(false);
+                    setAnalysisStatus('done');
                 } else if (s.status === 'error') {
                     clearInterval(pollingRef.current); setAnalysisErr(s.error || 'Error di server.');
-                    setAnalysisStatus('error'); setAnalyzing(false);
+                    setAnalysisStatus('error');
                 }
             } catch { /* continue polling */ }
         }, 2500);
@@ -671,7 +670,7 @@ const ThesisPage = ({ workspaceId }) => {
     const handleReset = () => {
         if (pollingRef.current) clearInterval(pollingRef.current);
         setFile(null); setSessionId(null); setUploadInfo(null);
-        setUploading(false); setUploadErr(null); setAnalyzing(false);
+        setUploading(false); setUploadErr(null);
         setAnalysisStatus('idle'); setAnalysis(null); setAnalysisErr(null);
         setProgress(0); setSteps([]); setActiveTab('analysis');
     };
@@ -820,7 +819,7 @@ const ThesisPage = ({ workspaceId }) => {
                                                     </div>
                                                     <p className="text-xs opacity-50">{progress}% selesai</p>
                                                 </div>
-                                            ) : <AnalysisTab analysis={analysis} sessionId={sessionId} />
+                                            ) : <AnalysisTab analysis={analysis} />
                                         )}
                                         {activeTab === 'revise'   && <ReviseTab  sessionId={sessionId} analysis={analysis} />}
                                         {activeTab === 'journals' && <JournalsTab sessionId={sessionId} analysis={analysis} />}

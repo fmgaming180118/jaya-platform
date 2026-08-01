@@ -156,12 +156,16 @@ Sebuah item hanya `DONE` jika:
 
 ## 2. P0 — Security boundary
 
-- [ ] **SEC-001 — Workspace path containment** (`P0`)
+- [x] **SEC-001 — Workspace path containment** (`P0`)
   - **Masalah:** `workspace_id` mentah membentuk path dan dapat mencapai
     `shutil.rmtree`.
   - **Acceptance:** ID tervalidasi; `resolve().relative_to(root)` wajib; traversal,
     absolute path, encoded separator, dan symlink escape ditolak tanpa perubahan.
-  - **Evidence:** pending.
+  - **Evidence:** `python -m pytest
+    JAYA_RESEARCH/tests/test_research_api_phase_a.py
+    JAYA_RESEARCH/tests/test_e2e_api_ui.py -q -p no:cacheprovider` → **100
+    passed**; mencakup traversal, absolute/drive/UNC path, nested URL encoding,
+    root/child symlink atau junction escape, citation path, dan delete containment.
 
 - [ ] **SEC-002 — Upload quarantine dan resource limit** (`P0`)
   - **Acceptance:** cek size, MIME/magic, extension, checksum, duplicate, quota,
@@ -191,36 +195,55 @@ Sebuah item hanya `DONE` jika:
 
 ## 3. JAYA Research — fondasi riset nyata
 
-- [ ] **RES-001 — Pulihkan kontrak Enhanced RAG** (`P0`)
+- [x] **RES-001 — Pulihkan kontrak Enhanced RAG** (`P0`)
   - **Masalah:** `VectorStore`, chunker, dan embedding interface tidak cocok;
     jalur produksi ResearchAgent gagal.
   - **Acceptance:** ingest/search/reload/delete/workspace isolation berfungsi;
-    15 test RAG baseline lulus; interface tunggal terdokumentasi.
-  - **Evidence:** baseline 26 Juli 2026: 14 gagal, 1 lulus.
+    klien Enhanced, NVIDIA, dan wrapper kompatibilitas memakai satu kontrak.
+  - **Evidence:** `python -m pytest` pada acceptance/regression RAG
+    (`test_phase_a_rag_contract.py`, `test_enhanced_rag.py`,
+    `test_nvidia_rag_client.py`, `test_grounded_rag_integration.py`,
+    `test_retrieval_evidence_and_eval.py`, `test_rag_web_search.py`, dan
+    `test_provider_clients_offline.py`) → **63 passed**.
 
 - [ ] **RES-002 — Embedding fallback jujur dan terukur** (`P1`)
   - **Aksi:** fallback lokal diberi tipe/model/version dan tidak disamakan dengan
     NVIDIA embedding; dimension serta normalization divalidasi.
   - **Acceptance:** provider failure tidak menghasilkan evidence palsu; fallback
     deterministik diuji dan kualitasnya diukur terpisah.
-  - **Evidence:** pending.
+  - **Status:** `OPEN`; identitas provider/mode/fallback, dimension,
+    normalization, serta larangan fallback setelah kegagalan provider sudah
+    diuji. Pengukuran kualitas embedding fallback pada corpus representatif
+    belum tersedia, sehingga item belum `DONE`.
+  - **Evidence:** suite RAG acceptance/regression → **63 passed**; evaluasi yang
+    tersedia masih lexical contract smoke, bukan benchmark embedding fallback.
 
-- [ ] **RES-003 — Citation/provenance per klaim** (`P1`)
+- [x] **RES-003 — Citation/provenance per klaim** (`P1`)
   - **Acceptance:** setiap klaim penting membawa source ID, URI/path, page/span,
     chunk hash, retrieval score, dan waktu akses; tautan dapat dibuka.
-  - **Evidence:** pending.
+  - **Evidence:** suite RAG acceptance/regression → **63 passed**; menguji source
+    ID, URI, page/span, chunk SHA-256, retrieval score, accessed time, tamper
+    rejection, claim-to-citation mapping, dan reload provenance. Suite API/E2E
+    → **100 passed**, termasuk pembukaan citation path yang canonical.
 
-- [ ] **RES-004 — Abstain dan conflict handling** (`P1`)
+- [x] **RES-004 — Abstain dan conflict handling** (`P1`)
   - **Acceptance:** konteks kosong/rendah/kontradiktif menghasilkan abstain atau
     uncertainty, bukan penggunaan “internal knowledge” tanpa sumber.
-  - **Evidence:** pending.
+  - **Evidence:** suite RAG acceptance/regression → **63 passed**; empty/low-score
+    evidence menghasilkan abstain, conflict eksplisit tidak disintesis, dan
+    metadata `internal_knowledge` ditolak dari evidence store.
 
 - [ ] **RES-005 — Dataset evaluasi RAG versioned** (`P1`)
   - **Acceptance:** dataset legal/nonprivat, retrieval metrics, groundedness,
     citation correctness, regression report; target QA minimal 85%.
-  - **Status:** `BLOCKED_EXTERNAL` untuk pencapaian angka final sampai dataset
-    representatif disetujui; harness lokal tetap wajib dibuat.
-  - **Evidence:** baseline historis 55%.
+  - **Status:** `BLOCKED_EXTERNAL`; harness lokal sudah ada, tetapi pencapaian
+    target ≥85% belum boleh diklaim sampai dataset representatif, legal, dan
+    nonprivat disetujui serta run retriever nyata di-attest.
+  - **Evidence:** `python -m research.evaluation_cli --dataset
+    JAYA_RESEARCH/evaluation/rag_smoke_v2.json --target 0.85` →
+    `LOCAL_SMOKE_PASSED`, `representation_status=SMOKE_ONLY`, run
+    `LOCAL_UNATTESTED`, dan `production_gate_passed=false`. Hasil fixture ini
+    hanya memvalidasi harness/contract, bukan kualitas produksi.
 
 - [ ] **RES-006 — Hipotesis grounded, bukan random/template** (`P1`)
   - **Acceptance:** hipotesis membawa evidence IDs, gap method, variables,
@@ -239,26 +262,42 @@ Sebuah item hanya `DONE` jika:
     dalam tolerance; mismatch menjadi `REPRODUCTION_FAILED`.
   - **Evidence:** pending.
 
-- [ ] **RES-009 — Scientific writer hanya memakai evidence store** (`P1`)
+- [x] **RES-009 — Scientific writer hanya memakai evidence store** (`P1`)
   - **Masalah:** referensi placeholder/fiktif dan simulasi dapat disebut empiris.
   - **Acceptance:** tidak membuat citation yang tidak ada; simulation/negative
     result/limitations dilabeli; claim tanpa evidence ditolak.
-  - **Evidence:** pending.
+  - **Evidence:** `python scripts/run_test_matrix.py --component research
+    --quiet` → **352 passed, 11 deselected**; acceptance academic synthesis
+    memastikan citation/bibliography tak dikenal dibuang, klaim tanpa evidence
+    dilabeli unsupported/abstain, simulasi tetap nonempiris, dan
+    `publication_ready=false` tanpa review manusia.
 
-- [ ] **RES-010 — Provider error bertipe, bukan jawaban normal** (`P1`)
+- [x] **RES-010 — Provider error bertipe, bukan jawaban normal** (`P1`)
   - **Acceptance:** timeout/auth/quota/network/model error menjadi exception/result
     terstruktur; downstream tidak menyimpan pesan error sebagai pengetahuan.
-  - **Evidence:** pending.
+  - **Evidence:** Research offline suite → **352 passed, 11 deselected** dan RAG
+    acceptance/regression → **63 passed**; timeout/auth/quota/network/provider
+    failure bertipe, tidak berubah menjadi hasil kosong palsu, dan tidak dapat
+    disimpan sebagai evidence/knowledge.
 
 - [ ] **RES-011 — Thesis session persisten** (`P1`)
   - **Acceptance:** upload/status/result/revision/journal bertahan restart;
     transaksi aman; raw text tidak hilang; migration dan recovery test lulus.
-  - **Evidence:** pending.
+  - **Status:** `OPEN`; persistence SQLite, revision, transaksi, corrupt-payload
+    error, raw-text retention, dan restart recovery sudah diuji. Schema migration
+    dari versi lama belum memiliki acceptance test, sehingga item belum `DONE`.
+  - **Evidence:** Research offline suite → **352 passed, 11 deselected**; API/E2E
+    suite → **100 passed**, termasuk status ekstraksi tesis dan artifact analisis
+    yang diinjeksi.
 
 - [ ] **RES-012 — Durable job state machine** (`P1`)
   - **Acceptance:** `QUEUED/RUNNING/WAITING_REVIEW/SUCCEEDED/FAILED/CANCELED`,
     progress, idempotency, retry, resume, cancel; restart tidak menggandakan job.
-  - **Evidence:** pending.
+  - **Status:** `OPEN — Phase B`; repository lokal sudah menguji state, lease,
+    retry, resume, cancel, idempotency, redaction, dan restart recovery. Queue dan
+    worker produksi yang terpisah belum tersedia, sehingga item tidak ditutup.
+  - **Evidence:** Research offline suite → **352 passed, 11 deselected**; API/E2E
+    suite → **100 passed** untuk lifecycle job lokal.
 
 - [ ] **RES-013 — Hapus duplicate route dan pecah API monolitik** (`P1`)
   - **Acceptance:** OpenAPI tidak memiliki duplicate method+path; router/service/
@@ -470,3 +509,4 @@ Bagian ini diperbarui setelah setiap batch:
 | Tanggal | Batch | Hasil |
 |---|---|---|
 | 2026-07-26 | Baseline audit | P0 direct-write/fabricated evidence/random experiment ditemukan; RAG 14 gagal dari 15 test |
+| 2026-08-01 | Phase A acceptance | Research offline 352 passed/11 deselected; RAG acceptance/regression 63 passed; API/E2E 100 passed; RAG v2 tetap `SMOKE_ONLY` dan `production_gate_passed=false` |

@@ -212,9 +212,16 @@ const GraphPage = ({ workspaceId }) => {
     const [graphStats, setGraphStats] = useState(null);
     const [showSidebar, setShowSidebar] = useState(true);
 
-    useEffect(() => { loadGraph(); }, [workspaceId, mode]);
+    const applyGraphData = useCallback((data) => {
+        const raw = (data && data.nodes) || [];
+        const rawEdges = (data && data.edges) || [];
+        if (!raw.length) { setNodes([]); setEdges([]); return; }
+        const { nodes: lNodes, edges: lEdges } = autoLayout(raw, rawEdges);
+        setNodes(lNodes);
+        setEdges(lEdges);
+    }, []);
 
-    const loadGraph = async () => {
+    const loadGraph = useCallback(async () => {
         setLoading(true);
         setSelectedNode(null);
         try {
@@ -233,16 +240,17 @@ const GraphPage = ({ workspaceId }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [applyGraphData, mode, workspaceId]);
 
-    const applyGraphData = (data) => {
-        const raw = (data && data.nodes) || [];
-        const rawEdges = (data && data.edges) || [];
-        if (!raw.length) { setNodes([]); setEdges([]); return; }
-        const { nodes: lNodes, edges: lEdges } = autoLayout(raw, rawEdges);
-        setNodes(lNodes);
-        setEdges(lEdges);
-    };
+    useEffect(() => {
+        let active = true;
+        queueMicrotask(() => {
+            if (active) void loadGraph();
+        });
+        return () => {
+            active = false;
+        };
+    }, [loadGraph]);
 
     const handleSearch = async (q) => {
         if (!q.trim()) { loadGraph(); return; }
@@ -381,4 +389,4 @@ const GraphPage = ({ workspaceId }) => {
     );
 };
 
-export default GraphPage;
+export default GraphPage;

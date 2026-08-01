@@ -7,7 +7,9 @@ import math
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping, Sequence
+from urllib.parse import urlparse
 
 
 class RetrievalEvidenceError(ValueError):
@@ -51,6 +53,24 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _is_traceable_source_uri(value: str) -> bool:
+    """Reject labels masquerading as an openable evidence location."""
+    normalized = value.strip()
+    if not normalized or normalized.startswith("inline://"):
+        return False
+    parsed = urlparse(normalized)
+    if parsed.scheme:
+        return parsed.scheme.casefold() not in {"inline", "javascript", "data"}
+    if Path(normalized).is_absolute() or PureWindowsPath(normalized).is_absolute():
+        return True
+    posix = PurePosixPath(normalized)
+    return (
+        len(posix.parts) >= 2
+        and not posix.is_absolute()
+        and all(part not in {"", ".", ".."} for part in posix.parts)
+    )
+
+
 def enrich_chunk_metadata(
     content: str,
     metadata: Mapping[str, Any] | None,
@@ -64,16 +84,26 @@ def enrich_chunk_metadata(
     if supplied_hash and supplied_hash != chunk_sha256:
         raise RetrievalEvidenceError("Supplied chunk hash does not match content")
 
-    source_uri = str(
+    explicit_source_uri = str(
         normalized.get("source_uri")
         or normalized.get("uri")
         or normalized.get("url")
         or normalized.get("path")
         or normalized.get("file_path")
-        or normalized.get("source")
+        or ""
+    ).strip()
+    derived_source_label = str(
+        normalized.get("source")
         or normalized.get("file_name")
         or ""
     ).strip()
+    source_uri = explicit_source_uri or derived_source_label
+    supplied_uri_kind = str(normalized.get("source_uri_kind") or "").strip()
+    source_uri_kind = supplied_uri_kind or (
+        "PROVIDED"
+        if explicit_source_uri
+        else ("DERIVED_LABEL" if derived_source_label else "INLINE")
+    )
     explicit_source_id = str(normalized.get("source_id") or "").strip()
     source_id = explicit_source_id or (
         f"source-{_sha256(source_uri)[:20]}"
@@ -89,6 +119,7 @@ def enrich_chunk_metadata(
         {
             "source_id": source_id,
             "source_uri": source_uri or f"inline://{chunk_sha256}",
+            "source_uri_kind": source_uri_kind,
             "chunk_sha256": chunk_sha256,
             "accessed_at": str(
                 normalized.get("accessed_at") or accessed_at or _utc_now()
@@ -113,8 +144,12 @@ def _metadata_for(result: Mapping[str, Any]) -> dict[str, Any]:
     for key in (
         "source_id",
         "source_uri",
+        "source_uri_kind",
+        "uri",
         "url",
         "path",
+        "file_path",
+        "file_name",
         "source",
         "title",
         "license_id",
@@ -170,8 +205,8 @@ def citation_from_result(
     source_uri = str(metadata["source_uri"])
     license_id = str(metadata["license_id"])
     provenance_complete = bool(
-        source_uri
-        and not source_uri.startswith("inline://")
+        metadata.get("source_uri_kind") == "PROVIDED"
+        and _is_traceable_source_uri(source_uri)
         and page_number is not None
         and optional_int("word_start") is not None
         and optional_int("word_end") is not None
@@ -295,4 +330,3 @@ def build_grounded_response(
         "promotable": all_provenance_complete,
         "uses_internal_knowledge": False,
     }
-

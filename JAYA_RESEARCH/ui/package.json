@@ -12,33 +12,37 @@
         "preview": "vite preview --mode production",
         "preview:dev": "vite preview --mode development",
         "lint": "eslint .",
-        "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\""
+        "test:contracts": "node --test tests/*.test.mjs",
+        "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://127.0.0.1:5173 && cross-env ELECTRON_START_URL=http://127.0.0.1:5173 electron .\"",
+        "electron:preview": "npm run build && concurrently -k \"npm run preview -- --host 127.0.0.1\" \"wait-on http://127.0.0.1:5174 && cross-env ELECTRON_START_URL=http://127.0.0.1:5174 electron .\""
     },
     "dependencies": {
         "@tailwindcss/typography": "^0.5.19",
-        "axios": "^1.13.5",
         "clsx": "^2.1.1",
-        "concurrently": "^9.2.1",
-        "cross-env": "^10.1.0",
-        "electron": "^40.2.1",
         "framer-motion": "^12.34.0",
         "lucide-react": "^0.563.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-markdown": "^10.1.0",
-        "react-router-dom": "^7.13.0",
         "reactflow": "^11.11.4",
-        "rehype-highlight": "^7.0.2",
-        "tailwind-merge": "^3.4.0",
-        "wait-on": "^9.0.3"
+        "rehype-highlight": "^7.0.2"
     },
     "devDependencies": {
+        "@eslint/js": "10.0.1",
         "@types/react": "^18.2.43",
         "@types/react-dom": "^18.2.17",
-        "@vitejs/plugin-react": "^4.2.1",
+        "@vitejs/plugin-react": "6.0.5",
         "autoprefixer": "^10.4.16",
+        "concurrently": "9.2.4",
+        "cross-env": "10.1.0",
+        "electron": "40.10.6",
+        "eslint": "10.8.0",
+        "eslint-plugin-react-hooks": "7.1.1",
+        "eslint-plugin-react-refresh": "0.5.3",
+        "globals": "17.8.0",
         "postcss": "^8.4.32",
         "tailwindcss": "^3.4.0",
-        "vite": "^5.0.8"
+        "vite": "8.2.0",
+        "wait-on": "9.0.3"
     }
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { Plus, ChevronDown, Check } from 'lucide-react';
 import clsx from 'clsx';
@@ -10,18 +10,24 @@ const WorkspaceSelector = ({ currentWorkspace, onWorkspaceChange }) => {
     const [isCreating, setIsCreating] = useState(false);
     const [isOpen, setIsOpen] = useState(false);
 
-    useEffect(() => {
-        loadWorkspaces();
-    }, []);
-
-    const loadWorkspaces = async () => {
+    const loadWorkspaces = useCallback(async () => {
         try {
             const list = await api.listWorkspaces();
             setWorkspaces(list);
         } catch (error) {
             console.error("Failed to list workspaces", error);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        queueMicrotask(() => {
+            if (active) void loadWorkspaces();
+        });
+        return () => {
+            active = false;
+        };
+    }, [loadWorkspaces]);
 
     const handleCreate = async () => {
         if (!newWorkspaceName.trim()) return;

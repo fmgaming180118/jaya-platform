@@ -19,6 +19,7 @@ CANONICAL_DOCS = (
     Path("docs/WORKFLOWS.md"),
     Path("docs/STATUS.md"),
     Path("docs/ROADMAP.md"),
+    Path("docs/ACCEPTANCE_CRITERIA.md"),
     Path("docs/REMEDIATION_CHECKLIST.md"),
     Path("docs/GOVERNANCE.md"),
     Path("docs/DEVELOPMENT.md"),

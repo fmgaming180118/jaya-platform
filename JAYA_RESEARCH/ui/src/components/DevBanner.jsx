@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ChevronUp, AlertTriangle, Cpu, Zap } from 'lucide-react';
+import { ChevronUp, AlertTriangle, Cpu, Zap } from 'lucide-react';
 import { APP_VERSION, API_BASE_URL, APP_MODE } from '../config/env';
 
 /**

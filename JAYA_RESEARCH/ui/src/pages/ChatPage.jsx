@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, Plus, Sparkles, Brain, ChevronDown, ChevronRight, Youtube, FileText, Upload, Download, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,46 +21,34 @@ const parseMessageContent = (content) => {
     return { thinking: null, answer: content };
 };
 
+const INITIAL_MESSAGES = [{
+    role: 'assistant',
+    content: 'Hello! I am JAYA, your research companion. I can analyze documents, videos, or help you brainstorm. What are we working on today?',
+}];
+
 export default function ChatPage({ workspaceId }) {
-    // Load initial state from local storage or default
-    const [messages, setMessages] = useState(() => {
-        const saved = localStorage.getItem(`JAYA_CHAT_${workspaceId}`);
-        return saved ? JSON.parse(saved) : [
-            { role: 'assistant', content: 'Hello! I am JAYA, your research companion. I can analyze documents, videos, or help you brainstorm. What are we working on today?' }
-        ];
-    });
+    // Research conversations are memory-only until an explicit retention policy exists.
+    const [messages, setMessages] = useState(INITIAL_MESSAGES);
 
     const [input, setInput] = useState('');
     const [sources, setSources] = useState([]); 
-    const [isLoading, setLoading] = useState(false);
     const [workspaceDocs, setWorkspaceDocs] = useState([]);
     const [previewFile, setPreviewFile] = useState(null);
     const messagesEndRef = useRef(null);
 
-    // Save messages whenever they change
-    useEffect(() => {
-        localStorage.setItem(`JAYA_CHAT_${workspaceId}`, JSON.stringify(messages));
-    }, [messages, workspaceId]);
-
-    // Load messages and workspace docs when workspaceId changes
-    useEffect(() => {
-        const saved = localStorage.getItem(`JAYA_CHAT_${workspaceId}`);
-        if (saved) {
-            setMessages(JSON.parse(saved));
-        } else {
-            setMessages([{ role: 'assistant', content: 'Hello! I am JAYA, your research companion. I can analyze documents, videos, or help you brainstorm. What are we working on today?' }]);
-        }
-        loadWorkspaceDocs();
-    }, [workspaceId]);
-
-    const loadWorkspaceDocs = async () => {
+    const loadWorkspaceDocs = useCallback(async () => {
         try {
             const data = await api.listDocuments(workspaceId || 'default');
             setWorkspaceDocs(data);
         } catch (e) {
             console.error("Failed to load workspace documents", e);
         }
-    };
+    }, [workspaceId]);
+
+    // The page is keyed by workspace in App.jsx, so only documents need reloading.
+    useEffect(() => {
+        void loadWorkspaceDocs();
+    }, [loadWorkspaceDocs]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -100,8 +88,6 @@ export default function ChatPage({ workspaceId }) {
         const userMsg = { role: 'user', content: input };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
-        setLoading(true);
-
         try {
             // Simulate "thinking" state
             setMessages(prev => [...prev, { role: 'assistant', content: '', isThinking: true }]);
@@ -120,17 +106,15 @@ export default function ChatPage({ workspaceId }) {
         } catch (err) {
             console.error(err);
             setMessages(prev => prev.filter(m => !m.isThinking).concat({ role: 'assistant', content: "I encountered an error connecting to the neural core." }));
-        } finally {
-            setLoading(false);
         }
     };
 
     const handleFileClick = async (doc) => {
         try {
-            const url = api.viewDocumentUrl(workspaceId || 'default', doc.name);
-            const res = await fetch(url);
-            if (!res.ok) throw new Error("Could not retrieve file content.");
-            const content = await res.text();
+            const content = await api.readDocumentText(
+                workspaceId || 'default',
+                doc.name
+            );
             setPreviewFile({
                 name: doc.name,
                 content: content,
@@ -138,6 +122,15 @@ export default function ChatPage({ workspaceId }) {
             });
         } catch (e) {
             alert(`Error opening file: ${e.message}`);
+        }
+    };
+
+    const handleFileDownload = async (filename, event) => {
+        event?.stopPropagation();
+        try {
+            await api.downloadDocument(workspaceId || 'default', filename);
+        } catch (error) {
+            alert(`Download failed: ${error.message}`);
         }
     };
 
@@ -180,10 +173,16 @@ export default function ChatPage({ workspaceId }) {
         }]);
 
         try {
-            await api.uploadThesis(file, workspaceId || 'default');
-            setSources(prev => [...prev, { title: file.name, type: 'pdf', url: '#' }]);
+            const upload = await api.uploadThesis(file, workspaceId || 'default');
+            const indexed = upload?.index_status === 'INDEXED';
+            if (indexed) {
+                setSources(prev => [...prev, { title: file.name, type: 'pdf', url: '#' }]);
+            }
+            const statusMessage = indexed
+                ? `Document '${file.name}' was extracted and indexed for retrieval.`
+                : `Document '${file.name}' was extracted, but is not available for retrieval (${upload?.status || 'UNKNOWN'}). ${upload?.warning || 'Check the retrieval provider.'}`;
             setMessages(prev => prev.map((msg, i) =>
-                i === prev.length - 1 ? { role: 'assistant', content: `Document '${file.name}' has been successfully ingested into the RAG context.` } : msg
+                i === prev.length - 1 ? { role: 'assistant', content: statusMessage } : msg
             ));
         } catch (err) {
             setMessages(prev => prev.map((msg, i) =>
@@ -436,15 +435,14 @@ export default function ChatPage({ workspaceId }) {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2 shrink-0">
-                                    <a
-                                        href={api.viewDocumentUrl(workspaceId || 'default', doc.name)}
-                                        download={doc.name}
-                                        onClick={(e) => e.stopPropagation()}
+                                    <button
+                                        type="button"
+                                        onClick={(event) => handleFileDownload(doc.name, event)}
                                         className="p-1 hover:bg-[#343842] rounded text-notebook-text-secondary hover:text-notebook-text-accent transition-colors"
                                         title="Download"
                                     >
                                         <Download size={14} />
-                                    </a>
+                                    </button>
                                     <button
                                         onClick={(e) => handleFileDelete(doc.name, e)}
                                         className="p-1 hover:bg-[#343842] rounded text-notebook-text-secondary hover:text-red-400 transition-colors"
@@ -481,14 +479,14 @@ export default function ChatPage({ workspaceId }) {
                                     <span className="font-semibold text-notebook-text-primary">{previewFile.name}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <a
-                                        href={api.viewDocumentUrl(workspaceId || 'default', previewFile.name)}
-                                        download={previewFile.name}
+                                    <button
+                                        type="button"
+                                        onClick={(event) => handleFileDownload(previewFile.name, event)}
                                         className="px-3 py-1.5 bg-[#2a2d35] hover:bg-[#33363f] border border-notebook-border text-notebook-text-primary rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
                                     >
                                         <Download size={12} />
                                         Download
-                                    </a>
+                                    </button>
                                     <button
                                         onClick={() => setPreviewFile(null)}
                                         className="p-1 text-notebook-text-secondary hover:text-notebook-text-primary transition-colors text-lg"

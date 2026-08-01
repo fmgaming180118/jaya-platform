@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { createContext, useCallback, useContext, useState } from 'react';
 import { APP_MODE, APP_NAME, APP_VERSION, IS_DEV, IS_PROD, FEATURES, SHOW_DEV_PANEL } from '../config/env';
 
 const AppContext = createContext(null);

@@ -114,6 +114,8 @@ def _is_ignored_dir_name(name: str) -> bool:
     lowered = name.lower()
     if lowered in ROOT_DIR_IGNORE or lowered in TREE_DIR_IGNORE:
         return True
+    if lowered.startswith(".pytest_tmp_"):
+        return True
     # Ignore suffixed virtual environments, e.g. .venv312, venv311.
     if lowered.startswith(".venv") or lowered.startswith("venv"):
         return True

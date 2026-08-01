@@ -8,13 +8,20 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), '')
 
     const isDev = mode === 'development'
-    const apiTarget = env.VITE_API_BASE_URL || (isDev ? 'http://localhost:8000' : '')
+    const apiTarget = env.JAYA_UI_API_TARGET || 'http://127.0.0.1:8000'
+    const apiProxy = {
+        '/api': {
+            target: apiTarget,
+            changeOrigin: true,
+            rewrite: (requestPath) => requestPath.replace(/^\/api/, ''),
+        },
+    }
 
     return {
         plugins: [react()],
         resolve: {
             alias: {
-                '@': path.resolve(__dirname, './src'),
+                '@': path.resolve(import.meta.dirname, './src'),
             },
         },
         define: {
@@ -24,18 +31,18 @@ export default defineConfig(({ mode }) => {
         },
         server: {
             port: isDev ? 5173 : 5174,
-            proxy: {
-                '/api': {
-                    target: isDev ? 'http://localhost:8000' : apiTarget,
-                    changeOrigin: true,
-                    rewrite: (path) => path.replace(/^\/api/, ''),
-                },
-            },
+            proxy: apiProxy,
+        },
+        preview: {
+            host: '127.0.0.1',
+            port: 5174,
+            strictPort: true,
+            proxy: apiProxy,
         },
         build: {
             outDir: isDev ? 'dist/dev' : 'dist/prod',
             sourcemap: isDev, // Source maps only in DEV build
-            minify: isDev ? false : 'esbuild',
+            minify: !isDev,
         },
     }
 })

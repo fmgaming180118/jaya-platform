@@ -90,9 +90,11 @@ def test_reproduced_empirical_draft_uses_only_supplied_reference(tmp_path):
     )
 
     assert paper["paper_status"] == "EMPIRICAL_DRAFT"
-    assert paper["publication_ready"] is True
+    assert paper["publication_ready"] is False
+    assert paper["human_review_required"] is True
     assert len(paper["references"]) == 1
     assert "Approved benchmark dataset" in paper["references"][0]
+    assert "publication-ready" in paper["abstract"]
 
 
 def test_export_markdown_and_latex(tmp_path):

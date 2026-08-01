@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { NavLink, Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, NavLink } from '../routing/router';
 import {
     MessageSquare, Library, Network, BookOpen, Activity,
     ChevronLeft, Settings, Code2, FlaskConical, X, RotateCw,
@@ -60,24 +60,22 @@ export default function Sidebar({ workspaceId }) {
     const [saving, setSaving] = useState(false);
     const [success, setSuccess] = useState(false);
 
-    // Fetch models on settings open
-    useEffect(() => {
-        if (showSettings) {
-            setLoading(true);
-            setSuccess(false);
-            api.getModels()
-                .then(res => {
-                    setModels(res.available_models || []);
-                    setActiveModel(res.active_model || '');
-                })
-                .catch(err => {
-                    console.error('[Sidebar] Gagal mengambil list model:', err);
-                })
-                .finally(() => {
-                    setLoading(false);
-                });
-        }
-    }, [showSettings]);
+    const handleOpenSettings = () => {
+        setShowSettings(true);
+        setLoading(true);
+        setSuccess(false);
+        api.getModels()
+            .then(res => {
+                setModels(res.available_models || []);
+                setActiveModel(res.active_model || '');
+            })
+            .catch(err => {
+                console.error('[Sidebar] Gagal mengambil list model:', err);
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    };
 
     const handleSave = async () => {
         if (!activeModel) return;
@@ -133,15 +131,19 @@ export default function Sidebar({ workspaceId }) {
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest px-4 pt-1 pb-2">Menu Utama</p>
 
                 <NavItem to={`${baseUrl}/chat`}     icon={MessageSquare} label="Knowledge Chat" />
-                <NavItem to={`${baseUrl}/research`} icon={Library}       label="Deep Research" />
-                <NavItem to={`${baseUrl}/evolution`} icon={Sparkles}      label="Autonomous Discovery" />
+                {features.recursiveResearch && (
+                    <NavItem to={`${baseUrl}/research`} icon={Library} label="Deep Research" />
+                )}
+                {features.digitalTwin && (
+                    <NavItem to={`${baseUrl}/evolution`} icon={Sparkles} label="Autonomous Discovery" />
+                )}
                 <NavItem to={`${baseUrl}/graph`}    icon={Network}       label="Knowledge Graph" />
                 {features.thesisMode && (
                     <NavItem to={`${baseUrl}/thesis`} icon={BookOpen} label="Thesis Defense" />
                 )}
 
                 {/* Label Seksi DEV-ONLY */}
-                {isDevMode && (
+                {isDevMode && features.digitalTwin && (
                     <>
                         <p className="text-[10px] font-bold text-amber-400/70 uppercase tracking-widest px-4 pt-4 pb-2 flex items-center gap-1.5">
                             <Code2 size={11} /> Developer Only
@@ -161,7 +163,7 @@ export default function Sidebar({ workspaceId }) {
 
                 {/* Settings — selalu tampil */}
                 <div
-                    onClick={() => setShowSettings(true)}
+                    onClick={handleOpenSettings}
                     className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-slate-200 hover:bg-white/5 cursor-pointer transition-all duration-200 group border border-transparent hover:border-white/5"
                 >
                     <div className="w-8 h-8 rounded-lg bg-white/5 border border-white/5 flex items-center justify-center group-hover:bg-blue-500/20 group-hover:border-blue-500/30 text-slate-400 group-hover:text-blue-300 transition-all">

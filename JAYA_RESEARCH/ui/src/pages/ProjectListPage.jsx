@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Plus, Folder, Clock, ArrowRight, Brain, Search, BookOpen, Network, X, Sparkles, Compass, ChevronRight, Zap, Play } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from '../routing/router';
+import { Plus, Folder, Clock, ArrowRight, Brain, Search, BookOpen, X, Sparkles, Compass, ChevronRight, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { useApp } from '../context/AppContext';
@@ -35,7 +35,7 @@ const FeatureCard = ({ icon: Icon, title, desc, onClick, badge }) => (
 
 export default function ProjectListPage() {
     const navigate = useNavigate();
-    const { isDevMode, appName, version } = useApp();
+    const { appName, version } = useApp();
 
     const [projects, setProjects] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -45,9 +45,7 @@ export default function ProjectListPage() {
     const [searchQuery, setSearchQuery] = useState('');
     const [isCreating, setIsCreating] = useState(false);
 
-    useEffect(() => { loadProjects(); }, []);
-
-    const loadProjects = async () => {
+    const loadProjects = useCallback(async () => {
         try {
             setIsLoading(true);
             const data = await api.listWorkspaces();
@@ -59,7 +57,17 @@ export default function ProjectListPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        queueMicrotask(() => {
+            if (active) void loadProjects();
+        });
+        return () => {
+            active = false;
+        };
+    }, [loadProjects]);
 
     const handleCreate = async (e) => {
         e.preventDefault();

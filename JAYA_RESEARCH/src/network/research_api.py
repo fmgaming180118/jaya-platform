@@ -89,7 +89,7 @@ from network.model_registry import (
 from network.route_audit import validate_route_contract
 # VideoProcessor dimuat secara lazy (saat endpoint digunakan) karena membutuhkan cv2/ffmpeg opsional
 VideoProcessor = None  # akan dimuat on-demand di endpoint /ingest/video
-from research.workspace_manager import WorkspaceManager
+from research.workspace_manager import WorkspaceManager, WorkspaceSecurityError
 
 JournalProcessor = None
 ExperimentTracker = None
@@ -101,6 +101,8 @@ from research.academic.thesis_session_repository import (
 import traceback
 from fastapi.responses import FileResponse
 DigitalTwin = None
+PDFExtractorFactory = None
+ThesisAnalysisProvider = None
 
 _job_repository = None
 workspace_manager = None
@@ -321,7 +323,8 @@ def get_engines(workspace_id: str = "default"):
     """
     if workspace_id not in active_sessions:
         print(f"[API] Loading engines for workspace: {workspace_id}")
-        paths = _workspace_manager_runtime().get_or_create_paths(workspace_id)
+        # Engine lookup must never create a workspace as a query side effect.
+        paths = _workspace_manager_runtime().get_paths(workspace_id)
         
         # Initialize engines with specific paths only when this capability is used.
         rag_type = _load_optional_dependency(
@@ -346,31 +349,181 @@ def get_engines(workspace_id: str = "default"):
     return active_sessions[workspace_id]["rag"], active_sessions[workspace_id]["graph"]
 
 
-def _recursive_search(rag_client, query: str, depth: int, max_sources_per_level: int, workspace_id: str):
-    """Perform bounded recursive retrieval for Phase A."""
-    seen_sources = set()
+def _workspace_paths_or_http_error(workspace_id: str) -> dict[str, str]:
+    """Resolve an existing workspace and retain typed client errors."""
+    try:
+        return _workspace_manager_runtime().get_paths(workspace_id)
+    except WorkspaceSecurityError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "INVALID_WORKSPACE_ID", "message": str(exc)},
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "WORKSPACE_NOT_FOUND",
+                "message": f"Workspace '{workspace_id}' does not exist",
+            },
+        ) from exc
+
+
+def _provider_http_error(capability: str, exc: Exception) -> HTTPException:
+    """Map optional-provider failures without exposing secrets or tracebacks."""
+    unavailable = isinstance(exc, (ImportError, ModuleNotFoundError, RuntimeError))
+    return HTTPException(
+        status_code=503 if unavailable else 502,
+        detail={
+            "code": (
+                "PROVIDER_UNAVAILABLE" if unavailable else "PROVIDER_FAILED"
+            ),
+            "capability": capability,
+            "message": f"{capability} is not available for this request",
+        },
+    )
+
+
+def _write_json_artifact(
+    workspace_id: str,
+    category: str,
+    artifact_name: str,
+    payload: dict,
+) -> tuple[str, str]:
+    """Atomically write a contained, checksummed Phase A artifact."""
+    paths = _workspace_paths_or_http_error(workspace_id)
+    workspace_root = Path(paths["root"]).resolve(strict=True)
+    artifact_dir = workspace_root / "artifacts" / category
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = (artifact_dir / f"{artifact_name}.json").resolve(strict=False)
+    try:
+        artifact_path.relative_to(workspace_root)
+    except ValueError as exc:
+        raise RuntimeError("Artifact path escaped its workspace boundary") from exc
+
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    artifact_sha256 = hashlib.sha256(encoded).hexdigest()
+    with tempfile.NamedTemporaryFile(
+        mode="wb",
+        dir=artifact_dir,
+        prefix=f".{artifact_name}.",
+        suffix=".tmp",
+        delete=False,
+    ) as temporary:
+        temporary.write(encoded)
+        temporary.flush()
+        os.fsync(temporary.fileno())
+        temporary_path = Path(temporary.name)
+    os.replace(temporary_path, artifact_path)
+    return artifact_path.relative_to(workspace_root).as_posix(), artifact_sha256
+
+
+def _store_inline_source(
+    workspace_id: str,
+    text: str,
+) -> tuple[str, str, str, bool]:
+    """Persist the exact inline source so every citation has an openable URI."""
+    paths = _workspace_paths_or_http_error(workspace_id)
+    workspace_root = Path(paths["root"]).resolve(strict=True)
+    normalized = text.strip()
+    encoded = normalized.encode("utf-8")
+    digest = hashlib.sha256(encoded).hexdigest()
+    source_id = f"source-{digest[:20]}"
+    sources_dir = workspace_root / "sources"
+    sources_dir.mkdir(parents=True, exist_ok=True)
+    source_path = (sources_dir / f"{digest}.txt").resolve(strict=False)
+    source_path.relative_to(workspace_root)
+    duplicate = source_path.exists()
+    if not duplicate:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            dir=sources_dir,
+            prefix=f".{digest}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary:
+            temporary.write(encoded)
+            temporary.flush()
+            os.fsync(temporary.fileno())
+            temporary_path = Path(temporary.name)
+        os.replace(temporary_path, source_path)
+    return source_id, source_path.relative_to(workspace_root).as_posix(), digest, duplicate
+
+
+def _recursive_search(
+    rag_client,
+    query: str,
+    depth: int,
+    max_sources_per_level: int,
+    workspace_id: str,
+):
+    """Perform bounded retrieval using only explicit follow-up queries.
+
+    Retrieved snippets are evidence, not instructions. They are never fed back
+    as queries. A provider may propose a bounded ``follow_up_queries`` list in
+    result metadata; every evidence chunk is deduplicated by source and digest.
+    """
+    seen_evidence: set[tuple[str, str]] = set()
+    seen_queries: set[str] = set()
     collected: list[dict] = []
     frontier = [query]
+    depth_reached = 0
 
     for current_depth in range(depth):
-        next_frontier = []
+        next_frontier: list[str] = []
         for item in frontier:
-            results = rag_client.search(item, top_k=max_sources_per_level, workspace_id=workspace_id)
+            normalized_query = item.strip()
+            if not normalized_query or normalized_query in seen_queries:
+                continue
+            seen_queries.add(normalized_query)
+            results = rag_client.search(
+                normalized_query,
+                top_k=max_sources_per_level,
+                workspace_id=workspace_id,
+            )
+            if not isinstance(results, list):
+                raise RuntimeError("Retrieval provider returned a non-list result")
             for result in results:
-                document = result.get("document", {})
-                source = document.get("file_name") or document.get("source") or document.get("path") or "unknown"
-                if source in seen_sources:
+                if not isinstance(result, dict):
+                    raise RuntimeError("Retrieval provider returned an invalid result")
+                content = str(
+                    result.get("content") or result.get("snippet") or ""
+                ).strip()
+                if not content:
                     continue
-                seen_sources.add(source)
-                collected.append(result)
-                snippet = result.get("snippet") or result.get("content") or ""
-                if snippet:
-                    next_frontier.append(snippet[:300])
+                metadata = result.get("metadata")
+                document = result.get("document")
+                evidence_metadata = {
+                    **(document if isinstance(document, dict) else {}),
+                    **(metadata if isinstance(metadata, dict) else {}),
+                }
+                source_id = str(
+                    evidence_metadata.get("source_id")
+                    or evidence_metadata.get("source_uri")
+                    or evidence_metadata.get("file_name")
+                    or ""
+                )
+                chunk_sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+                evidence_key = (source_id, chunk_sha256)
+                if evidence_key not in seen_evidence:
+                    seen_evidence.add(evidence_key)
+                    collected.append({**result, "retrieval_depth": current_depth + 1})
+
+                proposed = evidence_metadata.get("follow_up_queries", [])
+                if isinstance(proposed, list):
+                    for follow_up in proposed:
+                        if isinstance(follow_up, str) and 1 <= len(follow_up.strip()) <= 500:
+                            next_frontier.append(follow_up.strip())
+        depth_reached = current_depth + 1
         frontier = next_frontier[:max_sources_per_level]
         if not frontier:
-            return collected, current_depth + 1
+            break
 
-    return collected, depth
+    return collected, depth_reached
 
 @app.get("/")
 def health_check():
@@ -381,88 +534,171 @@ def health_check():
 async def list_workspaces():
     """List all research workspaces."""
     try:
-        from research.workspace_manager import WorkspaceManager
-        wm = WorkspaceManager()
-        workspaces = wm.list_workspaces()
-        return {"workspaces": workspaces}
-    except Exception as e:
-        return {"workspaces": [{"id": "default", "name": "Default Workspace"}]}
+        return {"workspaces": _workspace_manager_runtime().list_workspaces()}
+    except (OSError, RuntimeError) as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "WORKSPACE_LIST_FAILED", "message": "Workspace list failed"},
+        ) from exc
 
 
 @app.post("/workspaces/create")
 async def create_workspace(name: str, description: str = ""):
     """Create a new research workspace."""
     try:
-        from research.workspace_manager import WorkspaceManager
-        wm = WorkspaceManager()
-        res = wm.create_workspace(name=name, description=description)
-        return res
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        result = _workspace_manager_runtime().create_workspace(
+            name=name,
+            description=description,
+        )
+        if result.get("status") == "error":
+            raise HTTPException(status_code=409, detail=result)
+        return result
+    except WorkspaceSecurityError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "INVALID_WORKSPACE_NAME", "message": str(exc)},
+        ) from exc
 
 
 @app.delete("/workspaces/{workspace_id}")
 async def delete_workspace(workspace_id: str):
     """Delete a research workspace."""
     try:
-        from research.workspace_manager import WorkspaceManager
-        wm = WorkspaceManager()
-        res = wm.delete_workspace(workspace_id)
-        return res
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        result = _workspace_manager_runtime().delete_workspace(workspace_id)
+        if result.get("status") == "error":
+            raise HTTPException(status_code=404, detail=result)
+        active_sessions.pop(workspace_id, None)
+        return result
+    except WorkspaceSecurityError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "INVALID_WORKSPACE_ID", "message": str(exc)},
+        ) from exc
 
 
 @app.post("/ingest", response_model=IngestResponse)
 async def ingest_text(request: IngestRequest):
-    """Ingest raw text into the workspace RAG store."""
+    """Store and index one immutable, traceable inline source."""
+    _workspace_paths_or_http_error(request.workspace_id)
     try:
         rag_client, _ = get_engines(request.workspace_id)
-        result = rag_client.ingest_text(request.text, metadata=request.metadata)
-        return IngestResponse(
-            status=result.get("status", "success"),
-            chunks_added=int(result.get("chunks_added", 0)),
-            workspace_id=result.get("workspace_id", request.workspace_id),
-            message=result.get("message"),
+    except Exception as exc:
+        raise _provider_http_error("retrieval_index", exc) from exc
+
+    metadata = dict(request.metadata or {})
+    if len(json.dumps(metadata, ensure_ascii=False).encode("utf-8")) > 65_536:
+        raise HTTPException(
+            status_code=413,
+            detail={"code": "METADATA_TOO_LARGE", "message": "Metadata exceeds 65536 bytes"},
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to ingest text: {e}")
+    source_id, source_uri, source_sha256, duplicate = _store_inline_source(
+        request.workspace_id,
+        request.text,
+    )
+    metadata.update(
+        {
+            "source_id": source_id,
+            "source_uri": source_uri,
+            "source_sha256": source_sha256,
+            "license_id": request.license_id,
+            "workspace_id": request.workspace_id,
+            "evidence_kind": "USER_SUPPLIED_SOURCE",
+        }
+    )
+    try:
+        result = rag_client.ingest_text(request.text.strip(), metadata=metadata)
+    except Exception as exc:
+        raise _provider_http_error("retrieval_index", exc) from exc
+    if not isinstance(result, dict):
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "INVALID_PROVIDER_RESULT", "message": "Index returned an invalid receipt"},
+        )
+    chunks_added = int(result.get("chunks_added", 0))
+    if result.get("status") != "success" or chunks_added < 1:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "code": "INDEXING_FAILED",
+                "message": "The source was stored but no retrievable chunks were indexed",
+                "source_uri": source_uri,
+            },
+        )
+    return IngestResponse(
+        status="INDEXED",
+        chunks_added=chunks_added,
+        workspace_id=request.workspace_id,
+        message=result.get("message"),
+        source_id=source_id,
+        source_uri=source_uri,
+        source_sha256=source_sha256,
+        duplicate=duplicate,
+        promotable=False,
+    )
 
 
 @app.post("/research/recursive", response_model=RecursiveResearchResponse)
 async def recursive_research(request: RecursiveResearchRequest):
-    """Bounded recursive retrieval + synthesis for academic research queries."""
+    """Produce a bounded extractive deep-research artifact or abstain."""
+    _workspace_paths_or_http_error(request.workspace_id)
     try:
-        rag_client, graph_engine = get_engines(request.workspace_id)
+        rag_client, _ = get_engines(request.workspace_id)
         results, depth_reached = _recursive_search(
             rag_client=rag_client,
             query=request.query,
-            depth=max(1, request.depth),
-            max_sources_per_level=max(1, request.max_sources_per_level),
+            depth=request.depth,
+            max_sources_per_level=request.max_sources_per_level,
             workspace_id=request.workspace_id,
         )
-
-        vector_context = "\n\n".join(
-            f"[{idx}] {item.get('snippet') or item.get('content', '')}" for idx, item in enumerate(results, 1)
+        from research.retrieval_evidence import (
+            RetrievalEvidenceError,
+            build_grounded_response,
         )
-        graph_context = graph_engine.get_context(request.query) if graph_engine else ""
-        synthesis_parts = []
-        if vector_context:
-            synthesis_parts.append("[Vector Context]\n" + vector_context)
-        if graph_context:
-            synthesis_parts.append("[Graph Context]\n" + graph_context)
 
-        synthesis = "\n\n".join(synthesis_parts) if synthesis_parts else "No relevant context found."
+        grounded = build_grounded_response(results)
+    except HTTPException:
+        raise
+    except RetrievalEvidenceError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "INVALID_RETRIEVAL_EVIDENCE", "message": str(exc)},
+        ) from exc
+    except Exception as exc:
+        raise _provider_http_error("recursive_retrieval", exc) from exc
 
-        return RecursiveResearchResponse(
-            query=request.query,
-            synthesis=synthesis,
-            sources=results,
-            depth_reached=depth_reached,
-            workspace_id=request.workspace_id,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to run recursive research: {e}")
+    artifact_payload = {
+        "schema_version": "jaya-deep-research-artifact-v1",
+        "workspace_id": request.workspace_id,
+        "query": request.query,
+        "requested_depth": request.depth,
+        "depth_reached": depth_reached,
+        "status": grounded["status"],
+        "claims": grounded["claims"],
+        "citations": grounded["citations"],
+        "promotable": grounded["promotable"],
+        "uses_internal_knowledge": False,
+    }
+    artifact_name = hashlib.sha256(
+        f"{request.workspace_id}\0{request.query}".encode("utf-8")
+    ).hexdigest()[:24]
+    artifact_uri, artifact_sha256 = _write_json_artifact(
+        request.workspace_id,
+        "deep_research",
+        artifact_name,
+        artifact_payload,
+    )
+    return RecursiveResearchResponse(
+        query=request.query,
+        synthesis=grounded["answer"],
+        sources=results,
+        citations=grounded["citations"],
+        depth_reached=depth_reached,
+        workspace_id=request.workspace_id,
+        status=grounded["status"],
+        promotable=grounded["promotable"],
+        artifact_uri=artifact_uri,
+        artifact_sha256=artifact_sha256,
+    )
 
 def _run_research_job(job_id: str) -> None:
     """Run one durable research job under an expiring worker lease."""
@@ -484,7 +720,6 @@ def _run_research_job(job_id: str) -> None:
         topic = str(job.payload["topic"])
         focus = str(job.payload.get("focus_areas") or "")
         max_queries = int(job.payload.get("max_queries") or 5)
-        _, graph_engine = get_engines(job.workspace_id)
         agent_type = _load_optional_dependency(
             "ResearchAgent", "research.agent", "ResearchAgent"
         )
@@ -503,15 +738,38 @@ def _run_research_job(job_id: str) -> None:
             progress=0.8,
             lease_seconds=120.0,
         )
-        graph_engine.ingest_document(report, f"Research: {topic}")
+        normalized_report = report.strip()
+        report_sha256 = hashlib.sha256(
+            normalized_report.encode("utf-8")
+        ).hexdigest()
+        artifact_uri, artifact_sha256 = _write_json_artifact(
+            job.workspace_id,
+            "research_jobs",
+            job_id,
+            {
+                "schema_version": "jaya-research-job-artifact-v1",
+                "job_id": job_id,
+                "workspace_id": job.workspace_id,
+                "topic": topic,
+                "focus_areas": focus,
+                "report": normalized_report,
+                "report_sha256": report_sha256,
+                "evidence_status": "UNVERIFIED_SYNTHESIS",
+                "citation_coverage": None,
+                "promotable": False,
+                "core_mutated": False,
+            },
+        )
         _job_repository_runtime().succeed(
             job_id,
             worker_id=worker_id,
             result={
-                "report_sha256": hashlib.sha256(
-                    report.encode("utf-8")
-                ).hexdigest(),
-                "evidence_status": "UNVERIFIED_RESEARCH_REPORT",
+                "report_sha256": report_sha256,
+                "artifact_uri": artifact_uri,
+                "artifact_sha256": artifact_sha256,
+                "evidence_status": "UNVERIFIED_SYNTHESIS",
+                "citation_coverage": None,
+                "promotable": False,
                 "core_mutated": False,
             },
         )
@@ -542,6 +800,7 @@ async def start_research(
     ),
 ):
     """Queue a bounded, durable research job; Core mutation is impossible."""
+    _workspace_paths_or_http_error(request.workspace_id)
     try:
         job, created = _job_repository_runtime().create(
             job_type="research-study",
@@ -654,50 +913,104 @@ async def generate_slides(topic: str, content: str = "Automated generated conten
 
 class PDFIngestRequest(BaseModel):
     workspace_id: str = "default"
-    extract_images: bool = True
-    extract_tables: bool = True
-    analyze_with_llm: bool = True
+    extract_images: bool = False
+    extract_tables: bool = False
+    analyze_with_llm: bool = False
     store_in_rag: bool = True
-    store_in_graph: bool = True
-    store_in_citation_graph: bool = True
+    store_in_graph: bool = False
+    store_in_citation_graph: bool = False
+
+
+def _pdf_extraction_http_error(exc: Exception) -> HTTPException:
+    """Map canonical PDF extraction codes to stable HTTP errors."""
+    from research.multimodal_pdf import PDFExtractionCode, PDFExtractionError
+
+    if not isinstance(exc, PDFExtractionError):
+        return _provider_http_error("pdf_extraction", exc)
+    status_by_code = {
+        PDFExtractionCode.FILE_NOT_FOUND: 404,
+        PDFExtractionCode.FILE_TOO_LARGE: 413,
+        PDFExtractionCode.DEPENDENCY_UNAVAILABLE: 503,
+        PDFExtractionCode.PARSER_FAILED: 422,
+        PDFExtractionCode.OCR_FAILED: 502,
+    }
+    return HTTPException(
+        status_code=status_by_code.get(exc.code, 422),
+        detail=exc.to_dict(),
+    )
+
+
+def _extract_pdf_document(
+    pdf_path: Path,
+    *,
+    output_dir: Path,
+    source_uri: str,
+    license_id: str,
+):
+    """Load the bounded canonical extractor without eager PDF imports."""
+    extractor_type = PDFExtractorFactory
+    if extractor_type is None:
+        extractor_type = _load_optional_dependency(
+            "PDFExtractorFactory",
+            "research.multimodal_pdf",
+            "MultimodalPDFExtractor",
+        )
+    raw_max_pages = os.getenv("JAYA_PDF_MAX_PAGES", "500")
+    try:
+        max_pages = int(raw_max_pages)
+    except ValueError as exc:
+        raise RuntimeError("JAYA_PDF_MAX_PAGES must be an integer") from exc
+    if not 1 <= max_pages <= 10_000:
+        raise RuntimeError("JAYA_PDF_MAX_PAGES must be between 1 and 10000")
+    extractor = extractor_type(
+        output_dir=output_dir,
+        max_bytes=upload_policy("pdf").max_file_bytes,
+        max_pages=max_pages,
+    )
+    return extractor.extract(
+        pdf_path,
+        source_uri=source_uri,
+        license_id=license_id,
+    )
 
 
 @app.post("/documents/ingest-pdf")
 async def ingest_pdf_document(
-    background_tasks: BackgroundTasks,
     workspace_id: str = "default",
-    extract_images: bool = True,
-    extract_tables: bool = True,
-    analyze_with_llm: bool = True,
+    extract_images: bool = False,
+    extract_tables: bool = False,
+    analyze_with_llm: bool = False,
     store_in_rag: bool = True,
-    store_in_graph: bool = True,
-    store_in_citation_graph: bool = True,
+    store_in_graph: bool = False,
+    store_in_citation_graph: bool = False,
+    license_id: str = "UNKNOWN",
     file: UploadFile = File(...)
 ):
-    """
-    Ingest a PDF document with multimodal extraction (text, images, tables).
-    
-    Features:
-    - Text extraction with pdfplumber (better than PyPDF)
-    - Image extraction with PyMuPDF
-    - Table extraction and conversion to Markdown
-    - LLM analysis for structured summary
-    - Integration with JAYA's RAG, Knowledge Graph, and Citation Graph
-    - Automatic workspace isolation
-    
-    Returns:
-        - Document metadata
-        - Extracted content summary
-        - Storage locations
-    """
-    # Get workspace paths
-    paths = _workspace_manager_runtime().get_paths(workspace_id)
-    workspace_root = Path(paths['vector_store']).parent  # Get workspace root from vector_store path
-    
-    # Create documents directory in workspace
+    """Extract and index one real PDF using the canonical bounded parser."""
+    requested_unavailable = [
+        name
+        for name, enabled in (
+            ("image_extraction", extract_images),
+            ("table_extraction", extract_tables),
+            ("llm_analysis", analyze_with_llm),
+            ("citation_graph", store_in_citation_graph),
+        )
+        if enabled
+    ]
+    if requested_unavailable:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "PROVIDER_UNAVAILABLE",
+                "capabilities": requested_unavailable,
+                "message": "Requested PDF providers are not configured",
+            },
+        )
+    paths = _workspace_paths_or_http_error(workspace_id)
+    workspace_root = Path(paths["root"]).resolve(strict=True)
     docs_dir = workspace_root / "documents"
     docs_dir.mkdir(parents=True, exist_ok=True)
-    
+
     try:
         upload_receipt = store_upload(
             file.file,
@@ -719,51 +1032,123 @@ async def ingest_pdf_document(
 
     safe_filename = upload_receipt.filename
     pdf_path = upload_receipt.path
+    source_uri = pdf_path.relative_to(workspace_root).as_posix()
     if upload_receipt.duplicate:
         return {
-            "status": "duplicate",
+            "status": "DUPLICATE_SOURCE",
             "message": "Identical PDF already exists; it was not ingested again.",
             "workspace_id": workspace_id,
             "filename": safe_filename,
             "sha256": upload_receipt.sha256,
             "size_bytes": upload_receipt.size_bytes,
             "processing_started": False,
+            "source_uri": source_uri,
+            "promotable": False,
         }
-    
-    # Process in background
-    def process_pdf():
+
+    parse_timeout_seconds = int(os.getenv("JAYA_PDF_PARSE_TIMEOUT_SECONDS", "60"))
+    if not 1 <= parse_timeout_seconds <= 600:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_PDF_TIMEOUT_CONFIG",
+                "message": "PDF parse timeout must be between 1 and 600 seconds",
+            },
+        )
+    try:
+        document = await asyncio.wait_for(
+            asyncio.to_thread(
+                _extract_pdf_document,
+                pdf_path,
+                output_dir=workspace_root / "processed_docs",
+                source_uri=source_uri,
+                license_id=license_id,
+            ),
+            timeout=parse_timeout_seconds,
+        )
+    except asyncio.TimeoutError as exc:
+        raise HTTPException(
+            status_code=408,
+            detail={"code": "PDF_PARSE_TIMEOUT", "message": "PDF parsing timed out"},
+        ) from exc
+    except Exception as exc:
+        raise _pdf_extraction_http_error(exc) from exc
+
+    extraction_payload = document.to_dict()
+    artifact_uri, artifact_sha256 = _write_json_artifact(
+        workspace_id,
+        "pdf_extractions",
+        upload_receipt.sha256[:24],
+        extraction_payload,
+    )
+    if document.status != "COMPLETE" or not document.full_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": (
+                    "OCR_REQUIRED"
+                    if document.status == "PARTIAL_OCR_REQUIRED"
+                    else "EMPTY_PDF"
+                ),
+                "message": "PDF is not fully extractable without an OCR provider",
+                "extraction_status": document.status,
+                "warnings": document.warnings,
+                "artifact_uri": artifact_uri,
+                "artifact_sha256": artifact_sha256,
+            },
+        )
+
+    chunks_added = 0
+    if store_in_rag or store_in_graph:
         try:
-            _process_pdf_background(
-                pdf_path=pdf_path,
-                workspace_id=workspace_id,
-                paths=paths,
-                extract_images=extract_images,
-                extract_tables=extract_tables,
-                analyze_with_llm=analyze_with_llm,
-                store_in_rag=store_in_rag,
-                store_in_graph=store_in_graph,
-                store_in_citation_graph=store_in_citation_graph,
-            )
-        except Exception as e:
-            print(f"[API] PDF processing error: {e}")
-            import traceback
-            traceback.print_exc()
-    
-    background_tasks.add_task(process_pdf)
-    
+            rag_client, graph_engine = get_engines(workspace_id)
+            if store_in_rag:
+                for page in document.pages:
+                    if not page.text:
+                        continue
+                    receipt = rag_client.ingest_text(
+                        page.text,
+                        metadata={
+                            "source_id": f"source-{upload_receipt.sha256[:20]}",
+                            "source_uri": source_uri,
+                            "source_sha256": upload_receipt.sha256,
+                            "page_number": page.page_number,
+                            "word_start": 0,
+                            "word_end": len(page.text.split()),
+                            "license_id": license_id,
+                            "workspace_id": workspace_id,
+                            "evidence_kind": "USER_SUPPLIED_PDF",
+                        },
+                    )
+                    if not isinstance(receipt, dict) or receipt.get("status") != "success":
+                        raise RuntimeError("PDF page indexing returned an invalid receipt")
+                    chunks_added += int(receipt.get("chunks_added", 0))
+            if store_in_graph:
+                graph_engine.ingest_document(
+                    document.full_text,
+                    f"Source PDF: {safe_filename}",
+                )
+        except Exception as exc:
+            raise _provider_http_error("pdf_index", exc) from exc
+
     return {
-        "status": "processing",
-        "message": "PDF upload successful, processing started in background",
+        "status": "INDEXED" if store_in_rag else "EXTRACTED",
         "workspace_id": workspace_id,
         "filename": safe_filename,
         "sha256": upload_receipt.sha256,
         "size_bytes": upload_receipt.size_bytes,
-        "processing_started": True,
-        "pdf_path": str(pdf_path.relative_to(ROOT_DIR)),
+        "source_uri": source_uri,
+        "extraction_status": document.status,
+        "pages": document.total_pages,
+        "chunks_added": chunks_added,
+        "warnings": document.warnings,
+        "artifact_uri": artifact_uri,
+        "artifact_sha256": artifact_sha256,
+        "promotable": bool(document.metadata.get("promotable")),
     }
 
 
-def _process_pdf_background(
+def _legacy_process_pdf_background_disabled(
     pdf_path: Path,
     workspace_id: str,
     paths: dict,
@@ -774,7 +1159,11 @@ def _process_pdf_background(
     store_in_graph: bool,
     store_in_citation_graph: bool,
 ):
-    """Background task to process PDF with full multimodal extraction"""
+    """Retained only as a fail-closed migration marker; never execute."""
+    raise RuntimeError(
+        "Legacy multimodal PDF pipeline is retired; use /documents/ingest-pdf"
+    )
+    # The unreachable implementation remains temporarily for migration review.
     import pdfplumber
     import fitz  # PyMuPDF
     import time
@@ -1149,7 +1538,7 @@ Format output sebagai JSON dengan keys:
             print(f"[PDF Ingest] Storing in RAG...")
             rag_client, _ = get_engines(workspace_id)
             # Ingest the markdown content
-            rag_client.ingest_documents([str(md_file)])
+            rag_client.ingest_file(str(md_file))
             print(f"[PDF Ingest] Stored in RAG")
         except Exception as e:
             print(f"[PDF Ingest] RAG storage error: {e}")
@@ -1379,130 +1768,53 @@ async def set_evolution_mode(mode: str):
     }
 
 def get_workspace_files_dir(workspace_id: str) -> Path:
-    ws_dir = Path(config.WORKSPACES_DIR) / workspace_id / "files"
+    paths = _workspace_paths_or_http_error(workspace_id)
+    workspace_root = Path(paths["root"]).resolve(strict=True)
+    ws_dir = (workspace_root / "files").resolve(strict=False)
+    ws_dir.relative_to(workspace_root)
     ws_dir.mkdir(parents=True, exist_ok=True)
     return ws_dir
 
 @app.post("/chat")
 async def chat_with_knowledge(request: ChatRequest):
-    """Chat coupled with RAG + Graph"""
+    """Return extractive evidence with citations, or explicitly abstain."""
     workspace_id = request.workspace_id
-    rag_client, graph_engine = get_engines(workspace_id)
-
-    # 1. Search Vector RAG
-    results_vector = rag_client.search(request.message, top_k=3)
-    vector_context = "\n".join([r['snippet'] for r in results_vector])
-    
-    # 2. Search Graph RAG
-    graph_context = graph_engine.get_context(request.message)
-    
-    # 3. Combine Context
-    full_context = f"""
-    [Vector Knowledge]:
-    {vector_context}
-    
-    [Graph Relationships]:
-    {graph_context}
-    """
-
-    # --- JOURNAL SEARCH INTEGRATION ---
-    # Heuristic: If user asks for "jurnal", "paper", "arxiv", "makalah"
-    triggers = ["jurnal", "journal", "paper", "arxiv", "makalah", "research about"]
-    msg_lower = request.message.lower()
-    
-    if any(t in msg_lower for t in triggers):
-        try:
-            print(f"[API] Journal Intent Detected: {request.message}")
-            processor_type = _load_optional_dependency(
-                "JournalProcessor",
-                "research.academic.journal_processor",
-                "JournalProcessor",
-            )
-            processor = processor_type()
-            # Extract topic roughly (User: "Cari jurnal tentang X" -> "X")
-            # For MVP, just pass the whole message, the searcher handles it well enough
-            journal_result = processor.process_query(request.message, max_papers=1)
-            
-            if journal_result["status"] == "success":
-                papers_context = ""
-                for p in journal_result["papers"]:
-                    papers_context += f"\n[PAPER] {p['metadata']['title']}\nSummary: {p['metadata']['summary'][:500]}...\nInsight: {p['insight']}\n"
-                
-                full_context += f"\n\n[LIVE ACADEMIC PAPERS]:\n{papers_context}"
-                print(f"[API] Injected {len(journal_result['papers'])} papers into context.")
-            else:
-                full_context += f"\n\n[LIVE ACADEMIC PAPERS]: No papers found for this topic."
-        except Exception as e:
-            print(f"[API] Journal Processing Error: {e}")
-            full_context += f"\n\n[LIVE ACADEMIC PAPERS]: Error during search ({str(e)})."
-    # ----------------------------------
-    
-    # 4. Synthesize with Teacher
-    from teacher import Teacher
-    # Use 'reasoning' for deep synthesis, or 'chat' for faster response?
-    # Let's use 'reasoning' for high quality RAG synthesis
-    teacher = Teacher(model_type="reasoning")
-    
-    prompt = f"""
-    Context: 
-    {full_context}
-    
-    User Question: {request.message}
-    
-    Answer based on the combined context (Vector + Graph + Papers). 
-    If the context is insufficient, rely on your internal knowledge but mention that it's general knowledge.
-    Format your answer nicely with Markdown.
-    """
-    
-    system_instruction = (
-        "You are JAYA, an advanced AI Research Assistant. You help users understand complex topics by synthesizing information "
-        "from their knowledge base (Vector Store & Knowledge Graph) and academic papers. Be helpful, precise, and scientific. "
-        "\n\n"
-        "CORE TOOL CAPABILITY: You have a tool to write/create files in the user's workspace directory. "
-        "Whenever the user asks you to write, save, or create a file (such as a markdown document, outline, script, report, notes, etc.), "
-        "you MUST write the content of the file and wrap it EXACTLY inside a `<create_file name=\"filename.ext\">...</create_file>` block. "
-        "For example:\n"
-        "<create_file name=\"outline.md\">\n"
-        "# Outline Tugas Akhir\n"
-        "1. Pendahuluan\n"
-        "</create_file>\n"
-        "You can write multiple files in a single response if requested. The file names must be simple and clean (e.g., report.md, script.py)."
+    _workspace_paths_or_http_error(workspace_id)
+    from research.retrieval_evidence import (
+        RetrievalEvidenceError,
+        build_grounded_response,
     )
-    
-    answer = teacher.ask(prompt, system_instruction=system_instruction)
-    
-    # 5. Extract and save generated files
-    import re
-    files_dir = get_workspace_files_dir(workspace_id)
-    
-    # We match: <create_file name="filename.ext">content</create_file>
-    # or <write_file name="filename.ext">content</write_file>
-    pattern = re.compile(r'<(create_file|write_file)\s+name="([^"]+)"\s*>(.*?)</\1>', re.DOTALL)
-    matches = pattern.findall(answer)
-    
-    for tag_type, filename, content in matches:
-        # Sanitize to prevent path traversal
-        safe_filename = Path(filename).name
-        filepath = files_dir / safe_filename
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(content.strip())
-        print(f"[API] File generated via chat tool: {safe_filename} in workspace {workspace_id}")
-        
-    # Clean up the XML tags from the visible answer so it looks nice
-    clean_answer = answer
-    for tag_type, filename, content in matches:
-        notice = f"\n\n> 📁 **File Generated successfully:** `{filename}` (Tersedia di panel kanan untuk Preview & Download)\n\n"
-        escaped_filename = re.escape(filename)
-        clean_answer = re.sub(
-            rf'<{tag_type}\s+name="{escaped_filename}"\s*>.*?</{tag_type}>',
-            notice,
-            clean_answer,
-            flags=re.DOTALL
+
+    try:
+        rag_client, _ = get_engines(workspace_id)
+        results_vector = rag_client.search(
+            request.message,
+            top_k=5,
+            workspace_id=workspace_id,
         )
-    
+        if not isinstance(results_vector, list):
+            raise RuntimeError("Retrieval provider returned a non-list result")
+        grounded = build_grounded_response(results_vector)
+    except RetrievalEvidenceError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "INVALID_RETRIEVAL_EVIDENCE", "message": str(exc)},
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _provider_http_error("grounded_retrieval", exc) from exc
+
     return {
-        "answer": clean_answer,
-        "sources": [r['document'].get('file_name', 'Unknown') for r in results_vector] + ["Knowledge Graph"]
+        "answer": grounded["answer"],
+        "grounded_response": grounded,
+        "citations": grounded["citations"],
+        "sources": grounded["sources"],
+        "evidence_quality": grounded.get("evidence_quality", "NO_EVIDENCE"),
+        "promotable": grounded["promotable"],
+        "status": grounded["status"],
+        "uses_internal_knowledge": False,
+        "synthesis_provider": "NOT_USED_EXTRACTIVE_ONLY",
     }
 
 @app.get("/documents")
@@ -1544,6 +1856,70 @@ def view_document(workspace_id: str, filename: str):
         raise HTTPException(status_code=404, detail="File not found")
         
     return FileResponse(filepath, filename=safe_filename)
+
+
+@app.get("/citations/open")
+def open_citation(request: Request, workspace_id: str, source_uri: str):
+    """Open one exact workspace-relative citation after authorization."""
+    require_workspace_identity(
+        request,
+        workspace_id,
+        required_scopes=("research:read",),
+    )
+    paths = _workspace_paths_or_http_error(workspace_id)
+    workspace_root = Path(paths["root"]).resolve(strict=True)
+
+    from urllib.parse import unquote
+
+    decoded = source_uri
+    for _ in range(4):
+        next_value = unquote(decoded)
+        if next_value == decoded:
+            break
+        decoded = next_value
+    normalized = decoded.replace("\\", "/").strip()
+    parts = tuple(part for part in normalized.split("/") if part)
+    allowed_roots = {
+        "artifacts",
+        "documents",
+        "files",
+        "processed_docs",
+        "sources",
+        "thesis_uploads",
+    }
+    if (
+        not normalized
+        or len(normalized) > 1_024
+        or decoded != source_uri
+        or normalized.startswith("/")
+        or ":" in normalized
+        or ".." in parts
+        or not parts
+        or parts[0] not in allowed_roots
+        or any(ord(character) < 32 for character in normalized)
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_SOURCE_URI",
+                "message": "source_uri must be an exact workspace-relative evidence path",
+            },
+        )
+
+    target = workspace_root.joinpath(*parts).resolve(strict=False)
+    try:
+        target.relative_to(workspace_root)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "SOURCE_PATH_ESCAPE", "message": "Citation path escaped workspace"},
+        ) from exc
+    if not target.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CITATION_NOT_FOUND", "message": "Citation source was not found"},
+        )
+    return FileResponse(target, filename=target.name)
 
 @app.delete("/documents/delete/{workspace_id}/{filename}")
 def delete_document(workspace_id: str, filename: str):
@@ -1891,70 +2267,46 @@ def _persist_thesis_session(session_id: str, payload: dict) -> None:
         ) from exc
 
 def _extract_pdf_text(file_path: str) -> str:
-    """
-    Extract text dari PDF. Mencoba PyMuPDF dulu, lalu pdfplumber, lalu raw bytes.
-    """
-    text = ""
-
-    # Coba PyMuPDF (fitz) - tercepat
+    """Compatibility wrapper around the canonical bounded PDF extractor."""
+    path = Path(file_path).resolve(strict=True)
     try:
-        import fitz  # PyMuPDF
-        doc = fitz.open(file_path)
-        pages = []
-        for page in doc:
-            pages.append(page.get_text())
-        text = "\n\n".join(pages)
-        doc.close()
-        print(f"[ThesisAPI] Extracted {len(text)} chars via PyMuPDF")
-        return text
-    except ImportError:
-        print("[ThesisAPI] PyMuPDF not available, trying pdfplumber...")
-    except Exception as e:
-        print(f"[ThesisAPI] PyMuPDF error: {e}, trying pdfplumber...")
-
-    # Fallback ke pdfplumber
-    try:
-        import pdfplumber
-        with pdfplumber.open(file_path) as pdf:
-            pages = [p.extract_text() or "" for p in pdf.pages]
-        text = "\n\n".join(pages)
-        print(f"[ThesisAPI] Extracted {len(text)} chars via pdfplumber")
-        return text
-    except ImportError:
-        print("[ThesisAPI] pdfplumber not available, trying pypdf2...")
-    except Exception as e:
-        print(f"[ThesisAPI] pdfplumber error: {e}")
-
-    # Fallback ke PyPDF2
-    try:
-        import PyPDF2
-        with open(file_path, "rb") as f:
-            reader = PyPDF2.PdfReader(f)
-            pages = [page.extract_text() or "" for page in reader.pages]
-        text = "\n\n".join(pages)
-        print(f"[ThesisAPI] Extracted {len(text)} chars via PyPDF2")
-        return text
-    except ImportError:
-        print("[ThesisAPI] PyPDF2 not available either.")
-    except Exception as e:
-        print(f"[ThesisAPI] PyPDF2 error: {e}")
-
-    raise HTTPException(
-        status_code=422,
-        detail="Tidak bisa mengekstrak teks dari PDF. Install: pip install pymupdf pdfplumber"
-    )
+        document = _extract_pdf_document(
+            path,
+            output_dir=path.parent / "extracted",
+            source_uri=path.name,
+            license_id="UNKNOWN",
+        )
+    except Exception as exc:
+        raise _pdf_extraction_http_error(exc) from exc
+    if document.status != "COMPLETE" or not document.full_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": (
+                    "OCR_REQUIRED"
+                    if document.status == "PARTIAL_OCR_REQUIRED"
+                    else "EMPTY_PDF"
+                ),
+                "message": "Thesis PDF requires OCR or contains no extractable text",
+                "extraction_status": document.status,
+                "warnings": document.warnings,
+            },
+        )
+    return document.full_text
 
 
 @app.post("/thesis/upload")
 async def upload_thesis(
     file: UploadFile = File(...),
-    workspace_id: str = "default"
+    workspace_id: str = "default",
+    license_id: str = "UNKNOWN",
 ):
     """
     Upload PDF Tugas Akhir. Simpan ke disk, ekstrak teks, dan kembalikan session_id
     yang bisa digunakan untuk memanggil /thesis/analyze.
     """
-    workspace_paths = _workspace_manager_runtime().get_or_create_paths(workspace_id)
+    workspace_paths = _workspace_paths_or_http_error(workspace_id)
+    workspace_root = Path(workspace_paths["root"]).resolve(strict=True)
     thesis_uploads_dir = Path(workspace_paths["root"]) / "thesis_uploads"
     try:
         upload_receipt = store_upload(
@@ -1984,16 +2336,36 @@ async def upload_thesis(
     safe_name = upload_receipt.filename
     dest_path = upload_receipt.path
 
-    # Ekstrak teks
-    parser_timeout_seconds = int(os.getenv("JAYA_PDF_PARSE_TIMEOUT_SECONDS", "60"))
+    try:
+        parser_timeout_seconds = int(
+            os.getenv("JAYA_PDF_PARSE_TIMEOUT_SECONDS", "60")
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "code": "INVALID_PDF_TIMEOUT_CONFIG",
+                "message": "PDF parse timeout must be an integer",
+            },
+        ) from exc
     if parser_timeout_seconds < 1 or parser_timeout_seconds > 600:
         raise HTTPException(
             status_code=500,
-            detail="JAYA_PDF_PARSE_TIMEOUT_SECONDS must be between 1 and 600",
+            detail={
+                "code": "INVALID_PDF_TIMEOUT_CONFIG",
+                "message": "PDF parse timeout must be between 1 and 600 seconds",
+            },
         )
+    source_uri = dest_path.relative_to(workspace_root).as_posix()
     try:
-        raw_text = await asyncio.wait_for(
-            asyncio.to_thread(_extract_pdf_text, str(dest_path)),
+        document = await asyncio.wait_for(
+            asyncio.to_thread(
+                _extract_pdf_document,
+                dest_path,
+                output_dir=workspace_root / "thesis_extractions",
+                source_uri=source_uri,
+                license_id=license_id,
+            ),
             timeout=parser_timeout_seconds,
         )
     except asyncio.TimeoutError as exc:
@@ -2005,7 +2377,29 @@ async def upload_thesis(
                 "message": "PDF parsing exceeded the configured timeout",
             },
         ) from exc
-    page_count = raw_text.count("\n\n") + 1  # rough estimate
+    except Exception as exc:
+        raise _pdf_extraction_http_error(exc) from exc
+    if document.status != "COMPLETE" or not document.full_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": (
+                    "OCR_REQUIRED"
+                    if document.status == "PARTIAL_OCR_REQUIRED"
+                    else "EMPTY_PDF"
+                ),
+                "message": "Thesis PDF requires OCR or contains no extractable text",
+                "extraction_status": document.status,
+                "warnings": document.warnings,
+            },
+        )
+    raw_text = document.full_text
+    extraction_uri, extraction_sha256 = _write_json_artifact(
+        workspace_id,
+        "thesis_extractions",
+        upload_receipt.sha256[:24],
+        document.to_dict(),
+    )
 
     # Simpan teks ke sesi
     import uuid
@@ -2021,25 +2415,64 @@ async def upload_thesis(
         "char_count": len(raw_text),
         "sha256": upload_receipt.sha256,
         "size_bytes": upload_receipt.size_bytes,
+        "source_uri": source_uri,
+        "license_id": license_id,
+        "page_count": document.total_pages,
+        "extraction_status": document.status,
+        "extraction_warnings": document.warnings,
+        "extraction_artifact_uri": extraction_uri,
+        "extraction_artifact_sha256": extraction_sha256,
+        "index_status": "PENDING",
         "analysis": None,
         "error": None,
     }
 
-    # Ingest ke vector store workspace agar bisa di-chat
+    index_status = "INDEXED"
+    index_warning = None
     try:
-        rag_client, graph_engine = get_engines(workspace_id)
-        rag_client.ingest_text(raw_text, metadata={"source": "thesis", "file_name": safe_name})
-        graph_engine.ingest_document(raw_text[:4000], f"Thesis: {safe_name}")
-        print(f"[ThesisAPI] Ingested to RAG workspace={workspace_id}")
-    except Exception as e:
-        print(f"[ThesisAPI] RAG ingest warning (non-fatal): {e}")
+        rag_client, _ = get_engines(workspace_id)
+        for page in document.pages:
+            if not page.text:
+                continue
+            receipt = rag_client.ingest_text(
+                page.text,
+                metadata={
+                    "source_id": f"source-{upload_receipt.sha256[:20]}",
+                    "source_uri": source_uri,
+                    "source_sha256": upload_receipt.sha256,
+                    "page_number": page.page_number,
+                    "word_start": 0,
+                    "word_end": len(page.text.split()),
+                    "license_id": license_id,
+                    "workspace_id": workspace_id,
+                    "evidence_kind": "USER_SUPPLIED_THESIS",
+                },
+            )
+            if not isinstance(receipt, dict) or receipt.get("status") != "success":
+                raise RuntimeError("Thesis index returned an invalid receipt")
+    except Exception:
+        index_status = "PROVIDER_UNAVAILABLE"
+        index_warning = "Thesis was extracted but the retrieval index is unavailable"
+
+    session = _thesis_sessions[session_id]
+    session["index_status"] = index_status
+    session["index_warning"] = index_warning
+    _persist_thesis_session(session_id, session)
 
     return {
         "session_id": session_id,
         "file_name": safe_name,
         "char_count": len(raw_text),
-        "status": "uploaded",
-        "message": "File berhasil diupload dan teks berhasil diekstrak. Siap untuk dianalisis.",
+        "page_count": document.total_pages,
+        "status": (
+            "EXTRACTED" if index_status == "INDEXED" else "EXTRACTED_INDEX_UNAVAILABLE"
+        ),
+        "index_status": index_status,
+        "warning": index_warning,
+        "source_uri": source_uri,
+        "artifact_uri": extraction_uri,
+        "artifact_sha256": extraction_sha256,
+        "promotable": bool(document.metadata.get("promotable")),
     }
 
 
@@ -2056,6 +2489,92 @@ async def analyze_thesis(session_id: str, background_tasks: BackgroundTasks):
     if session_id not in _thesis_sessions:
         raise HTTPException(status_code=404, detail="Session tidak ditemukan. Upload file terlebih dahulu.")
 
+    session = _thesis_sessions[session_id]
+    provider = ThesisAnalysisProvider
+    if provider is None:
+        session["status"] = "PROVIDER_UNAVAILABLE"
+        session["progress"] = 0
+        session["error"] = {
+            "code": "PROVIDER_UNAVAILABLE",
+            "message": "A thesis analysis provider has not been configured",
+        }
+        _persist_thesis_session(session_id, session)
+        raise HTTPException(status_code=503, detail=session["error"])
+    if session.get("status") == "analyzing":
+        return {
+            "status": "analyzing",
+            "session_id": session_id,
+            "message": "Thesis analysis is already running",
+        }
+
+    session["status"] = "analyzing"
+    session["progress"] = 0
+    session["steps"] = [
+        {
+            "step": "provider_analysis",
+            "status": "running",
+            "label": "Injected thesis provider is analyzing the extracted source",
+        }
+    ]
+    session["error"] = None
+    _persist_thesis_session(session_id, session)
+
+    def run_injected_analysis(sid: str) -> None:
+        current = _thesis_sessions[sid]
+        try:
+            analyze = getattr(provider, "analyze", provider)
+            provider_output = analyze(
+                text=current["raw_text"],
+                source_uri=current["source_uri"],
+                source_sha256=current["file_sha256"],
+                workspace_id=current["workspace_id"],
+            )
+            if not isinstance(provider_output, dict):
+                raise TypeError("Thesis provider must return a dictionary")
+            # Validate serializability before writing any durable result.
+            json.dumps(provider_output, ensure_ascii=False)
+            artifact_payload = {
+                "schema_version": "jaya-thesis-analysis-artifact-v1",
+                "session_id": sid,
+                "workspace_id": current["workspace_id"],
+                "source_uri": current["source_uri"],
+                "source_sha256": current["file_sha256"],
+                "provider_output": provider_output,
+                "evidence_status": "UNVERIFIED_PROVIDER_ANALYSIS",
+                "promotable": False,
+            }
+            artifact_uri, artifact_sha256 = _write_json_artifact(
+                current["workspace_id"],
+                "thesis_analyses",
+                sid,
+                artifact_payload,
+            )
+            current["analysis"] = provider_output
+            current["analysis_artifact_uri"] = artifact_uri
+            current["analysis_artifact_sha256"] = artifact_sha256
+            current["evidence_status"] = "UNVERIFIED_PROVIDER_ANALYSIS"
+            current["promotable"] = False
+            current["progress"] = 100
+            current["status"] = "done"
+            current["steps"][-1]["status"] = "done"
+        except Exception as exc:
+            current["status"] = "error"
+            current["error"] = {
+                "code": "THESIS_PROVIDER_FAILED",
+                "message": f"{type(exc).__name__}: {exc}",
+            }
+            current["steps"][-1]["status"] = "error"
+        _persist_thesis_session(sid, current)
+
+    background_tasks.add_task(run_injected_analysis, session_id)
+    return {
+        "status": "analyzing",
+        "session_id": session_id,
+        "message": "Analysis started with an explicitly injected provider",
+    }
+
+    # Legacy in-process multi-provider analysis below is unreachable. It is
+    # retained as a migration reference until the Phase B worker extraction.
     sess = _thesis_sessions[session_id]
     if sess["status"] == "analyzing":
         return {"status": "analyzing", "message": "Analisis sedang berjalan..."}
@@ -2226,6 +2745,16 @@ def get_thesis_status(session_id: str):
         "char_count": s.get("char_count", 0),
         "analysis": s.get("analysis"),
         "error": s.get("error"),
+        "index_status": s.get("index_status"),
+        "index_warning": s.get("index_warning"),
+        "source_uri": s.get("source_uri"),
+        "extraction_status": s.get("extraction_status"),
+        "extraction_artifact_uri": s.get("extraction_artifact_uri"),
+        "extraction_artifact_sha256": s.get("extraction_artifact_sha256"),
+        "analysis_artifact_uri": s.get("analysis_artifact_uri"),
+        "analysis_artifact_sha256": s.get("analysis_artifact_sha256"),
+        "evidence_status": s.get("evidence_status"),
+        "promotable": bool(s.get("promotable", False)),
     }
 
 
@@ -2237,6 +2766,68 @@ async def chat_with_thesis(session_id: str, request: ChatRequest):
 
     sess = _thesis_sessions[session_id]
     workspace_id = sess.get("workspace_id", "default")
+    if request.workspace_id != workspace_id:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "WORKSPACE_SESSION_MISMATCH",
+                "message": "Request workspace does not own this thesis session",
+            },
+        )
+    _workspace_paths_or_http_error(workspace_id)
+    from research.retrieval_evidence import (
+        RetrievalEvidenceError,
+        build_grounded_response,
+    )
+
+    try:
+        rag_client, _ = get_engines(workspace_id)
+        retrieved = rag_client.search(
+            request.message,
+            top_k=5,
+            workspace_id=workspace_id,
+        )
+        if not isinstance(retrieved, list):
+            raise RuntimeError("Retrieval provider returned a non-list result")
+        expected_uri = str(sess.get("source_uri") or "")
+        expected_sha256 = str(sess.get("file_sha256") or "")
+        thesis_results = []
+        for result in retrieved:
+            if not isinstance(result, dict):
+                continue
+            metadata = result.get("metadata")
+            document = result.get("document")
+            merged = {
+                **(document if isinstance(document, dict) else {}),
+                **(metadata if isinstance(metadata, dict) else {}),
+            }
+            if (
+                str(merged.get("source_uri") or "") == expected_uri
+                or str(merged.get("source_sha256") or "") == expected_sha256
+            ):
+                thesis_results.append(result)
+        grounded = build_grounded_response(thesis_results)
+    except RetrievalEvidenceError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail={"code": "INVALID_RETRIEVAL_EVIDENCE", "message": str(exc)},
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _provider_http_error("thesis_retrieval", exc) from exc
+
+    return {
+        "answer": grounded["answer"],
+        "sources": grounded["sources"],
+        "citations": grounded["citations"],
+        "claims": grounded["claims"],
+        "status": grounded["status"],
+        "promotable": grounded["promotable"],
+        "uses_internal_knowledge": False,
+    }
+
+    # Legacy generative thesis chat below is unreachable pending Phase B removal.
     raw_text = sess.get("raw_text", "")
 
     # Ambil konteks relevan dari RAG jika tersedia

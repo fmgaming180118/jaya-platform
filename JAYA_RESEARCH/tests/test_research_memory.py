@@ -33,11 +33,6 @@ def test_save_report_writes_only_to_injected_report_and_memory_paths(
     memory_path = tmp_path / "memory" / "discoveries.json"
     fixed_time = 2_000_000_000.0
     monkeypatch.setattr(module.time, "time", lambda: fixed_time)
-    monkeypatch.setattr(
-        module.config,
-        "DISCOVERY_MEMORY_PATH",
-        str(memory_path),
-    )
 
     agent = module.ResearchAgent.__new__(module.ResearchAgent)
     agent.config = SimpleNamespace(reports_dir=str(reports_dir))
@@ -52,20 +47,28 @@ def test_save_report_writes_only_to_injected_report_and_memory_paths(
         }
     ]
     agent.report = "# Deterministic Research Report\nOffline evidence."
+    agent._memory_path = memory_path
+    agent._run_id = "memoryrun001"
 
     with contextlib.redirect_stdout(io.StringIO()):
         agent.save_report()
 
-    report_path = reports_dir / "JIT_Compilation_Optimization_2000000000.md"
+    report_path = (
+        reports_dir
+        / "JIT_Compilation_Optimization_2000000000_memoryrun001.md"
+    )
     assert report_path.read_text(encoding="utf-8") == agent.report
 
     stored = json.loads(memory_path.read_text(encoding="utf-8"))
     assert len(stored) == 1
     entry = stored[0]
-    assert entry["result"] == "RESEARCH_REPORT"
+    assert entry["result"] == "UNVERIFIED_RESEARCH_REPORT"
     assert entry["topic"] == agent.topic
     assert entry["focus_areas"] == agent.focus_areas
     assert entry["queries_count"] == 2
     assert entry["findings_count"] == 1
     assert entry["report_path"] == str(report_path)
+    assert entry["evidence_kind"] == "SYNTHESIS_DRAFT"
+    assert entry["promotion_eligible"] is False
+    assert len(entry["report_sha256"]) == 64
     assert len(entry["hash"]) == 64

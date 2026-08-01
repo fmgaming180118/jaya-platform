@@ -1,492 +1,657 @@
-"""Research Agent - LangGraph-inspired workflow for deep research."""
+"""Evidence-first deep research workflow.
 
+The agent plans bounded questions, retrieves source material, and renders a
+traceable report.  Model prose is optional and remains explicitly unverified;
+it is never written back into the evidence store or knowledge graph as fact.
+"""
+
+from __future__ import annotations
+
+import hashlib
 import os
-import sys
+import re
 import time
+import uuid
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
-SRC_DIR = Path(__file__).resolve().parents[1]
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
+from config import config
+from provider_errors import ProviderError
+from research.config import ResearchConfig, get_config
+from research.enhanced_rag import EnhancedRAGClient as RAGClient
+from research.retrieval_evidence import (
+    AnswerStatus,
+    build_grounded_response,
+    enrich_chunk_metadata,
+)
 
-from config import config  # noqa: E402
-from provider_errors import ProviderError  # noqa: E402
-from research.config import get_config  # noqa: E402
-from teacher import Teacher  # noqa: E402
 
-# Try to import enhanced RAG, fallback to simple RAG if not available
-try:
-    from research.enhanced_rag import EnhancedRAGClient as RAGClient  # noqa: E402
+class ResearchWorkflowError(RuntimeError):
+    """A stable, actionable failure in the deep-research workflow."""
 
-    print("[RESEARCH] Using Enhanced RAG with NVIDIA embeddings")
-except ImportError:
-    from research.rag_client import RAGClient  # noqa: E402
+    def __init__(self, code: str, message: str) -> None:
+        self.code = code
+        super().__init__(message)
 
-    print("[RESEARCH] Using simple keyword-based RAG")
 
-# Try to import Graph RAG for knowledge graph capabilities
-try:
-    from research.graph_rag import GraphRAGEngine  # noqa: E402
-
-    GRAPH_RAG_AVAILABLE = True
-    print("[RESEARCH] Graph RAG available for knowledge graph construction")
-except ImportError:
-    GRAPH_RAG_AVAILABLE = False
-    print("[RESEARCH] Graph RAG not available")
+_AUTO_TEACHER = object()
+_AUTO_WEB = object()
 
 
 class ResearchAgent:
-    """
-    Deep Research Agent using LangGraph-inspired workflow.
+    """Run bounded research without converting generated prose into evidence."""
 
-    Workflow:
-    1. Plan: Generate research questions
-    2. Query: Execute parallel searches
-    3. Write: Synthesize findings into report
-    4. Review: Check for gaps
-    5. Iterate or Finalize
-    """
-
-    def __init__(self, topic: str, focus_areas: str = "", workspace: str = "default"):
-        """
-        Initialize research agent.
-
-        Args:
-            topic: Research topic
-            focus_areas: Optional focus areas such as Meta-Learning
-            workspace: Workspace name for isolated RAG memory (default: 'default')
-        """
-        self.topic = topic
-        self.focus_areas = focus_areas or "General AGI research"
+    def __init__(
+        self,
+        topic: str,
+        focus_areas: str = "",
+        workspace: str = "default",
+        *,
+        teacher: Any = _AUTO_TEACHER,
+        rag: Any | None = None,
+        web_search: Any = _AUTO_WEB,
+        graph_rag: Any | None = None,
+        research_config: ResearchConfig | None = None,
+        plan_questions: Sequence[str] | None = None,
+        memory_path: str | os.PathLike[str] | None = None,
+        run_id: str | None = None,
+        clock: Any = time.time,
+    ) -> None:
+        self.topic = " ".join(topic.split())
+        if not self.topic:
+            raise ValueError("topic must not be empty")
+        self.focus_areas = " ".join(focus_areas.split()) or "General research"
         self.workspace = workspace
-        self.config = get_config()
-        self.teacher = Teacher()
+        self.config = research_config or get_config()
+        self._clock = clock
+        self._memory_path = Path(memory_path).resolve() if memory_path else None
+        self._run_id = self._normalize_run_id(run_id or uuid.uuid4().hex)
+        if isinstance(plan_questions, (str, bytes)):
+            raise TypeError("plan_questions must be a sequence of questions")
+        self._supplied_plan = self._normalize_questions(plan_questions or [])
+        self._teacher_mode = (
+            "AUTO"
+            if teacher is _AUTO_TEACHER
+            else ("DISABLED" if teacher is None else "INJECTED")
+        )
+        self.teacher = None if teacher is _AUTO_TEACHER else teacher
 
-        # Load RAG scoped to the workspace's vector store
-        try:
+        if rag is None:
             from research.workspace_manager import WorkspaceManager
 
-            wm = WorkspaceManager()
-            ws_paths = wm.get_or_create_paths(workspace)
-            self.rag = RAGClient(
-                vector_store_path=ws_paths["vector_store"],
+            paths = WorkspaceManager().get_or_create_paths(workspace)
+            rag = RAGClient(
+                vector_store_path=paths["vector_store"],
                 workspace_id=workspace,
             )
-            print(
-                f"[RESEARCH] 🗂️  Workspace: '{workspace}' → {ws_paths['vector_store']}"
-            )
-        except Exception as e:
-            print(f"[RESEARCH] ⚠️  Workspace init failed ({e}), using global RAG.")
-            self.rag = RAGClient()
+        self.rag = rag
 
-        # Research state
-        self.plan = None
-        self.queries = []
-        self.findings = []
-        self.report = None
+        if web_search is _AUTO_WEB:
+            try:
+                from research.web_search import WebSearchClient
+
+                web_search = WebSearchClient()
+            except ImportError:
+                web_search = None
+        self.web_search = web_search
+        # Retained as an injected read-only adapter for compatibility. Generated
+        # model output is never sent to this graph.
+        self.graph_rag = graph_rag
+
+        self.plan: dict[str, Any] | None = None
+        self.queries: list[str] = []
+        self.findings: list[dict[str, Any]] = []
+        self.attempt_history: list[dict[str, Any]] = []
+        self.report: str | None = None
         self.iteration = 0
 
-        # Initialize Graph RAG if available
-        self.graph_rag = None
-        if GRAPH_RAG_AVAILABLE:
-            try:
-                from research.workspace_manager import WorkspaceManager
-
-                wm = WorkspaceManager()
-                ws_paths = wm.get_or_create_paths(workspace)
-                graph_path = ws_paths["knowledge_graph"]
-                self.graph_rag = GraphRAGEngine(storage_path=graph_path)
-                print(f"[RESEARCH] 🕸️  Graph RAG initialized: {graph_path}")
-            except Exception as e:
-                print(f"[RESEARCH] ⚠️  Graph RAG init failed: {e}")
-
     def run(self, human_in_loop: bool = True) -> str:
-        """
-        Execute full research workflow.
-
-        Args:
-            human_in_loop: If True, ask for approval at checkpoints
-
-        Returns:
-            Final research report (markdown)
-        """
-        print(f"[RESEARCH] Starting research on: {self.topic}")
-        print(f"[RESEARCH] Focus: {self.focus_areas}\n")
-
-        # Step 1: Generate Plan
+        """Execute a bounded plan, retrieval, review, and report cycle."""
         self.plan = self.generate_plan()
-        print(
-            f"[RESEARCH] Generated research plan with {len(self.queries)} questions\n"
-        )
-
         if human_in_loop:
-            print("--- RESEARCH PLAN ---")
-            for i, q in enumerate(self.queries, 1):
-                print(f"{i}. {q}")
+            approval = input(
+                "Proceed with the evidence retrieval plan? [Y/n]: "
+            ).strip()
+            if approval.casefold() == "n":
+                raise ResearchWorkflowError(
+                    "RESEARCH_CANCELED",
+                    "Research plan was canceled by the user",
+                )
 
-            approval = input("\nProceed with this plan? [Y/n]: ").strip()
-            if approval.lower() == "n":
-                print("Research cancelled.")
-                return ""
-
-        # Step 2: Execute Queries
-        print("\n[RESEARCH] Executing research queries...")
         self.findings = self.execute_queries()
-        print(f"[RESEARCH] Gathered {len(self.findings)} findings\n")
-
-        # Step 3: Write Report
-        print("[RESEARCH] Writing report...")
+        self.attempt_history.extend(self.findings)
         self.report = self.write_report()
-
-        # Step 4: Review (simple gap detection)
         gaps = self.review_report()
-
-        # Step 5: Iterate if needed (limited iterations)
         max_iterations = self.config.max_iterations
         while gaps and self.iteration < max_iterations:
-            progress = f"{self.iteration + 1}/{max_iterations}"
-            print(
-                f"\n[RESEARCH] Detected gaps. Iteration {progress}"
+            retry_findings = self.execute_queries(gaps)
+            self.attempt_history.extend(retry_findings)
+            self.findings = self._merge_latest_findings(
+                self.findings,
+                retry_findings,
             )
-            self.findings.extend(self.execute_queries(gaps))
             self.report = self.write_report()
-            gaps = self.review_report()
             self.iteration += 1
-
-        # Save report
+            new_gaps = self.review_report()
+            if new_gaps == gaps:
+                break
+            gaps = new_gaps
         self.save_report()
-
-        print("\n[RESEARCH] ✅ Research complete!")
-        print(f"[RESEARCH] Report saved to: {self.get_report_path()}")
-
         return self.report
 
-    def generate_plan(self) -> Dict[str, Any]:
-        """Generate research plan with specific questions"""
-        # Detect AGI/Compiler topics for specialized prompts
-        is_agi_topic = any(
-            k in self.topic.lower()
-            for k in ["agi", "self-improvement", "compiler", "recursive", "evolution"]
-        )
-
-        prompt_name = "agi_research_plan" if is_agi_topic else "research_plan"
-
-        prompt = self.config.get_prompt(
-            prompt_name, topic=self.topic, focus_areas=self.focus_areas
-        )
-
-        if is_agi_topic:
-            print("[RESEARCH] 🧠 Activated AGI Research Mode")
-
-        # Ask Teacher to generate research questions
-        response = self.teacher.ask(
-            prompt,
-            system_instruction=(
-                "You are an expert Research Planner. Break down complex "
-                "topics into specific investigative questions."
-            ),
-        )
-
-        # Parse questions (simple line-based parsing)
-        lines = response.strip().split("\n")
-        questions = []
-
-        for line in lines:
-            line = line.strip()
-            # Look for numbered questions or bullet points
-            if line and (
-                line[0].isdigit() or line.startswith("-") or line.startswith("*")
-            ):
-                # Clean up formatting
-                question = line.lstrip("0123456789.-* ")
-                if question:
-                    questions.append(question)
-
-        # Fallback if no questions found
-        if not questions:
-            questions = [
-                f"What is {self.topic}?",
-                f"What are the current approaches to {self.topic}?",
-                f"What are the challenges in {self.topic}?",
-                f"What are future directions for {self.topic}?",
-            ]
-
-        self.queries = questions[: self.config.max_queries]
-
-        return {"topic": self.topic, "queries": self.queries, "focus": self.focus_areas}
-
-    def execute_queries(self, queries: List[str] = None) -> List[Dict[str, Any]]:
-        """Execute research queries in parallel using asyncio"""
-        if queries is None:
-            queries = self.queries
-
-        # Import asyncio for parallel execution
-        import asyncio
-
-        # Check if web search available
-        try:
-            from research.web_search import WebSearchClient
-
-            web_search = WebSearchClient()
-        except ImportError:
-            web_search = None
-
-        async def execute_single_query(i: int, query: str) -> Dict[str, Any]:
-            """Execute a single query asynchronously"""
-            print(f"  [{i}/{len(queries)}] Searching: {query}")
-
-            # Search RAG
-            rag_results = self.rag.search(query, top_k=3)
-
-            # Check if RAG returned sufficient results
-            has_good_results = len(rag_results) > 0 and any(
-                r["score"] > 0.5 for r in rag_results
+    def generate_plan(self) -> dict[str, Any]:
+        """Create a plan or reject malformed planner output without templates."""
+        if self._supplied_plan:
+            questions = self._supplied_plan
+            plan_source = "CALLER_SUPPLIED"
+        else:
+            prompt_name = (
+                "agi_research_plan"
+                if any(
+                    keyword in self.topic.casefold()
+                    for keyword in (
+                        "agi",
+                        "self-improvement",
+                        "compiler",
+                        "recursive",
+                        "evolution",
+                    )
+                )
+                else "research_plan"
             )
-
-            # Fallback to web search if needed
-            if not has_good_results and web_search and web_search.is_available():
-                print("      └─ RAG insufficient, searching web...")
-                web_results = web_search.search(query, max_results=3)
-                rag_results.extend(
-                    {
-                        **result,
-                        "document": result.get("document")
-                        or {
-                            "title": result.get("title", "Web"),
-                            "url": result.get("url", ""),
-                            "source": result.get("source", "web"),
-                        },
-                    }
-                    for result in web_results
-                )
-
-            # Prepare context for Teacher
-            context_parts = []
-            for result in rag_results[:5]:
-                document = result["document"]
-                source_name = (
-                    document.get("file_name")
-                    or document.get("title", "Web")
-                )
-                context_parts.append(
-                    f"Source: {source_name}\n{result['snippet']}"
-                )
-            context = "\n\n".join(context_parts)
-
-            if not context:
-                context = "No relevant documents found in memory or web."
-
-            # Add graph context from prior ingested findings when available
-            graph_context = ""
-            if self.graph_rag:
-                try:
-                    graph_context = self.graph_rag.get_context(query)
-                except Exception as e:
-                    print(f"[RESEARCH] ⚠️  Graph context retrieval failed: {e}")
-
-            answer_prompt = f"""Question: {query}
-            
-Context from Documents:
-{context}
-
-Context from Knowledge Graph:
-{graph_context or "No graph context yet."}
-
-Please provide a comprehensive answer to the question based on the context.
-If the context is insufficient, note what additional information would be helpful."""
-
-            # This is still synchronous (Teacher API call), but queries run in parallel
-            answer = self.teacher.ask(
-                answer_prompt,
+            prompt = self.config.get_prompt(
+                prompt_name,
+                topic=self.topic,
+                focus_areas=self.focus_areas,
+            )
+            teacher = self._get_teacher(required=True)
+            response = teacher.ask(
+                prompt,
                 system_instruction=(
-                    "You are a precise Research Assistant. Use only the "
-                    "provided context. State what evidence is missing when "
-                    "the context is insufficient."
+                    "Return only a numbered list of specific, source-searchable "
+                    "research questions. Do not answer them."
                 ),
             )
+            questions = self._parse_numbered_questions(response)
+            plan_source = "INJECTED_MODEL"
 
-            sources = [
-                r["document"].get("file_name") or r["document"].get("title", "Web")
-                for r in rag_results
-            ]
+        if not questions:
+            raise ResearchWorkflowError(
+                "PLAN_INVALID",
+                "Planner produced no valid research questions",
+            )
+        self.queries = questions[: self.config.max_queries]
+        return {
+            "topic": self.topic,
+            "focus": self.focus_areas,
+            "queries": list(self.queries),
+            "plan_source": plan_source,
+            "bounded": True,
+        }
 
-            # Ingest the answer into graph knowledge for next queries
-            if self.graph_rag and answer:
-                try:
-                    source_id = f"{self.topic}:{i}:{int(time.time())}"
-                    triple_count = self.graph_rag.ingest_document(
-                        answer, source_id=source_id
-                    )
-                    if triple_count:
-                        print(f"      └─ Graph updated with {triple_count} triples")
-                except Exception as e:
-                    print(f"[RESEARCH] ⚠️  Graph ingestion failed: {e}")
+    def execute_queries(
+        self,
+        queries: Sequence[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Retrieve and ground each question; never synthesize without evidence."""
+        selected = self._normalize_questions(queries or self.queries)
+        if not selected:
+            raise ResearchWorkflowError("QUERY_SET_EMPTY", "No research queries supplied")
+        configured_limit = int(
+            getattr(getattr(self, "config", None), "max_queries", len(selected))
+        )
 
-            return {
-                "query": query,
-                "answer": answer,
-                "sources": sources,
-                "source_count": len(rag_results),
-            }
+        findings: list[dict[str, Any]] = []
+        for query in selected[:configured_limit]:
+            local_results = self._search_local(query)
+            web_results: list[dict[str, Any]] = []
+            has_confident_local = any(
+                float(item.get("score") or 0.0) >= 0.55 for item in local_results
+            )
+            if not has_confident_local and self._web_available():
+                web_results = self._search_web(query)
 
-        async def execute_all_queries():
-            """Execute all queries in parallel"""
-            tasks = [
-                execute_single_query(i + 1, query) for i, query in enumerate(queries)
-            ]
-            return await asyncio.gather(*tasks)
+            grounded = build_grounded_response(local_results, web_results)
+            citations = list(grounded.get("citations") or [])
+            model_synthesis = ""
+            citation_coverage = 0.0
+            model_synthesis_status = "NOT_USED"
+            if grounded["status"] == AnswerStatus.ANSWERED.value:
+                (
+                    model_synthesis,
+                    citation_coverage,
+                    model_synthesis_status,
+                ) = self._optional_synthesis(query, grounded)
 
-        # Run async queries
-        try:
-            findings = asyncio.run(execute_all_queries())
-        except ProviderError:
-            raise
-        except RuntimeError:
-            # Fallback to sequential if async fails
-            print("[RESEARCH] ⚠️  Async failed, falling back to sequential execution")
-            findings = []
-            for i, query in enumerate(queries, 1):
-                # Call the old sequential logic
-                result = asyncio.run(execute_single_query(i, query))
-                findings.append(result)
-
+            findings.append(
+                {
+                    "query": query,
+                    "status": grounded["status"],
+                    "answer": grounded["answer"],
+                    "claims": list(grounded.get("claims") or []),
+                    "citations": citations,
+                    "sources": self._source_labels(local_results + web_results),
+                    "source_count": len(local_results) + len(web_results),
+                    "evidence_quality": grounded.get(
+                        "evidence_quality",
+                        "INSUFFICIENT_EVIDENCE",
+                    ),
+                    "promotion_eligible": False,
+                    "model_synthesis": model_synthesis,
+                    "model_synthesis_status": model_synthesis_status,
+                    "model_citation_coverage": citation_coverage,
+                }
+            )
         return findings
 
     def write_report(self) -> str:
-        """Synthesize findings into markdown report"""
-        # Prepare findings text
-        finding_sections = []
-        for finding in self.findings:
-            source_text = (
-                ", ".join(finding["sources"])
-                if finding["sources"]
-                else "No verified source"
+        """Render only grounded claims and explicit limitations to Markdown."""
+        if not self.findings:
+            raise ResearchWorkflowError(
+                "NO_FINDINGS",
+                "A report cannot be created without retrieval findings",
             )
-            finding_sections.append(
-                f"Q: {finding['query']}\n"
-                f"A: {finding['answer']}\n"
-                f"Sources: {source_text}"
-            )
-        findings_text = "\n\n".join(finding_sections)
-
-        prompt = self.config.get_prompt(
-            "report_writing", topic=self.topic, findings=findings_text
-        )
-
-        report = self.teacher.ask(
-            prompt,
-            system_instruction=(
-                "You are a Scientific Writer. Synthesize the findings into "
-                "a clear, structured Markdown report."
+        lines = [
+            f"# Research Evidence Report: {self.topic}",
+            "",
+            "**Status:** UNVERIFIED_RESEARCH_REPORT",
+            "**Promotion eligible:** false",
+            "",
+            (
+                "This report contains extractive retrieval claims only. Optional "
+                "model prose is excluded from the evidence section and must be "
+                "reviewed separately."
             ),
-        )
-
-        return report
-
-    def review_report(self) -> List[str]:
-        """Review report for gaps using LLM-as-a-judge (Peer Reviewer)"""
-        if not self.report:
-            return []
-
-        print(
-            "[RESEARCH] 🕵️  Peer Reviewer is analyzing the report for scientific gaps..."
-        )
-
-        prompt = self.config.get_prompt(
-            "gap_detection", topic=self.topic, report=self.report
-        )
-
-        response = self.teacher.ask(
-            prompt,
-            system_instruction=(
-                "You are a strict Scientific Peer Reviewer. Output only a "
-                "numbered list of new questions."
-            ),
-        )
-
-        # Parse questions (similar to generate_plan)
-        lines = response.strip().split("\n")
-        gaps = []
-
-        for line in lines:
-            line = line.strip()
-            # Look for numbered questions or bullet points
-            if line and (
-                line[0].isdigit() or line.startswith("-") or line.startswith("*")
-            ):
-                # Clean up formatting
-                question = line.lstrip("0123456789.-* ")
-                if question:
-                    gaps.append(question)
-
-        if gaps:
-            gap_count = len(gaps)
-            print(
-                f"[RESEARCH] Peer Reviewer found {gap_count} gaps requiring "
-                "further investigation."
+            "",
+        ]
+        for index, finding in enumerate(self.findings, start=1):
+            lines.extend(
+                [
+                    f"## {index}. {finding['query']}",
+                    "",
+                    f"**Evidence status:** {finding['status']}",
+                    f"**Evidence quality:** {finding['evidence_quality']}",
+                    "",
+                    str(finding["answer"]),
+                    "",
+                ]
             )
-        else:
-            print(
-                "[RESEARCH] Peer Reviewer found no significant gaps. "
-                "Synthesis is solid."
+            if finding["citations"]:
+                lines.append("### Citations")
+                for citation in finding["citations"]:
+                    lines.append(
+                        "- [{citation_id}] {source_uri} | page={page} | "
+                        "sha256={digest} | license={license_id}".format(
+                            citation_id=citation["citation_id"],
+                            source_uri=citation["source_uri"],
+                            page=citation["page_number"],
+                            digest=citation["chunk_sha256"],
+                            license_id=citation["license_id"],
+                        )
+                    )
+                lines.append("")
+
+        abstained = sum(
+            str(finding["status"]).startswith("ABSTAINED")
+            for finding in self.findings
+        )
+        incomplete = sum(
+            finding["evidence_quality"] != "COMPLETE_PROVENANCE"
+            for finding in self.findings
+        )
+        lines.extend(
+            [
+                "## Limitations",
+                "",
+                f"- Questions abstained: {abstained}/{len(self.findings)}.",
+                f"- Findings with incomplete provenance: {incomplete}/{len(self.findings)}.",
+                "- Human/domain review is required before scientific use.",
+                "- This report is not empirical evidence and is never auto-promoted.",
+            ]
+        )
+        return "\n".join(lines).strip() + "\n"
+
+    def review_report(self) -> list[str]:
+        """Return unresolved questions based on typed evidence status."""
+        return list(
+            dict.fromkeys(
+                str(finding["query"])
+                for finding in self.findings
+                if finding["status"] != AnswerStatus.ANSWERED.value
+                or finding["evidence_quality"] != "COMPLETE_PROVENANCE"
             )
+        )
 
-        return gaps
+    def save_report(self) -> None:
+        """Atomically persist the draft and record it as non-evidence memory."""
+        if not isinstance(self.report, str) or not self.report.strip():
+            raise ResearchWorkflowError("REPORT_EMPTY", "Research report is empty")
+        report_path = Path(self.get_report_path()).resolve()
+        reports_root = Path(self.config.reports_dir).resolve()
+        try:
+            report_path.relative_to(reports_root)
+        except ValueError as exc:
+            raise ResearchWorkflowError(
+                "REPORT_PATH_ESCAPE",
+                "Report path escaped the configured report directory",
+            ) from exc
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        self._write_report_once(report_path, self.report)
 
-    def save_report(self):
-        """Save report to file and memory"""
-        report_path = self.get_report_path()
-
-        # Create reports directory
-        os.makedirs(os.path.dirname(report_path), exist_ok=True)
-
-        # Save to file
-        with open(report_path, "w", encoding="utf-8") as f:
-            f.write(self.report)
-
-        # Store in DiscoveryMemory for future retrieval
         try:
             from memory import DiscoveryMemory
 
-            # Use the main discovery memory file
-            memory = DiscoveryMemory(config.DISCOVERY_MEMORY_PATH)
-
-            # Store report as research experience
+            memory_path = getattr(self, "_memory_path", None)
+            if memory_path is None:
+                configured_paths = getattr(config, "paths", {})
+                memory_path = configured_paths.get("DISCOVERY_MEMORY_PATH")
+            memory = DiscoveryMemory(str(memory_path) if memory_path else None)
             memory.add_experience(
                 code=self.report,
-                result="RESEARCH_REPORT",
+                result="UNVERIFIED_RESEARCH_REPORT",
+                score=None,
                 metadata={
                     "topic": self.topic,
                     "focus_areas": self.focus_areas,
                     "queries_count": len(self.queries),
                     "findings_count": len(self.findings),
-                    "report_path": report_path,
-                    "timestamp": time.time(),
+                    "report_path": str(report_path),
+                    "report_sha256": hashlib.sha256(
+                        self.report.encode("utf-8")
+                    ).hexdigest(),
+                    "evidence_kind": "SYNTHESIS_DRAFT",
+                    "promotion_eligible": False,
+                    "timestamp": getattr(self, "_clock", time.time)(),
                 },
             )
-            print("[RESEARCH] 💾 Report stored in memory")
-        except Exception as e:
-            print(f"[RESEARCH] ⚠️  Could not store in memory: {e}")
+        except (OSError, ValueError, TypeError) as exc:
+            raise ResearchWorkflowError(
+                "REPORT_MEMORY_FAILED",
+                "Report was written but its audit record could not be persisted",
+            ) from exc
 
     def get_report_path(self) -> str:
-        """Get output path for report"""
-        reports_dir = self.config.reports_dir
-        timestamp = int(time.time())
-        safe_topic = "".join(c if c.isalnum() else "_" for c in self.topic)[:50]
-        filename = f"{safe_topic}_{timestamp}.md"
+        reports_dir = Path(self.config.reports_dir)
+        safe_topic = re.sub(r"[^A-Za-z0-9_-]+", "_", self.topic).strip("_")[:50]
+        if not safe_topic:
+            safe_topic = "research"
+        run_id = getattr(self, "_run_id", None)
+        if run_id is None:
+            run_id = uuid.uuid4().hex
+            self._run_id = run_id
+        filename = (
+            f"{safe_topic}_{int(getattr(self, '_clock', time.time)())}_"
+            f"{run_id}.md"
+        )
+        return str(reports_dir / filename)
 
-        return os.path.join(reports_dir, filename)
+    @staticmethod
+    def _write_report_once(report_path: Path, report: str) -> None:
+        """Create an immutable report without replacing an existing artifact."""
+        descriptor: int | None = None
+        try:
+            descriptor = os.open(
+                report_path,
+                os.O_CREAT | os.O_EXCL | os.O_WRONLY,
+                0o600,
+            )
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                descriptor = None
+                handle.write(report)
+                handle.flush()
+                os.fsync(handle.fileno())
+        except FileExistsError as exc:
+            raise ResearchWorkflowError(
+                "REPORT_ALREADY_EXISTS",
+                "The immutable report path already exists",
+            ) from exc
+        except OSError:
+            if descriptor is not None:
+                os.close(descriptor)
+            try:
+                report_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
+
+    def _search_local(self, query: str) -> list[dict[str, Any]]:
+        try:
+            raw = self.rag.search(query, top_k=3)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ResearchWorkflowError(
+                "LOCAL_RETRIEVAL_FAILED",
+                f"Local retrieval failed with {type(exc).__name__}",
+            ) from exc
+        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+            raise ResearchWorkflowError(
+                "LOCAL_RETRIEVAL_INVALID",
+                "Local retriever returned an invalid result collection",
+            )
+        return [
+            normalized
+            for item in raw
+            if (normalized := self._normalize_result(item, source_kind="LOCAL"))
+            is not None
+        ]
+
+    def _search_web(self, query: str) -> list[dict[str, Any]]:
+        try:
+            raw = self.web_search.search(query, max_results=3)
+        except ProviderError:
+            raise
+        except Exception as exc:
+            raise ResearchWorkflowError(
+                "WEB_RETRIEVAL_FAILED",
+                f"Web retrieval failed with {type(exc).__name__}",
+            ) from exc
+        if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)):
+            raise ResearchWorkflowError(
+                "WEB_RETRIEVAL_INVALID",
+                "Web retriever returned an invalid result collection",
+            )
+        return [
+            normalized
+            for item in raw
+            if (normalized := self._normalize_result(item, source_kind="WEB"))
+            is not None
+        ]
+
+    @staticmethod
+    def _normalize_result(item: Any, *, source_kind: str) -> dict[str, Any] | None:
+        if not isinstance(item, Mapping):
+            return None
+        content = str(item.get("content") or item.get("snippet") or "").strip()
+        if not content:
+            return None
+        document = item.get("document")
+        metadata = dict(document) if isinstance(document, Mapping) else {}
+        if isinstance(item.get("metadata"), Mapping):
+            metadata.update(item["metadata"])
+        metadata.setdefault("source_id", item.get("source_id"))
+        metadata.setdefault("source_uri", item.get("url"))
+        metadata.setdefault("title", item.get("title"))
+        source_label = item.get("source") or metadata.get("file_name")
+        if source_label and not metadata.get("source"):
+            metadata["source"] = source_label
+        metadata = enrich_chunk_metadata(content, metadata)
+        normalized: dict[str, Any] = {
+            "content": content,
+            "snippet": content,
+            "metadata": metadata,
+            "document": metadata,
+            "source_kind": source_kind,
+        }
+        if source_kind == "LOCAL":
+            score = item.get("score")
+            try:
+                normalized["score"] = float(score)
+            except (TypeError, ValueError):
+                normalized["score"] = 0.0
+        elif item.get("score") is not None:
+            try:
+                normalized["score"] = float(item["score"])
+            except (TypeError, ValueError):
+                pass
+        return normalized
+
+    def _optional_synthesis(
+        self,
+        query: str,
+        grounded: Mapping[str, Any],
+    ) -> tuple[str, float, str]:
+        citations = list(grounded.get("citations") or [])
+        if not citations:
+            return "", 0.0, "NOT_USED"
+        try:
+            teacher = self._get_teacher(required=False)
+        except ProviderError:
+            return "", 0.0, "PROVIDER_UNAVAILABLE"
+        if teacher is None:
+            return "", 0.0, "PROVIDER_DISABLED"
+        context = "\n".join(
+            f"[{citation['citation_id']}] {citation['snippet']}"
+            for citation in citations
+        )
+        try:
+            response = teacher.ask(
+                (
+                    f"Question: {query}\n\nEvidence:\n{context}\n\n"
+                    "Draft a concise answer using only this evidence. Every sentence "
+                    "must include at least one supplied citation ID."
+                ),
+                system_instruction=(
+                    "You are a precise Research Assistant. Use only the provided "
+                    "context; do not add internal knowledge."
+                ),
+            )
+        except ProviderError:
+            return "", 0.0, "PROVIDER_UNAVAILABLE"
+        if not isinstance(response, str) or not response.strip():
+            return "", 0.0, "INVALID_PROVIDER_OUTPUT"
+        used = {
+            citation["citation_id"]
+            for citation in citations
+            if f"[{citation['citation_id']}]" in response
+        }
+        coverage = len(used) / len(citations)
+        if not used:
+            return "", 0.0, "INVALID_PROVIDER_OUTPUT"
+        return response.strip(), round(coverage, 6), "UNVERIFIED_CITED_DRAFT"
+
+    def _get_teacher(self, *, required: bool) -> Any | None:
+        teacher = getattr(self, "teacher", None)
+        if teacher is not None:
+            return teacher
+        mode = getattr(self, "_teacher_mode", "AUTO")
+        if mode == "DISABLED":
+            if required:
+                raise ResearchWorkflowError(
+                    "PLANNER_PROVIDER_REQUIRED",
+                    "A planner provider or caller-supplied plan is required",
+                )
+            return None
+        from teacher import Teacher
+
+        teacher = Teacher(model_type="reasoning")
+        self.teacher = teacher
+        self._teacher_mode = "INJECTED"
+        return teacher
+
+    @staticmethod
+    def _merge_latest_findings(
+        existing: Sequence[Mapping[str, Any]],
+        replacements: Sequence[Mapping[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Replace the latest state per query while preserving plan order."""
+        latest = {str(item.get("query")): dict(item) for item in replacements}
+        merged: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for item in existing:
+            query = str(item.get("query"))
+            merged.append(latest.get(query, dict(item)))
+            seen.add(query)
+        merged.extend(
+            dict(item)
+            for item in replacements
+            if str(item.get("query")) not in seen
+        )
+        return merged
+
+    @staticmethod
+    def _normalize_run_id(value: str) -> str:
+        normalized = value.strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", normalized):
+            raise ValueError(
+                "run_id must contain 8-64 letters, numbers, underscores, or hyphens"
+            )
+        return normalized
+
+    def _web_available(self) -> bool:
+        if not hasattr(self, "web_search"):
+            try:
+                from research.web_search import WebSearchClient
+
+                self.web_search = WebSearchClient()
+            except ImportError:
+                self.web_search = None
+        if self.web_search is None:
+            return False
+        check = getattr(self.web_search, "is_available", None)
+        if not callable(check):
+            return True
+        try:
+            return check() is True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _source_labels(results: Sequence[Mapping[str, Any]]) -> list[str]:
+        labels: list[str] = []
+        for result in results:
+            metadata = result.get("metadata")
+            if not isinstance(metadata, Mapping):
+                continue
+            label = str(
+                metadata.get("file_name")
+                or metadata.get("title")
+                or metadata.get("source_uri")
+                or metadata.get("source_id")
+                or ""
+            )
+            if label and label not in labels:
+                labels.append(label)
+        return labels
+
+    @staticmethod
+    def _parse_numbered_questions(response: Any) -> list[str]:
+        if not isinstance(response, str):
+            return []
+        candidates: list[str] = []
+        for line in response.splitlines():
+            match = re.match(r"^\s*(?:\d+[.)]|[-*])\s+(.+?)\s*$", line)
+            if match:
+                candidates.append(match.group(1))
+        return ResearchAgent._normalize_questions(candidates)
+
+    @staticmethod
+    def _normalize_questions(values: Sequence[Any]) -> list[str]:
+        questions: list[str] = []
+        for value in values:
+            question = " ".join(str(value).split())
+            if 5 <= len(question) <= 500 and question not in questions:
+                questions.append(question)
+        return questions
 
 
-# Example usage
 if __name__ == "__main__":
     import sys
 
-    topic = sys.argv[1] if len(sys.argv) > 1 else "Meta-Learning for Neural Compilation"
-
-    agent = ResearchAgent(topic=topic)
-    report = agent.run(human_in_loop=True)
-
-    print("\n" + "=" * 60)
-    print(report[:500] + "..." if len(report) > 500 else report)
+    selected_topic = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else "Meta-Learning for Neural Compilation"
+    )
+    print(ResearchAgent(topic=selected_topic).run(human_in_loop=True))

@@ -1,5 +1,3 @@
-import React from 'react';
-import { Outlet, useParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import DevBanner from '../components/DevBanner';
 import DevPanel from '../components/DevPanel';
@@ -8,8 +6,7 @@ import { Terminal } from 'lucide-react';
 import { useEffect } from 'react';
 import { setApiLogCallback } from '../services/api';
 
-export default function ProjectLayout() {
-    const { projectId } = useParams();
+export default function ProjectLayout({ children, workspaceId }) {
     const { isDevMode, canShowDevPanel, toggleDevPanel, addApiLog } = useApp();
 
     // Wire API log callback saat mount
@@ -25,11 +22,11 @@ export default function ProjectLayout() {
 
             {/* Main Layout Row */}
             <div className="flex flex-1 overflow-hidden">
-                <Sidebar workspaceId={projectId} />
+                <Sidebar workspaceId={workspaceId} />
 
                 {/* Main Content Area */}
                 <main className="flex-1 overflow-hidden relative flex flex-col">
-                    <Outlet context={{ workspaceId: projectId }} />
+                    {children}
                 </main>
             </div>
 

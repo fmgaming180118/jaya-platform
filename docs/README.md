@@ -19,6 +19,7 @@ saling bertentangan.
 | Bagaimana alur pengguna, data, discovery, dan promosi? | [WORKFLOWS.md](WORKFLOWS.md) |
 | Apa yang benar-benar sudah bekerja? | [STATUS.md](STATUS.md) |
 | Apa urutan pekerjaan dan gerbang selesainya? | [ROADMAP.md](ROADMAP.md) |
+| Apa kontrak penerimaan terukur untuk Phase A? | [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) |
 | Kekurangan konkret apa yang sedang diperbaiki? | [REMEDIATION_CHECKLIST.md](REMEDIATION_CHECKLIST.md) |
 | Aturan keamanan, bukti, dan persetujuannya apa? | [GOVERNANCE.md](GOVERNANCE.md) |
 | Bagaimana menjalankan, menguji, dan mengubah proyek? | [DEVELOPMENT.md](DEVELOPMENT.md) |

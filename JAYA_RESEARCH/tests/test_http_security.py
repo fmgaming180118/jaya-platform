@@ -258,6 +258,7 @@ def test_cors_policy_normalizes_allowlist_for_starlette() -> None:
         "allow_headers": [
             "Authorization",
             "Content-Type",
+            "Idempotency-Key",
             "X-API-Key",
             "X-Request-ID",
         ],

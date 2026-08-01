@@ -1,236 +1,426 @@
+"""Evidence-bound novelty assessment for academic workflows.
+
+Novelty is never inferred from a provider outage or an empty search.  A
+positive novelty decision requires coverage from multiple literature providers,
+traceable evidence records, and an explicitly configured evaluator.
 """
-Novelty Checker - The "Devil's Advocate" engine.
-Its sole purpose is to ruthlessly try to disprove the novelty of a hypothesis
-by searching ArXiv, Semantic Scholar, and the Web.
-"""
+
+from __future__ import annotations
 
 import asyncio
-import sys
-from pathlib import Path
-from typing import Any, Dict
+import json
+import re
+from collections.abc import Mapping, Sequence
+from typing import Any
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from src.research.academic.literature import ArxivClient, SemanticScholarClient
-from src.teacher import Teacher
+from provider_errors import ProviderError
+from research.academic.literature import ArxivClient, SemanticScholarClient
 
 try:
-    from provider_errors import ProviderError
-except ImportError:
-    from src.provider_errors import ProviderError
-try:
-    from src.research.web_search import WebSearchClient
-except ImportError:
+    from research.web_search import WebSearchClient
+except ImportError:  # optional offline dependency
     WebSearchClient = None
+
+_AUTO_WEB = object()
 
 
 class NoveltyChecker:
-    def __init__(self):
-        # Use a fast model to compare search evidence against the hypothesis.
-        self.brain = Teacher(model_type="standard")
-        self.arxiv = ArxivClient()
-        self.scholar = SemanticScholarClient()
-        self.web = WebSearchClient() if WebSearchClient else None
+    """Assess whether supplied literature already describes a hypothesis."""
+
+    _STOPWORDS = {
+        "about",
+        "after",
+        "akan",
+        "antara",
+        "atau",
+        "dalam",
+        "dengan",
+        "from",
+        "hasil",
+        "into",
+        "pada",
+        "penelitian",
+        "research",
+        "that",
+        "the",
+        "this",
+        "untuk",
+        "using",
+        "yang",
+    }
+
+    def __init__(
+        self,
+        *,
+        evaluator: Any | None = None,
+        arxiv: Any | None = None,
+        scholar: Any | None = None,
+        web: Any = _AUTO_WEB,
+        min_completed_providers: int = 2,
+    ) -> None:
+        if not 1 <= min_completed_providers <= 3:
+            raise ValueError("min_completed_providers must be between 1 and 3")
+        self.evaluator = evaluator
+        self.arxiv = arxiv if arxiv is not None else ArxivClient()
+        self.scholar = scholar if scholar is not None else SemanticScholarClient()
+        self.web = (
+            WebSearchClient()
+            if web is _AUTO_WEB and WebSearchClient is not None
+            else (None if web is _AUTO_WEB else web)
+        )
+        self.min_completed_providers = min_completed_providers
 
     async def verify_novelty(
-        self, hypothesis: str, keywords: list[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Searches literature and the web to see if the hypothesis already exists.
-        Returns a dict indicating if it is novel, and any conflicting sources.
-        """
-        print("[NOVELTY_CHECKER] Attempting to debunk hypothesis novelty...")
+        self,
+        hypothesis: str,
+        keywords: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Return a structured decision with provider and evidence coverage."""
+        normalized_hypothesis = hypothesis.strip()
+        if not normalized_hypothesis:
+            raise ValueError("hypothesis must not be empty")
 
-        # 1. Extract key search terms if not provided
-        if not keywords:
-            keywords = await self._extract_keywords(hypothesis)
-
-        search_query = " ".join(keywords[:4])  # use top 4 keywords for searching
-        print(f"[NOVELTY_CHECKER] Searching for terms: {search_query}")
-
-        # 2. Parallel Search across sources
-        documents = []
-        provider_errors: list[ProviderError] = []
-        completed_providers = 0
-
-        # ArXiv
-        try:
-            arxiv_results = self.arxiv.search_papers(search_query, max_results=3)
-            completed_providers += 1
-            for r in arxiv_results:
-                documents.append(
-                    f"ArXiv - {r.get('title', '')}:\n{r.get('summary', '')}"
-                )
-        except ProviderError as error:
-            provider_errors.append(error)
-            print(f"[NOVELTY_CHECKER] ArXiv unavailable: {error.code}")
-
-        # Scholar
-        try:
-            scholar_results = self.scholar.search_papers(search_query, max_results=3)
-            completed_providers += 1
-            for r in scholar_results:
-                documents.append(
-                    f"Scholar - {r.get('title', '')}:\n{r.get('summary', '')}"
-                )
-        except ProviderError as error:
-            provider_errors.append(error)
-            print(f"[NOVELTY_CHECKER] Scholar unavailable: {error.code}")
-
-        # Web
-        if self.web and self.web.is_available():
-            try:
-                web_results = self.web.search(search_query, max_results=3)
-                completed_providers += 1
-                for r in web_results:
-                    documents.append(
-                        f"Web - {r.get('title', '')}:\n{r.get('snippet', '')}"
-                    )
-            except ProviderError as error:
-                provider_errors.append(error)
-                print(f"[NOVELTY_CHECKER] Web search unavailable: {error.code}")
-
-        if not documents:
-            if provider_errors:
-                return {
-                    "status": "indeterminate",
-                    "is_novel": None,
-                    "confidence": 0.0,
-                    "reasoning": (
-                        "Novelty could not be determined because one or more "
-                        "required evidence providers were unavailable."
-                    ),
-                    "completed_providers": completed_providers,
-                    "provider_errors": [error.to_dict() for error in provider_errors],
-                }
-            print(
-                "[NOVELTY_CHECKER] No existing documents found across any "
-                "source. Passed basic filter."
+        search_terms = self._normalize_keywords(
+            keywords or self._extract_keywords(normalized_hypothesis)
+        )
+        if len(search_terms) < 3:
+            return self._indeterminate(
+                "At least three technical search terms are required",
+                keywords=search_terms,
             )
+        search_query = " ".join(search_terms[:6])
+
+        provider_specs: list[tuple[str, Any, str]] = [
+            ("arxiv", self.arxiv, "search_papers"),
+            ("semantic_scholar", self.scholar, "search_papers"),
+        ]
+        if self.web is not None and self._web_available(self.web):
+            provider_specs.append(("web", self.web, "search"))
+
+        tasks = [
+            asyncio.to_thread(
+                self._search_provider,
+                provider_name,
+                provider,
+                method_name,
+                search_query,
+            )
+            for provider_name, provider, method_name in provider_specs
+        ]
+        provider_results = await asyncio.gather(*tasks)
+
+        completed = [result for result in provider_results if result["completed"]]
+        provider_errors = [
+            result["error"]
+            for result in provider_results
+            if result["error"] is not None
+        ]
+        evidence = [
+            item
+            for result in completed
+            for item in result["evidence"]
+        ]
+        coverage = {
+            "required": self.min_completed_providers,
+            "attempted": len(provider_specs),
+            "completed": len(completed),
+            "providers": [result["provider"] for result in completed],
+        }
+
+        if len(completed) < self.min_completed_providers:
+            return self._indeterminate(
+                "Insufficient independent literature-provider coverage",
+                keywords=search_terms,
+                coverage=coverage,
+                evidence=evidence,
+                provider_errors=provider_errors,
+            )
+        if not evidence:
+            return self._indeterminate(
+                "The completed literature searches returned no evidence; absence "
+                "of results is not proof of novelty",
+                keywords=search_terms,
+                coverage=coverage,
+                provider_errors=provider_errors,
+            )
+
+        similarity, closest = self._closest_evidence(normalized_hypothesis, evidence)
+        if closest is not None and similarity >= 0.75:
             return {
                 "status": "complete",
-                "is_novel": True,
-                "confidence": 0.5,
-                "reasoning": "No relevant literature found matching key terms.",
-                "completed_providers": completed_providers,
-                "provider_errors": [],
-            }
-
-        # 3. Evaluate whether literature already describes the mechanism.
-        # Keep a deterministic rejection for an explicitly known equation.
-        if (
-            "e=mc^2" in hypothesis.lower()
-            or "speed of light squared" in hypothesis.lower()
-        ):
-            print(
-                "[NOVELTY_CHECKER] Early rejection: hypothesis is a globally "
-                "known fact (Einstein)."
-            )
-            return {
                 "is_novel": False,
-                "confidence": 1.0,
+                "confidence": round(similarity, 4),
                 "reasoning": (
-                    "Detected explicit formulation of the established "
-                    "theory of relativity."
+                    "The hypothesis has high lexical overlap with retrieved "
+                    "literature and therefore fails the basic novelty screen."
                 ),
+                "keywords": search_terms,
+                "coverage": coverage,
+                "evidence": evidence,
+                "decision_evidence_ids": [closest["evidence_id"]],
+                "evaluation_method": "DETERMINISTIC_LEXICAL_REJECTION",
+                "provider_errors": provider_errors,
+                "promotion_eligible": False,
             }
 
-        context = "\n\n---\n\n".join(documents)
+        if self.evaluator is None:
+            return self._indeterminate(
+                "Literature was retrieved, but no novelty evaluator was configured",
+                keywords=search_terms,
+                coverage=coverage,
+                evidence=evidence,
+                provider_errors=provider_errors,
+            )
 
-        prompt = f"""
-        You are a highly critical Peer Reviewer and Scientific Expert. 
-        Your primary directive is to DEBUNK false claims of novelty.
-        
-        HYPOTHESIS TO CHECK:
-        {hypothesis}
-        
-        EXISTING LITERATURE FOUND:
-        {context}
-        
-        Compare the mechanism against the literature and established science.
-        
-        CRITICAL RULES:
-        1. Reject well-known facts, equations, theories, and standard methods.
-        2. If this is just a rehash of standard concepts, it is NOT NOVEL.
-        3. Claim novelty only when the mechanism is absent from the literature.
-        
-        Output your analysis in the following strict format:
-        IS_NOVEL: YES or NO
-        CONFIDENCE: 0.0 to 1.0
-        REASONING: <your detailed reasoning>
-        """
-
-        print("[NOVELTY_CHECKER] Sending evidence to the evaluation model.")
-        response = self.brain.ask(prompt)
-
-        # Parse response
-        is_novel = True
-        confidence = 0.5
-        reasoning = response
-        parsed_decision = False
-
-        for line in response.split("\n"):
-            line = line.strip()
-            if line.upper().startswith("IS_NOVEL:"):
-                val = line.split(":", 1)[1].upper().strip()
-                is_novel = "YES" in val and "NO" not in val
-                parsed_decision = True
-            elif line.upper().startswith("CONFIDENCE:"):
-                try:
-                    val = line.split(":", 1)[1].strip()
-                    confidence = float(val)
-                except ValueError:
-                    pass
-            elif line.upper().startswith("REASONING:"):
-                reasoning = line.split(":", 1)[1].strip()
-
-        # Fallback if strict parsing failed to find IS_NOVEL
-        if not parsed_decision:
-            lower_res = response.lower()
-            if (
-                "is_novel: no" in lower_res
-                or "is not novel" in lower_res
-                or "not novel" in lower_res
-            ):
-                is_novel = False
-                confidence = 0.9
-            else:
-                is_novel = True
-
-        print(
-            f"[NOVELTY_CHECKER] Result: IS_NOVEL={is_novel} (Confidence: {confidence})"
-        )
-        result = {
+        decision = self._evaluate_with_model(normalized_hypothesis, evidence)
+        if decision is None:
+            return self._indeterminate(
+                "The novelty evaluator returned an invalid or untraceable decision",
+                keywords=search_terms,
+                coverage=coverage,
+                evidence=evidence,
+                provider_errors=provider_errors,
+            )
+        return {
             "status": "partial" if provider_errors else "complete",
-            "is_novel": is_novel,
-            "confidence": confidence,
-            "reasoning": reasoning,
-            "raw_response": response,
-            "completed_providers": completed_providers,
-            "provider_errors": [error.to_dict() for error in provider_errors],
+            "is_novel": decision["is_novel"],
+            "confidence": decision["confidence"],
+            "reasoning": decision["reasoning"],
+            "keywords": search_terms,
+            "coverage": coverage,
+            "evidence": evidence,
+            "decision_evidence_ids": decision["evidence_ids"],
+            "evaluation_method": "INJECTED_MODEL_WITH_EVIDENCE_IDS",
+            "provider_errors": provider_errors,
+            "promotion_eligible": False,
         }
-        return result
 
-    async def _extract_keywords(self, text: str) -> list[str]:
+    @classmethod
+    def _extract_keywords(cls, text: str) -> list[str]:
+        """Deterministically derive search terms from the hypothesis itself."""
+        tokens = re.findall(r"[\w-]+", text.casefold(), flags=re.UNICODE)
+        frequencies: dict[str, int] = {}
+        for token in tokens:
+            if len(token) < 4 or token in cls._STOPWORDS or token.isdigit():
+                continue
+            frequencies[token] = frequencies.get(token, 0) + 1
+        return [
+            token
+            for token, _count in sorted(
+                frequencies.items(),
+                key=lambda item: (-item[1], -len(item[0]), item[0]),
+            )[:8]
+        ]
+
+    @staticmethod
+    def _normalize_keywords(keywords: Sequence[Any]) -> list[str]:
+        normalized: list[str] = []
+        for keyword in keywords:
+            value = " ".join(str(keyword).strip().split())
+            if value and value.casefold() not in {item.casefold() for item in normalized}:
+                normalized.append(value)
+        return normalized[:12]
+
+    @staticmethod
+    def _web_available(web: Any) -> bool:
+        availability = getattr(web, "is_available", None)
+        if not callable(availability):
+            return True
+        try:
+            return availability() is True
+        except Exception:
+            return False
+
+    @classmethod
+    def _search_provider(
+        cls,
+        provider_name: str,
+        provider: Any,
+        method_name: str,
+        query: str,
+    ) -> dict[str, Any]:
+        try:
+            method = getattr(provider, method_name)
+            raw_results = method(query, max_results=5)
+            if not isinstance(raw_results, Sequence) or isinstance(raw_results, str):
+                raise TypeError("provider result must be a sequence")
+            evidence = [
+                normalized
+                for index, item in enumerate(raw_results, start=1)
+                if (
+                    normalized := cls._normalize_evidence(
+                        provider_name,
+                        index,
+                        item,
+                    )
+                )
+                is not None
+            ]
+            return {
+                "provider": provider_name,
+                "completed": True,
+                "evidence": evidence,
+                "error": None,
+            }
+        except ProviderError as exc:
+            return {
+                "provider": provider_name,
+                "completed": False,
+                "evidence": [],
+                "error": exc.to_dict(),
+            }
+        except Exception as exc:
+            return {
+                "provider": provider_name,
+                "completed": False,
+                "evidence": [],
+                "error": {
+                    "provider": provider_name,
+                    "code": "provider_invalid_result",
+                    "retryable": False,
+                    "cause_type": type(exc).__name__,
+                },
+            }
+
+    @staticmethod
+    def _normalize_evidence(
+        provider_name: str,
+        index: int,
+        item: Any,
+    ) -> dict[str, str] | None:
+        if not isinstance(item, Mapping):
+            return None
+        title = " ".join(str(item.get("title") or "").split())
+        abstract = " ".join(
+            str(item.get("summary") or item.get("snippet") or "").split()
+        )
+        if not title and not abstract:
+            return None
+        raw_id = str(item.get("id") or item.get("url") or index).strip()
+        source_uri = str(
+            item.get("url")
+            or item.get("pdf_link")
+            or item.get("id")
+            or ""
+        ).strip()
+        return {
+            "evidence_id": f"{provider_name}:{raw_id}",
+            "provider": provider_name,
+            "title": title,
+            "abstract": abstract,
+            "source_uri": source_uri,
+            "published": str(item.get("published") or item.get("year") or ""),
+        }
+
+    @classmethod
+    def _closest_evidence(
+        cls,
+        hypothesis: str,
+        evidence: Sequence[Mapping[str, str]],
+    ) -> tuple[float, Mapping[str, str] | None]:
+        hypothesis_tokens = set(cls._extract_keywords(hypothesis))
+        best_score = 0.0
+        closest: Mapping[str, str] | None = None
+        for item in evidence:
+            evidence_tokens = set(
+                cls._extract_keywords(
+                    f"{item.get('title', '')} {item.get('abstract', '')}"
+                )
+            )
+            union = hypothesis_tokens | evidence_tokens
+            score = (
+                len(hypothesis_tokens & evidence_tokens) / len(union)
+                if union
+                else 0.0
+            )
+            if score > best_score:
+                best_score = score
+                closest = item
+        return best_score, closest
+
+    def _evaluate_with_model(
+        self,
+        hypothesis: str,
+        evidence: Sequence[Mapping[str, str]],
+    ) -> dict[str, Any] | None:
+        compact_evidence = [
+            {
+                "evidence_id": item["evidence_id"],
+                "title": item["title"],
+                "abstract": item["abstract"][:2000],
+            }
+            for item in evidence
+        ]
         prompt = (
-            "Extract the 5 most critical technical keywords or short phrases "
-            "for a search query. Return a comma-separated list.\n\n"
-            f"Text: {text}"
+            "Assess only whether the mechanism in the hypothesis appears in the "
+            "supplied literature. Do not infer novelty from missing information. "
+            "Return JSON only with is_novel (boolean), confidence (0..1), "
+            "reasoning (string), and evidence_ids (non-empty list drawn exactly "
+            "from the supplied evidence IDs).\n\n"
+            f"HYPOTHESIS:\n{hypothesis}\n\nEVIDENCE:\n"
+            + json.dumps(compact_evidence, ensure_ascii=False, sort_keys=True)
         )
-        response = self.brain.ask(prompt)
-        # Parse comma separated list
-        keywords = [k.strip() for k in response.split(",") if k.strip()]
-        return keywords
+        try:
+            if hasattr(self.evaluator, "ask"):
+                raw = self.evaluator.ask(
+                    prompt,
+                    max_tokens=1200,
+                    system_instruction="Return valid JSON only.",
+                )
+            elif hasattr(self.evaluator, "generate_completion"):
+                raw = self.evaluator.generate_completion(prompt, max_tokens=1200)
+            else:
+                return None
+            payload = json.loads(
+                str(raw).replace("```json", "").replace("```", "").strip()
+            )
+        except (AttributeError, TypeError, ValueError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, Mapping) or not isinstance(
+            payload.get("is_novel"), bool
+        ):
+            return None
+        try:
+            confidence = float(payload.get("confidence"))
+        except (TypeError, ValueError):
+            return None
+        reasoning = str(payload.get("reasoning") or "").strip()
+        evidence_ids = payload.get("evidence_ids")
+        allowed_ids = {item["evidence_id"] for item in evidence}
+        if (
+            not 0.0 <= confidence <= 1.0
+            or not reasoning
+            or not isinstance(evidence_ids, list)
+            or not evidence_ids
+            or any(item not in allowed_ids for item in evidence_ids)
+        ):
+            return None
+        return {
+            "is_novel": payload["is_novel"],
+            "confidence": round(confidence, 4),
+            "reasoning": reasoning,
+            "evidence_ids": list(dict.fromkeys(evidence_ids)),
+        }
 
-
-if __name__ == "__main__":
-    checker = NoveltyChecker()
-    # Test with something obvious
-    res = asyncio.run(
-        checker.verify_novelty(
-            "A neural network using quantum entanglement to transmit weight "
-            "updates instantly across nodes."
-        )
-    )
-    print(res)
+    @staticmethod
+    def _indeterminate(
+        reasoning: str,
+        *,
+        keywords: Sequence[str] = (),
+        coverage: Mapping[str, Any] | None = None,
+        evidence: Sequence[Mapping[str, Any]] = (),
+        provider_errors: Sequence[Mapping[str, Any]] = (),
+    ) -> dict[str, Any]:
+        return {
+            "status": "indeterminate",
+            "is_novel": None,
+            "confidence": 0.0,
+            "reasoning": reasoning,
+            "keywords": list(keywords),
+            "coverage": dict(coverage or {}),
+            "evidence": [dict(item) for item in evidence],
+            "decision_evidence_ids": [],
+            "evaluation_method": "NONE",
+            "provider_errors": [dict(item) for item in provider_errors],
+            "promotion_eligible": False,
+        }

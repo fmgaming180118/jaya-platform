@@ -1,31 +1,109 @@
 # Changelog
 
 Perubahan penting pada arah, status, arsitektur, dan dokumentasi dicatat di sini.
-Format tanggal menggunakan `YYYY-MM-DD`.
+Format tanggal menggunakan `YYYY-MM-DD`. Klaim status harus memiliki bukti yang
+dapat dijalankan ulang.
 
-## 2026-07-30 — Research Foundation & Production Hardening Progress
+## 2026-08-01 - Phase A lulus lokal, gate ilmiah tetap eksternal
 
 ### Added
 
-- **Dataset evaluasi RAG representatif** (`evaluation/rag_representative_v1.json`) dengan 11 entries berbasis dokumen thesis nyata, license CC0-1.0, schema `jaya-rag-eval-v1`.
-- **Thesis session persistence** via `ThesisSessionRepository` (SQLite WAL, revision tracking, crash recovery) terintegrasi ke API `/thesis/*`.
-- **Repository layout audit** bersih: tidak ada file misplaced atau cross-domain import violations.
+- Menetapkan [kontrak penerimaan Phase A](ACCEPTANCE_CRITERIA.md) dengan status
+  `PASS_LOCAL`, `PASS_REPRESENTATIVE`, `BLOCKED_EXTERNAL`, dan `FAIL`.
+- Menambahkan dataset RAG v2 berlisensi dan terikat digest untuk contract smoke.
+  Dataset aktif berstatus `SMOKE_ONLY`, bukan representatif.
+- Menambahkan acceptance test deterministik untuk novelty/gap, grounded RAG,
+  PDF ingestion, hypothesis/experiment, scientific synthesis, dan batas
+  deep-research agent.
+- Menambahkan workflow quality gate monorepo, dependency CI per komponen, audit
+  keamanan Android, serta test runner yang mengisolasi namespace legacy.
+- Menambahkan kontrak Deep Research UI untuk `/research/recursive`, termasuk
+  status answered/abstain/conflict, citation/provenance, URI/SHA artefak, dan
+  presentasi hasil non-promotable tanpa klaim mutasi Core.
 
 ### Changed
 
-- **RAG evaluation metrics** pada dataset representatif: recall@5=90.9%, MRR=90.9%, groundedness=100%, citation_correctness=9.1% (dibatasi oleh min_local_score=0.55), abstention_accuracy=9.1%.
-- **STATUS.md** diperbarui: Ingestion & RAG → IMPLEMENTED, Analisis tesis → IMPLEMENTED, bukti audit 30 Juli 2026.
-- **ROADMAP.md** diperbarui: Fase A checklist 2/6 selesai (dataset evaluasi, QA ≥85%), Fase B checklist 1/7 selesai (thesis persistence), status Fase B → IN PROGRESS.
-- **Dokumentasi validasi** LULUS: 20 file aktif, satu Git root, tanpa docs modul, tautan lokal valid.
-- **Repository layout audit** LULUS: tidak ada file misplaced atau cross-domain import violations.
+- Novelty dan gap gagal tertutup saat provider/corpus tidak cukup; graph yang
+  terputus hanya menjadi candidate yang memerlukan review.
+- PDF ingestion memakai status/error bertipe, provenance per halaman, batas
+  file/halaman, dan provider OCR/table/figure yang eksplisit.
+- RAG menghasilkan claim extractive bercitation, abstain pada bukti kosong atau
+  lemah, melaporkan konflik, dan menolak digest yang berubah.
+- Deep-research mengganti hasil retry per query, memisahkan draft model dari
+  evidence, meneruskan hasil extractive ketika provider opsional gagal, serta
+  menyimpan report write-once dengan run ID dan checksum.
+- Label adapter/file tanpa lokasi sumber eksplisit tidak lagi dapat lolos
+  sebagai complete provenance; blok chat generatif lama yang unreachable telah
+  dihapus dari API.
+- Hipotesis tanpa corpus tetap ungrounded; simulasi selalu non-empiris dan tidak
+  promotable; empirical review eligibility memerlukan receipt reproduksi yang
+  independen.
+- Scientific writer, drafter, reviewer, dan editor menolak citation asing,
+  tidak membuat bibliografi, menandai claim unsupported, dan tidak pernah
+  memberi publication approval.
+- Research hanya menghasilkan candidate/evidence artifact. Verifikasi,
+  persetujuan manusia, canary, instalasi atomik, replay protection, dan rollback
+  menjadi gate terpisah sebelum Core berubah.
+- Konfigurasi Research/Core, API security, capability sandbox Agent/OS, model
+  readiness, Android secret storage, dan jalur promosi diperketat agar gagal
+  secara eksplisit ketika dependency atau bukti belum tersedia.
+- Thesis session memakai repository SQLite WAL dengan revision tracking dan
+  recovery untuk state yang terinterupsi.
+- Auth UI kini menyimpan API key hanya di memori runtime dan memverifikasinya
+  melalui operasi baca; transport memakai `ApiError` terstruktur,
+  `Idempotency-Key`, dan kontrak CORS.
+- Preview/download dokumen serta export tesis memakai transport Bearer yang
+  sama; status index tesis yang unavailable tidak lagi disebut berhasil masuk
+  RAG. Monitor evolution legacy diganti boundary `BLOCKED` tanpa request
+  mutasi dan feature flag-nya nonaktif secara default.
+- Persistence transcript chat tanpa consent di `localStorage` dihapus; chat
+  sekarang memory-only sampai kontrak enkripsi, retention, dan deletion ada.
+- Dependency `react-router` yang terkena advisory diganti router internal
+  tervalidasi; toolchain UI dinaikkan ke Vite 8 dan halaman dipecah menjadi lazy
+  chunks.
+- Dependency UI langsung yang tidak dipakai dihapus, runner Electron dipindah
+  ke dependency pengembangan, dan renderer Electron hanya menerima URL HTTP
+  loopback dengan context isolation serta sandbox tanpa Node integration.
 
 ### Verified
 
-- Semua test suite lulus: JAYA_CORE Phase 1 (20), Phase 2 (25), JAYA_RESEARCH API Phase A (79), hypothesis/experiment/writer (25), JAYA_AGENT Phase 1 (4).
-- RAG evaluation pada dataset representatif: recall@5=90.9%, MRR=90.9%, groundedness=100%.
-- Thesis session persistence diuji: save/retrieve/list/delete/recover_interrupted berfungsi.
+- `python scripts/run_test_matrix.py --component research --quiet` menghasilkan
+  **352 passed, 11 deselected** pada suite offline Research.
+- Acceptance suite Phase A terarah menghasilkan 194 passed.
+- Suite kontrak UI menghasilkan 12 passed; lint dan production build lulus;
+  `npm audit` melaporkan 0 vulnerability.
+- RAG contract fixture menghasilkan `LOCAL_SMOKE_PASSED` dengan
+  `production_gate_passed=false` dan run default tidak terattestasi.
+- Validator dokumentasi, repository layout audit, Ruff blocker, dan compile
+  lulus pada run lokal yang dicatat selama hardening.
 
-## 2026-07-26 — Program Research Truth & Core Readiness
+### Not completed
+
+- Dataset dan run RAG representatif belum tersedia.
+- Review domain/etik, eksperimen empiris nyata, model target final, benchmark
+  hardware, dan perangkat Android fisik tetap `BLOCKED_EXTERNAL`.
+- Browser E2E terhadap API ter-deploy, target deployment, dan provider live
+  belum dibuktikan.
+- Phase A belum production-ready atau publication-ready meskipun gate lokal
+  lulus.
+
+## 2026-07-30 - RETRACTED / SUPERSEDED
+
+Entri sebelumnya menyebut `rag_representative_v1.json` berisi 11 kasus dan
+menyatakan recall@5/MRR 90,9% sebagai hasil dataset representatif. Klaim itu
+**ditarik** karena artefak tersebut tidak menjadi dataset evaluasi aktif yang
+dapat diverifikasi. Klaim penyelesaian roadmap yang bergantung pada angka itu
+juga tidak berlaku.
+
+Penggantinya adalah `JAYA_RESEARCH/evaluation/rag_smoke_v2.json`, yang secara
+eksplisit berstatus `SMOKE_ONLY`. Nilai smoke hanya membuktikan kontrak harness;
+ia tidak boleh dipakai sebagai bukti mutu retrieval produksi. Gate yang benar
+sekarang didefinisikan oleh [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md).
+
+Bagian thesis-session persistence dari pekerjaan tanggal tersebut telah diuji
+ulang dalam hardening 1 Agustus dan dicatat pada entri terbaru di atas.
+
+## 2026-07-26 - Program Research Truth dan Core Readiness
 
 ### Added
 
@@ -33,44 +111,38 @@ Format tanggal menggunakan `YYYY-MM-DD`.
   audit untuk menghapus hardcode, simulasi palsu, unsafe promotion, dan boundary
   yang tidak sesuai kegunaan modul.
 - Menetapkan acceptance criteria serta gate eksternal yang wajib dipenuhi sebelum
-  Research/Core dapat disebut verified atau production.
+  Research/Core dapat disebut verified atau production-ready.
 
-## 2026-07-26 — Konsolidasi dokumentasi
+## 2026-07-26 - Konsolidasi dokumentasi
 
 ### Changed
 
 - Menetapkan `docs/` di root sebagai satu-satunya sumber dokumentasi aktif.
 - Mengganti roadmap yang saling bertentangan dengan `ROADMAP.md` kanonis.
 - Menambahkan definisi kematangan dan dashboard berbasis bukti di `STATUS.md`.
-- Menyatukan visi, batas modul, alur riset/discovery, dan target ekosistem.
-- Menetapkan gerbang promosi Research → Core yang membutuhkan tes/benchmark
+- Menyatukan visi, batas modul, alur discovery, dan target ekosistem.
+- Menetapkan gerbang promosi Research ke Core yang membutuhkan tes/benchmark
   aktual, reproduksi, security review, persetujuan manusia, dan rollback.
-- Mengubah README root/modul menjadi navigasi yang sejalan dengan dokumen kanonis.
+- Mengubah README root/modul menjadi navigasi yang sejalan dengan dokumen
+  kanonis.
 
 ### Archived
 
-- Memindahkan dokumentasi modul lama ke
-  `docs/archive/legacy-module-docs/`.
+- Memindahkan dokumentasi modul lama ke `docs/archive/legacy-module-docs/`.
 - Memindahkan PRD, SRS, masterplan, roadmap, dan catatan root lama ke
   `docs/archive/legacy-root-docs/`.
 - Arsip dipertahankan untuk audit, tetapi tidak lagi menjadi spesifikasi aktif.
 
 ### Repository
 
-- Menghapus repository Git bersarang aktif dari `JAYA_RESEARCH`; branch terakhir
-  `master`, commit `90bd6eb`, remote
-  `https://github.com/fmgaming180118/JAYA_RESEARCH.git`. Karena hard-delete
-  diblokir pengaman terminal, metadata lama dipindahkan ke backup lokal dalam
-  arsip yang diabaikan Git dan tidak lagi bernama `.git`.
-- Seluruh file kini dikelola oleh Git repository di root monorepo.
-- Memperbarui `.gitignore` agar dokumentasi aktif terlacak, sementara referensi
+- Menonaktifkan repository Git bersarang dari `JAYA_RESEARCH`; seluruh file kini
+  dikelola repository Git di root monorepo.
+- Memperbarui `.gitignore` agar dokumentasi aktif terlacak sementara referensi
   vendor dan arsip besar tetap lokal.
 
 ### Verification
 
-- Menambahkan `scripts/validate_docs.py` untuk memeriksa struktur, repository,
-  dan tautan dokumentasi.
-- Menyelaraskan hook, instruksi agent, audit layout, prompt cleanup, dan workflow
-  benchmark agar tidak membuat kembali dokumentasi modul.
-- Memperbaiki blok integration test workflow Phase 2 yang sebelumnya bukan YAML
-  valid, tanpa mengubah skenario gate yang diuji.
+- Menambahkan `scripts/validate_docs.py` untuk memeriksa struktur repository dan
+  tautan dokumentasi.
+- Menyelaraskan hook, instruksi agent, audit layout, dan workflow benchmark agar
+  tidak membuat kembali dokumentasi modul.

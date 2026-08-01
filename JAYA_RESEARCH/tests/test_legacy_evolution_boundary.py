@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import hashlib
+import importlib
 from pathlib import Path
 from typing import Any
 
@@ -224,7 +225,10 @@ def test_legacy_runtime_contains_no_dynamic_or_subprocess_execution() -> None:
     assert forbidden_imports == set()
 
 
-def test_api_twin_startup_is_default_off_bounded_and_threadless() -> None:
+def test_api_twin_startup_is_default_off_bounded_and_threadless(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    api = importlib.import_module("network.research_api")
     api_source = (
         Path(__file__).resolve().parents[1]
         / "src"
@@ -232,9 +236,47 @@ def test_api_twin_startup_is_default_off_bounded_and_threadless() -> None:
         / "research_api.py"
     ).read_text(encoding="utf-8")
 
-    assert 'os.getenv("JAYA_ENABLE_DIGITAL_TWIN", "").strip() == "1"' in api_source
-    assert "JAYA_DIGITAL_TWIN_MAX_CYCLES is required" in api_source
-    assert "max_cycles=_digital_twin_max_cycles" in api_source
-    assert "enabled=True" in api_source
+    class FakeTwin:
+        @staticmethod
+        def _validate_cycle_bound(value: int) -> int:
+            if not 1 <= value <= 5:
+                raise ValueError("cycle bound rejected")
+            return value
+
+    monkeypatch.setattr(api, "digital_twin", None)
+    monkeypatch.setattr(api, "_digital_twin_max_cycles", None)
+    monkeypatch.setattr(
+        api,
+        "_digital_twin_startup_status",
+        {"status": "DISABLED_BY_DEFAULT", "candidate_only": True},
+    )
+    monkeypatch.setattr(
+        api,
+        "_load_optional_dependency",
+        lambda *_args: FakeTwin,
+    )
+    monkeypatch.delenv("JAYA_ENABLE_DIGITAL_TWIN", raising=False)
+    monkeypatch.delenv("JAYA_DIGITAL_TWIN_MAX_CYCLES", raising=False)
+
+    api._configure_digital_twin()
+
+    assert api.digital_twin is None
+    assert api._digital_twin_startup_status["status"] == "DISABLED_BY_DEFAULT"
+
+    monkeypatch.setenv("JAYA_ENABLE_DIGITAL_TWIN", "1")
+    api._configure_digital_twin()
+    assert api.digital_twin is None
+    assert api._digital_twin_startup_status["status"] == "MISCONFIGURED_FAIL_CLOSED"
+
+    monkeypatch.setenv("JAYA_DIGITAL_TWIN_MAX_CYCLES", "2")
+    api._configure_digital_twin()
+    assert isinstance(api.digital_twin, FakeTwin)
+    assert api._digital_twin_max_cycles == 2
+    assert api._digital_twin_startup_status == {
+        "status": "READY_BOUNDED_CANDIDATE_ONLY",
+        "candidate_only": True,
+        "max_cycles": 2,
+    }
+
     assert "threading.Thread" not in api_source
     assert "digital_twin.start_loop()" not in api_source

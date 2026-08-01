@@ -106,7 +106,10 @@ class TestEnhancedRAGClient(unittest.TestCase):
         self.mock_embedder = MagicMock(spec=NVIDIAEmbeddings)
         self.mock_embedder.dimension = 8
         self.mock_embedder.embed_texts.side_effect = lambda texts: _normalize_vectors(
-            np.array([[float(i)] * 8 for i, _ in enumerate(texts)], dtype=np.float32)
+            np.array(
+                [[float(i + 1)] * 8 for i, _ in enumerate(texts)],
+                dtype=np.float32,
+            )
         )
 
         with patch("research.enhanced_rag.NVIDIAEmbeddings", return_value=self.mock_embedder), \
