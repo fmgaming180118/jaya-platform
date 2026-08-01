@@ -1,0 +1,1 @@
+"""JAYA Core Capabilities Module."""
