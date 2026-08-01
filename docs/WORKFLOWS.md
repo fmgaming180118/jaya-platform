@@ -4,35 +4,45 @@ Dokumen ini mendefinisikan alur operasional. Kondisi implementasi aktual tetap
 merujuk ke [STATUS.md](STATUS.md), sedangkan urutan pengerjaan merujuk ke
 [ROADMAP.md](ROADMAP.md).
 
-## 1. Alur pengguna utama
+---
+
+## 1. Alur Utama — Cognitive Evolution Pipeline
+
+**Ini adalah workflow inti JAYA Research sebagai Cognitive Evolution Laboratory.**
+
+Seluruh fitur lain adalah sub-proses atau domain adapter dari pipeline ini.
 
 ```mermaid
 flowchart TD
-    START["Buat / pilih workspace"] --> INPUT["Tambahkan sumber atau pertanyaan"]
-    INPUT --> MODE{"Pilih pekerjaan"}
-    MODE -->|Chat| RAG["Retrieval + jawaban bercitation"]
-    MODE -->|Tesis| THESIS["Pipeline analisis tesis"]
-    MODE -->|Deep research| DEEP["Rencana pencarian bertahap"]
-    MODE -->|Discovery| DISC["Hipotesis + eksperimen"]
-    RAG --> REVIEW["Tinjau sumber, confidence, dan batasan"]
-    THESIS --> REVIEW
-    DEEP --> REVIEW
-    DISC --> REVIEW
-    REVIEW --> EXPORT["Simpan / ekspor artefak"]
+    GAP["Cognitive gap atau kebutuhan JAYA"] --> ACQUIRE["Evidence acquisition\n(sumber, jurnal, dataset)"]
+    ACQUIRE --> PROVENANCE["Validasi provenance,\nlisensi, kualitas, konflik"]
+    PROVENANCE --> SYNTHESIS["Sintesis & pembentukan\nhipotesis terukur"]
+    SYNTHESIS --> EXPERIMENT["Desain eksperimen\n+ acceptance criteria"]
+    EXPERIMENT --> SAFETYGATE{Safety &\nresource gate}
+    SAFETYGATE -->|gagal| REJECT_EXP["Ditolak + alasan"]
+    SAFETYGATE -->|lulus| EXECUTE["Eksekusi terisolasi\n(seed, config, env)"]
+    EXECUTE --> ANALYSIS["Analisis hasil\n+ uncertainty"]
+    ANALYSIS --> REPRO{Reproduksi\nindependen}
+    REPRO -->|gagal| REVISE["Revisi hipotesis"]
+    REVISE --> EXPERIMENT
+    REPRO -->|lulus| ARTIFACT["Candidate Cognitive Artifact\n(status: CANDIDATE, executable: false)"]
+    ARTIFACT --> VALIDATE["Schema, hash, provenance,\nlicense, security validation"]
+    VALIDATE --> BENCHMARK["Benchmark terhadap\nbaseline aktif"]
+    BENCHMARK --> HUMAN["Persetujuan manusia\n(human_review_required: true)"]
+    HUMAN -->|ditolak| REJECTED["REJECTED — dengan alasan"]
+    HUMAN -->|disetujui| CANARY["Canary installation\n(via adapter publik modul)"]
+    CANARY --> OBSERVE["Observasi regresi"]
+    OBSERVE -->|regresi| ROLLBACK["Rollback"]
+    OBSERVE -->|aman| PROMOTE["Promote ke Core"]
 ```
 
-Setiap pekerjaan memiliki `job_id`, state, progress, timestamp, error yang dapat
-ditindaklanjuti, dan tautan ke artefak. Target state machine:
+Aturan:
+- Tidak ada tahap yang boleh dilewati.
+- Simulasi tidak boleh dipromosikan.
+- Output LLM bukan evidence.
+- Human approval wajib ada sebelum canary.
 
-```text
-QUEUED -> RUNNING -> WAITING_REVIEW -> SUCCEEDED
-                    \-> FAILED
-QUEUED/RUNNING/WAITING_REVIEW -> CANCELED
-FAILED -> RETRYING -> RUNNING
-```
-
-Pekerjaan panjang harus persisten dan idempotent. Restart API tidak boleh
-menghapus sesi atau membuat artefak ganda.
+---
 
 ## 2. Ingestion dan RAG
 
@@ -50,32 +60,9 @@ menghapus sesi atau membuat artefak ganda.
 Kondisi gagal harus membedakan kesalahan input, parsing, provider, quota,
 retrieval kosong, dan internal error. Data parsial tidak boleh ditandai berhasil.
 
-## 3. Analisis tesis
+---
 
-```mermaid
-flowchart LR
-    PDF["PDF tesis"] --> EXTRACT["Ekstraksi teks + metadata"]
-    EXTRACT --> TOPIC["Topik, tujuan, metode, kontribusi"]
-    TOPIC --> LIT["Pencarian literatur pembanding"]
-    LIT --> NOV["Novelty dan gap"]
-    TOPIC --> CRIT["Review metodologi dan argumen"]
-    NOV --> DEF["Pertanyaan sidang"]
-    CRIT --> DEF
-    NOV --> REV["Saran revisi"]
-    CRIT --> REV
-    DEF --> REPORT["Laporan bercitation"]
-    REV --> REPORT
-```
-
-Aturan kualitas:
-
-- Bedakan kutipan dari sumber, inferensi model, dan saran.
-- Jangan menyatakan novelty absolut; nyatakan cakupan sumber dan waktu pencarian.
-- Pengguna dapat membuka bukti yang mendukung setiap klaim.
-- Revisi tidak mengganti naskah asli tanpa preview dan persetujuan.
-- Sesi dan tahap analisis disimpan persisten.
-
-## 4. Deep/recursive research
+## 3. Deep/Recursive Research
 
 1. Ubah pertanyaan menjadi scope, sub-pertanyaan, dan kriteria selesai.
 2. Bentuk rencana pencarian dengan batas waktu, sumber, dan jumlah iterasi.
@@ -88,30 +75,9 @@ Aturan kualitas:
 Recursive research tidak berarti loop tanpa batas. Setiap run memiliki budget,
 timeout, indikator progres, dan *kill switch*.
 
-## 5. Autonomous discovery
+---
 
-Alur target bersifat evidence-driven:
-
-```mermaid
-flowchart TD
-    OBS["Observasi + sumber"] --> HYP["Hipotesis terukur"]
-    HYP --> DESIGN["Desain eksperimen + acceptance criteria"]
-    DESIGN --> SAFE{"Safety dan resource gate"}
-    SAFE -->|gagal| REJECT["Ditolak + alasan"]
-    SAFE -->|lulus| RUN["Eksekusi sandbox dengan seed/config"]
-    RUN --> ANALYZE["Analisis statistik + uncertainty"]
-    ANALYZE --> REPRO{"Reproduksi independen"}
-    REPRO -->|gagal| REVISE["Revisi hipotesis/desain"]
-    REVISE --> DESIGN
-    REPRO -->|lulus| WRITE["Scientific report + evidence package"]
-```
-
-Data acak boleh dipakai untuk unit test, tetapi hasilnya wajib diberi label
-`SIMULATION` dan tidak boleh dipromosikan sebagai temuan empiris. Eksperimen
-aktual harus menyimpan dataset/version, environment, seed, konfigurasi, log,
-metrik, dan kegagalan.
-
-## 6. Promosi kemampuan ke ekosistem
+## 4. Promosi Kemampuan ke Ekosistem
 
 Promosi selalu berupa artefak, bukan penulisan source lintas modul:
 
@@ -128,7 +94,72 @@ Promosi selalu berupa artefak, bukan penulisan source lintas modul:
 Tidak ada jalur cepat yang melewati persetujuan manusia untuk perubahan Core,
 policy OS, izin Agent, atau distribusi Android.
 
-## 7. Alur kesalahan dan pemulihan
+---
+
+## 5. Alur Pengguna — Pilih Pekerjaan
+
+```mermaid
+flowchart TD
+    START["Buat / pilih workspace"] --> INPUT["Tambahkan sumber atau pertanyaan"]
+    INPUT --> MODE{"Pilih pekerjaan"}
+    MODE -->|Chat| RAG["Retrieval + jawaban bercitation"]
+    MODE -->|Deep research| DEEP["Rencana pencarian bertahap"]
+    MODE -->|Discovery| DISC["Hipotesis + eksperimen"]
+    MODE -->|Domain Adapter| ADAPTER["Pilih adapter (thesis, academic, dll.)"]
+    RAG --> REVIEW["Tinjau sumber, confidence, dan batasan"]
+    DEEP --> REVIEW
+    DISC --> REVIEW
+    ADAPTER --> REVIEW
+    REVIEW --> EXPORT["Simpan / ekspor artefak"]
+```
+
+Setiap pekerjaan memiliki `job_id`, state, progress, timestamp, error yang dapat
+ditindaklanjuti, dan tautan ke artefak. Target state machine:
+
+```text
+QUEUED -> RUNNING -> WAITING_REVIEW -> SUCCEEDED
+                    \-> FAILED
+QUEUED/RUNNING/WAITING_REVIEW -> CANCELED
+FAILED -> RETRYING -> RUNNING
+```
+
+Pekerjaan panjang harus persisten dan idempotent. Restart API tidak boleh
+menghapus sesi atau membuat artefak ganda.
+
+---
+
+## 6. Domain Adapter: Thesis Analysis
+
+Analisis tesis adalah domain adapter opsional — bukan workflow utama JAYA.
+Fitur ini dapat dinonaktifkan tanpa menghentikan fungsi Research Core.
+
+```mermaid
+flowchart LR
+    PDF["PDF tesis"] --> EXTRACT["Ekstraksi teks + metadata"]
+    EXTRACT --> TOPIC["Topik, tujuan, metode, kontribusi"]
+    TOPIC --> LIT["Pencarian literatur pembanding"]
+    LIT --> NOV["Novelty dan gap"]
+    TOPIC --> CRIT["Review metodologi dan argumen"]
+    NOV --> DEF["Pertanyaan sidang"]
+    CRIT --> DEF
+    NOV --> REV["Saran revisi"]
+    CRIT --> REV
+    DEF --> REPORT["Laporan bercitation"]
+    REV --> REPORT
+```
+
+Aturan kualitas adapter thesis:
+
+- Bedakan kutipan dari sumber, inferensi model, dan saran.
+- Jangan menyatakan novelty absolut; nyatakan cakupan sumber dan waktu pencarian.
+- Pengguna dapat membuka bukti yang mendukung setiap klaim.
+- Revisi tidak mengganti naskah asli tanpa preview dan persetujuan.
+- Sesi dan tahap analisis disimpan persisten.
+- Fitur ini tidak boleh mengubah planner generik Core menjadi domain-spesifik tesis.
+
+---
+
+## 7. Alur Kesalahan dan Pemulihan
 
 - Error memiliki kode stabil, pesan pengguna, detail teknis terlog, dan
   `correlation_id`.
@@ -137,4 +168,3 @@ policy OS, izin Agent, atau distribusi Android.
 - Artefak parsial diberi status jelas dan dapat dibersihkan.
 - Pengguna dapat membatalkan job dan melihat tahap terakhir yang berhasil.
 - Insiden keamanan atau integritas membekukan promosi sampai review selesai.
-

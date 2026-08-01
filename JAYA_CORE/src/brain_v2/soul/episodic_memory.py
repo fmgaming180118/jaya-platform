@@ -56,12 +56,30 @@ class SessionSummary:
 
 @dataclass
 class UserProfile:
-    """Profil pengguna dinamis yang diperbarui lintas sesi."""
+    """Profil pengguna dinamis yang diperbarui lintas sesi.
+
+    CATATAN ARSITEKTUR (ADR-009):
+    Field `thesis_topic` dan `current_chapter` adalah domain adapter fields
+    yang tersisa untuk backward compatibility. Field ini akan dimigrasikan
+    ke `domain_context` pada Fase E.
+
+    Untuk domain baru, gunakan `domain_context` (dict) yang domain-neutral.
+    Format yang disarankan:
+        domain_context = {
+            "domain": "thesis",          # nama domain
+            "topic": "Federated Learning",
+            "current_task": "BAB III",
+        }
+    """
     user_id: str = "boss"
     name: str = "Bos"
     research_topics: List[str] = field(default_factory=list)
-    current_chapter: str = ""         # BAB berapa yang sedang dikerjakan
-    thesis_topic: str = ""            # topik skripsi
+    # DEPRECATED (domain adapter): gunakan domain_context["current_task"] untuk domain baru
+    current_chapter: str = ""         # BAB berapa yang sedang dikerjakan (thesis adapter)
+    # DEPRECATED (domain adapter): gunakan domain_context["topic"] untuk domain baru
+    thesis_topic: str = ""            # topik skripsi (thesis adapter)
+    # Generic domain context — untuk semua domain selain thesis
+    domain_context: Dict[str, str] = field(default_factory=dict)
     deadlines: List[Dict[str, str]] = field(default_factory=list)
     preferred_language: str = "id"    # bahasa preferensi
     work_style: str = "collaborative" # gaya kerja: collaborative / direct / detailed
@@ -75,10 +93,20 @@ class UserProfile:
     def to_context_string(self) -> str:
         """Bangun string konteks personal untuk diinjeksi ke system prompt."""
         lines = [f"Nama pengguna: {self.name}"]
+        # Thesis adapter fields (deprecated, masih didukung untuk backward compat)
         if self.thesis_topic:
             lines.append(f"Topik skripsi: {self.thesis_topic}")
         if self.current_chapter:
             lines.append(f"Sedang mengerjakan: {self.current_chapter}")
+        # Generic domain context (untuk domain baru)
+        if self.domain_context:
+            domain = self.domain_context.get("domain", "")
+            topic = self.domain_context.get("topic", "")
+            current_task = self.domain_context.get("current_task", "")
+            if topic and not self.thesis_topic:  # hindari duplikasi dengan thesis_topic
+                lines.append(f"Topik aktif ({domain}): {topic}")
+            if current_task and not self.current_chapter:  # hindari duplikasi
+                lines.append(f"Tugas aktif: {current_task}")
         if self.research_topics:
             lines.append(f"Topik riset: {', '.join(self.research_topics[:5])}")
         if self.deadlines:

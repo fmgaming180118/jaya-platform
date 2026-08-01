@@ -4,10 +4,23 @@ Fase 5 — AgenticJarvis: Autonomous Agentic Intelligence (Setara JARVIS)
 
 Empat modul yang melengkapi evolusi JAYA_CORE menjadi kecerdasan setara JARVIS:
 
-  5.1  HierarchicalTaskPlanner  — Pecah goal besar ("Selesaikan BAB III") menjadi sub-tasks.
-  5.2  ProactiveEngine          — Deteksi kebutuhan Bos & insiatif ingatkan deadline/tugas.
+  5.1  HierarchicalTaskPlanner  — Pecah goal besar menjadi sub-tasks menggunakan
+                                   strategi yang dapat diregistrasikan per domain.
+  5.2  ProactiveEngine          — Deteksi kebutuhan pengguna & inisiasi tindakan
+                                   proaktif berdasarkan konteks aktif, goal, dan deadline.
   5.3  AgenticLoopController    — Clarification & confirmation gate (tanya balik jika ambigu).
-  5.4  ArXivPatchEngine         — Micro-delta knowledge update (< 5 MB) dari riset/paper.
+  5.4  KnowledgeDeltaBuilder    — Membangun kandidat knowledge delta dari sumber riset
+                                   tanpa mengaktifkannya di Core secara langsung.
+
+CATATAN ARSITEKTUR:
+  - Core Planner bersifat domain-neutral. Tidak ada asumsi domain tesis, skripsi,
+    atau bidang akademik lain di dalam kelas utama.
+  - Domain-spesifik templates (misalnya ThesisGoalDecompositionStrategy) harus
+    didaftarkan sebagai strategy eksternal, bukan dimasukkan ke Core.
+  - Semua knowledge candidate memiliki status INDEXED_IN_RESEARCH_STORE, bukan
+    "applied" atau "deployed".
+  - Parameter thesis_topic dan current_chapter di ProactiveEngine telah dihapus.
+    Gunakan active_contexts (dict) untuk informasi domain apapun.
 
 Zero external dependencies — SQLite + standard library.
 """
@@ -18,9 +31,10 @@ import logging
 import os
 import sqlite3
 import time
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("AgenticJarvis")
 
@@ -58,22 +72,147 @@ class GoalPlan:
         return round((done / len(self.subtasks)) * 100, 1)
 
 
+# ---------------------------------------------------------------------------
+# Goal Decomposition Strategy — Interface untuk domain-spesifik planner
+# ---------------------------------------------------------------------------
+
+class GoalDecompositionStrategy:
+    """
+    Base class untuk strategi dekomposisi goal domain-spesifik.
+
+    Implementasi domain-spesifik (contoh: thesis, software engineering,
+    home automation) harus didaftarkan ke HierarchicalTaskPlanner,
+    bukan dikodekan secara langsung ke Core.
+
+    Domain adapter dapat berada di:
+        JAYA_RESEARCH/adapters/thesis/
+        JAYA_RESEARCH/adapters/academic/
+        JAYA_AGENT/adapters/
+    """
+
+    def supports(self, title: str, domain: str) -> bool:
+        """Return True jika strategy ini dapat menangani goal dengan title/domain tersebut."""
+        return False
+
+    def decompose(self, title: str, domain: str) -> List[str]:
+        """Return daftar sub-task titles untuk goal yang diberikan."""
+        return []
+
+
+class ThesisGoalDecompositionStrategy(GoalDecompositionStrategy):
+    """
+    Strategi dekomposisi untuk goal tesis akademik.
+
+    INI ADALAH DOMAIN ADAPTER — bukan bagian dari Core generic planner.
+    File ini akan dipindahkan ke JAYA_RESEARCH/adapters/thesis/ pada Fase E.
+
+    Saat ini masih berada di sini untuk backward compatibility.
+    """
+
+    def supports(self, title: str, domain: str) -> bool:
+        title_lower = title.lower()
+        return (
+            domain in ("thesis", "skripsi")
+            or "bab" in title_lower
+            or "skripsi" in title_lower
+            or "tesis" in title_lower
+        )
+
+    def decompose(self, title: str, domain: str) -> List[str]:
+        title_lower = title.lower()
+        if "bab 1" in title_lower or "bab i" in title_lower:
+            return [
+                "Menulis Latar Belakang Masalah & Urgensi Riset",
+                "Merumuskan Identifikasi & Rumusan Masalah",
+                "Menentukan Tujuan & Manfaat Penelitian",
+                "Menyusun Batasan Masalah & Sistematika Penulisan",
+            ]
+        elif "bab 2" in title_lower or "bab ii" in title_lower:
+            return [
+                "Mengumpulkan Literatur & Jurnal Acuan Terbaru",
+                "Menyusun Tinjauan Pustaka & Dasar Teori Utama",
+                "Menganalisis Studi Komparatif Riset Terdahulu",
+                "Menyusun Kerangka Pemikiran & Hipotesis",
+            ]
+        elif "bab 3" in title_lower or "bab iii" in title_lower or "metodologi" in title_lower:
+            return [
+                "Merancang Diagram Arsitektur & Diagram Alur Sistem",
+                "Mendokumentasikan Spesifikasi Dataset & Perangkat",
+                "Detail Metode & Algoritma Eksekusi yang Digunakan",
+                "Menyusun Rencana Skenario Pengujian & Parameter Evaluasi",
+            ]
+        elif "bab 4" in title_lower or "bab iv" in title_lower or "hasil" in title_lower:
+            return [
+                "Mengolah Data Hasil Eksperimen & Pengujian",
+                "Visualisasi Grafik & Tabel Perbandingan Performa",
+                "Pembahasan & Analisis Implikasi Hasil",
+            ]
+        # Generic thesis fallback
+        return [
+            f"Identifikasi Scope & Lingkup '{title}'",
+            f"Pengumpulan Referensi & Literatur untuk '{title}'",
+            f"Penyusunan & Penulisan '{title}'",
+            f"Review & Revisi Akhir '{title}'",
+        ]
+
+
+class SoftwareGoalDecompositionStrategy(GoalDecompositionStrategy):
+    """Strategi dekomposisi untuk goal software/coding. Domain adapter."""
+
+    def supports(self, title: str, domain: str) -> bool:
+        title_lower = title.lower()
+        return (
+            domain in ("code", "software", "engineering")
+            or "koding" in title_lower
+            or "android" in title_lower
+            or "implementasi" in title_lower
+        )
+
+    def decompose(self, title: str, domain: str) -> List[str]:
+        return [
+            "Merancang Data Model & Arsitektur Kelas",
+            "Implementasi Logic & Repository Backend",
+            "Integrasi UI Component / Screen Layout",
+            "Menjalankan Testing & Fixing Edge-case Bugs",
+        ]
+
+
+# Default strategy registry — kosong secara default, strategi didaftarkan oleh adapter
+_DEFAULT_STRATEGIES: List[GoalDecompositionStrategy] = [
+    ThesisGoalDecompositionStrategy(),
+    SoftwareGoalDecompositionStrategy(),
+]
+
+
 class HierarchicalTaskPlanner:
     """
     Pecah tujuan besar pengguna menjadi sub-langkah konkret yang terlacak.
 
+    Planner ini bersifat domain-neutral. Strategi dekomposisi domain-spesifik
+    dapat didaftarkan melalui `register_strategy()`.
+
     Contoh:
-      Goal: "Selesaikan BAB III Skripsi"
-      Sub-tasks:
-        1. Menyusun diagram arsitektur sistem
-        2. Mendokumentasikan pengumpulan dataset
-        3. Menulis alur algoritma federated learning
-        4. Menyusun skenario pengujian eksperimen
+      Goal: "Analisis dampak perubahan iklim terhadap ketahanan pangan"
+      Sub-tasks: [generic decomposition]
+
+      Goal (dengan ThesisGoalDecompositionStrategy didaftarkan):
+      "Selesaikan BAB III Skripsi" → sub-tasks spesifik tesis
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        strategies: Optional[List[GoalDecompositionStrategy]] = None,
+    ) -> None:
         self._conn = conn
+        self._strategies: List[GoalDecompositionStrategy] = list(
+            strategies if strategies is not None else _DEFAULT_STRATEGIES
+        )
         self._ensure_tables()
+
+    def register_strategy(self, strategy: GoalDecompositionStrategy) -> None:
+        """Daftarkan strategi dekomposisi domain-spesifik. Dipanggil oleh adapter."""
+        self._strategies.append(strategy)
 
     def _ensure_tables(self) -> None:
         self._conn.executescript("""
@@ -128,50 +267,23 @@ class HierarchicalTaskPlanner:
 
         self._conn.commit()
         plan = GoalPlan(goal_id=goal_id, goal_title=title, domain=domain, subtasks=subtasks)
-        logger.info("[TaskPlanner] Created goal '%s' with %d subtasks", title, len(subtasks))
+        logger.info("[TaskPlanner] Created goal '%s' with %d subtasks (domain=%s)", title, len(subtasks), domain)
         return plan
 
     def _autogenerate_subtasks(self, title: str, domain: str) -> List[str]:
-        """Tentukan template subtask standar berdasarkan domain dan judul."""
-        title_lower = title.lower()
-        if "bab 1" in title_lower or "bab i" in title_lower:
-            return [
-                "Menulis Latar Belakang Masalah & Urgensi Riset",
-                "Merumuskan Identifikasi & Rumusan Masalah",
-                "Menentukan Tujuan & Manfaat Penelitian",
-                "Menyusun Batasan Masalah & Sistematika Penulisan",
-            ]
-        elif "bab 2" in title_lower or "bab ii" in title_lower:
-            return [
-                "Mengumpulkan Literatur & Jurnal Acuan Terbaru",
-                "Menyusun Tinjauan Pustaka & Dasar Teori Utama",
-                "Menganalisis Studi Komparatif Riset Terdahulu",
-                "Menyusun Kerangka Pemikiran & Hipotesis",
-            ]
-        elif "bab 3" in title_lower or "bab iii" in title_lower or "metodologi" in title_lower:
-            return [
-                "Merancang Diagram Arsitektur & Diagram Alur Sistem",
-                "Mendokumentasikan Spesifikasi Dataset & Perangkat",
-                "Detail Metode & Algoritma Eksekusi yang Digunakan",
-                "Menyusun Rencana Skenario Pengujian & Parameter Evaluasi",
-            ]
-        elif "bab 4" in title_lower or "bab iv" in title_lower or "hasil" in title_lower:
-            return [
-                "Mengolah Data Hasil Eksperimen & Pengujian",
-                "Visualisasi Grafik & Tabel Perbandingan Performa",
-                "Pembahasan & Analisis Implikasi Hasil",
-            ]
-        elif "code" in domain or "koding" in title_lower or "android" in title_lower:
-            return [
-                "Merancang Data Model & Arsitektur Kelas",
-                "Implementasi Logic & Repository Backend",
-                "Integrasi UI Component / Screen Layout",
-                "Menjalankan Testing & Fixing Edge-case Bugs",
-            ]
+        """
+        Tentukan sub-tasks berdasarkan strategi yang didaftarkan.
 
-        # Generic default
+        Strategi domain-spesifik (seperti ThesisGoalDecompositionStrategy)
+        harus didaftarkan secara eksplisit. Core tidak hardcode domain tertentu.
+        """
+        for strategy in self._strategies:
+            if strategy.supports(title, domain):
+                return strategy.decompose(title, domain)
+
+        # Generic default — tidak bergantung pada domain apapun
         return [
-            f"Analisis Kebutuhan Awal untuk '{title}'",
+            f"Analisis Kebutuhan & Scope untuk '{title}'",
             f"Eksekusi Tahap Utama '{title}'",
             f"Review & Evaluasi Akhir '{title}'",
         ]
@@ -213,7 +325,7 @@ class HierarchicalTaskPlanner:
 
 @dataclass
 class ProactiveAlert:
-    alert_type: str  # deadline | subtask_reminder | thesis_nudge | proactive_greeting
+    alert_type: str  # deadline | goal_reminder | context_nudge | proactive_greeting
     message: str
     priority: int = 1  # 1: normal, 2: high, 3: urgent
     created_at: float = field(default_factory=time.time)
@@ -225,6 +337,18 @@ class ProactiveEngine:
 
     Secara mandiri memeriksa kondisi pengguna dan menghasilkan reminder/nudge
     proaktif tanpa menunggu prompt eksplisit dari pengguna.
+
+    Engine ini bersifat domain-neutral. Tidak ada parameter thesis_topic
+    atau current_chapter. Gunakan active_contexts (dict) untuk informasi
+    domain apapun.
+
+    Format active_contexts yang disarankan:
+        {
+            "domain": "thesis",                 # atau "research", "coding", dll.
+            "topic": "Federated Learning",      # topik aktif saat ini
+            "current_task": "BAB III",          # tugas/tahap yang sedang berjalan
+            "last_activity": "2026-08-01",      # waktu aktivitas terakhir
+        }
     """
 
     def __init__(self, conn: sqlite3.Connection) -> None:
@@ -233,15 +357,35 @@ class ProactiveEngine:
     def check_proactive_nudge(
         self,
         user_name: str = "Bos",
-        thesis_topic: str = "",
-        current_chapter: str = "",
         deadlines: Optional[List[Dict[str, str]]] = None,
         active_goals: Optional[List[GoalPlan]] = None,
+        active_contexts: Optional[Dict[str, Any]] = None,
         idle_hours: float = 0.0,
+        cooldown_minutes: int = 30,
     ) -> Optional[ProactiveAlert]:
         """
         Analisis konteks dan hasilkan pesan proaktif jika relevan.
+
+        Parameters
+        ----------
+        user_name : str
+            Nama pengguna untuk personalisasi.
+        deadlines : list[dict], optional
+            Daftar deadline dengan key 'task' dan 'date'.
+        active_goals : list[GoalPlan], optional
+            Goal aktif dari HierarchicalTaskPlanner.
+        active_contexts : dict, optional
+            Konteks domain-neutral. Key yang disarankan: 'domain', 'topic',
+            'current_task'. Domain adapter bertanggung jawab mengisi ini.
+        idle_hours : float
+            Jam sejak sesi terakhir. Dipakai untuk proactive greeting.
+        cooldown_minutes : int
+            Minimum menit antar nudge. Default 30. Harus > 0.
         """
+        if cooldown_minutes <= 0:
+            logger.warning("[ProactiveEngine] cooldown_minutes must be > 0; using default 30")
+            cooldown_minutes = 30
+
         # 1. Urgent deadline check
         if deadlines:
             for dl in deadlines:
@@ -253,13 +397,16 @@ class ProactiveEngine:
                     priority=3,
                 )
 
-        # 2. Unfinished chapter nudge
-        if current_chapter and thesis_topic:
-            return ProactiveAlert(
-                alert_type="thesis_nudge",
-                message=f"Halo {user_name}! Terakhir kita sedang membahas **{current_chapter}** tentang *{thesis_topic}*. Apakah mau dilanjutkan sekarang?",
-                priority=2,
-            )
+        # 2. Active context nudge (domain-neutral)
+        if active_contexts:
+            topic = active_contexts.get("topic", "")
+            current_task = active_contexts.get("current_task", "")
+            if topic and current_task:
+                return ProactiveAlert(
+                    alert_type="context_nudge",
+                    message=f"Halo {user_name}! Terakhir kita sedang membahas **{current_task}** tentang *{topic}*. Apakah mau dilanjutkan sekarang?",
+                    priority=2,
+                )
 
         # 3. Active Goal subtask reminder
         if active_goals:
@@ -268,7 +415,7 @@ class ProactiveEngine:
                 if pending:
                     next_st = pending[0]
                     return ProactiveAlert(
-                        alert_type="subtask_reminder",
+                        alert_type="goal_reminder",
                         message=f"{user_name}, untuk target **{goal.goal_title}**, langkah berikutnya adalah: *\"{next_st.title}\"*. Siap saya bantu?",
                         priority=2,
                     )
@@ -329,31 +476,123 @@ class AgenticLoopController:
 
 
 # ---------------------------------------------------------------------------
-# 5.4 — ArXivPatchEngine (Micro-Delta Auto-Patching)
+# 5.4 — KnowledgeDeltaBuilder (Research Knowledge Candidate Builder)
 # ---------------------------------------------------------------------------
 
-class ArXivPatchEngine:
+class KnowledgeDeltaBuilder:
     """
-    Simulasi/Engine Micro-Delta Knowledge Patching (< 5 MB).
-    Menerima paper/ringkasan baru dan menyuntikkannya ke RAG database.
+    Membangun kandidat knowledge delta dari sumber riset (ArXiv, paper, dll.)
+    dan mengindeksnya ke Research RAG store.
+
+    PENTING: Kandidat ini BUKAN pengetahuan aktif di JAYA Core.
+    Status yang dikembalikan adalah INDEXED_IN_RESEARCH_STORE, bukan "applied"
+    atau "deployed". Aktivasi ke Core memerlukan promotion gate terpisah.
+
+    Sebelumnya dikenal sebagai ArXivPatchEngine. Nama diubah untuk merefleksikan
+    semantik yang benar: ini adalah builder kandidat, bukan patcher Core.
     """
 
-    def apply_micro_patch(self, patch_title: str, patch_content: str, rag_retriever: Any = None) -> Dict[str, Any]:
-        """Terapkan patch pengetahuan ilmiah baru ke RAG vault."""
-        patch_id = f"arxiv_{hash(patch_title) & 0xFFFFFF:06x}"
-        result = {"patch_id": patch_id, "title": patch_title, "status": "applied"}
+    def create_knowledge_delta_candidate(
+        self,
+        title: str,
+        content: str,
+        rag_retriever: Any = None,
+        source_type: str = "research_paper",
+    ) -> Dict[str, Any]:
+        """
+        Buat kandidat knowledge delta dari sumber riset.
+
+        Kandidat diindeks ke Research RAG store — bukan ke JAYA Core.
+        Untuk promosi ke Core, gunakan JarvisDiscoveryBridge dan promotion pipeline.
+
+        Parameters
+        ----------
+        title : str
+            Judul sumber (paper, dokumen, dll.).
+        content : str
+            Konten yang akan diindeks.
+        rag_retriever : Any, optional
+            RAG retriever yang memiliki method `add_document`.
+        source_type : str
+            Jenis sumber ('research_paper', 'documentation', dll.).
+
+        Returns
+        -------
+        dict dengan status INDEXED_IN_RESEARCH_STORE (bukan "applied").
+        """
+        candidate_id = f"kdelta_{hash(title) & 0xFFFFFF:06x}"
+        result: Dict[str, Any] = {
+            "candidate_id": candidate_id,
+            "title": title,
+            "source_type": source_type,
+            "status": "INDEXED_IN_RESEARCH_STORE",
+            "target": "JAYA_RESEARCH_RAG",
+            "executable": False,
+            "auto_installed": False,
+            "human_review_required": True,
+            "note": (
+                "Kandidat telah diindeks ke Research RAG store. "
+                "Ini BUKAN aktivasi pengetahuan di JAYA Core. "
+                "Promosi ke Core memerlukan promotion gate terpisah."
+            ),
+        }
         if rag_retriever and hasattr(rag_retriever, "add_document"):
             try:
                 rag_retriever.add_document(
-                    doc_id=patch_id,
-                    title=f"[ArXiv Delta] {patch_title}",
-                    body=patch_content,
-                    source="arxiv_auto_patch",
+                    doc_id=candidate_id,
+                    title=f"[Research Delta] {title}",
+                    body=content,
+                    source=source_type,
                 )
                 result["rag_indexed"] = True
             except Exception as ex:
                 result["rag_error"] = str(ex)
-        logger.info("[ArXivPatch] Applied micro-patch: %s", patch_title)
+                result["rag_indexed"] = False
+        logger.info("[KnowledgeDeltaBuilder] Created candidate: %s (status=%s)", title, result["status"])
+        return result
+
+
+# ---------------------------------------------------------------------------
+# Backward Compatibility Alias
+# ---------------------------------------------------------------------------
+
+class ArXivPatchEngine(KnowledgeDeltaBuilder):
+    """
+    DEPRECATED: Gunakan KnowledgeDeltaBuilder.
+
+    Alias ini dipertahankan untuk backward compatibility. Akan dihapus
+    pada rilis berikutnya. Method `apply_micro_patch` juga dipertahankan
+    sebagai alias ke `create_knowledge_delta_candidate`.
+    """
+
+    def apply_micro_patch(
+        self,
+        patch_title: str,
+        patch_content: str,
+        rag_retriever: Any = None,
+    ) -> Dict[str, Any]:
+        """
+        DEPRECATED: Gunakan `create_knowledge_delta_candidate`.
+
+        Method ini dipertahankan untuk backward compatibility.
+        Nama 'apply_micro_patch' menyesatkan karena tidak ada patch
+        yang diaplikasikan ke Core. Status dikembalikan sebagai
+        INDEXED_IN_RESEARCH_STORE, bukan "applied".
+        """
+        warnings.warn(
+            "apply_micro_patch is deprecated. Use create_knowledge_delta_candidate instead. "
+            "Note: status is now 'INDEXED_IN_RESEARCH_STORE', not 'applied'.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        result = self.create_knowledge_delta_candidate(
+            title=patch_title,
+            content=patch_content,
+            rag_retriever=rag_retriever,
+            source_type="arxiv_research",
+        )
+        # Remap key untuk backward compatibility
+        result["patch_id"] = result.pop("candidate_id")
         return result
 
 
@@ -364,7 +603,10 @@ class ArXivPatchEngine:
 class JarvisAgentFacade:
     """
     Facade utama Fase 5 — Menggabungkan Task Planner, Proactive Engine,
-    Agentic Loop Gate, dan ArXiv Patch Engine.
+    Agentic Loop Gate, dan Knowledge Delta Builder.
+
+    Domain adapter (thesis, academic, dll.) dapat didaftarkan melalui:
+        facade.planner.register_strategy(ThesisGoalDecompositionStrategy())
     """
 
     def __init__(self, db_path: str = DEFAULT_AGENTIC_DB) -> None:
@@ -375,7 +617,10 @@ class JarvisAgentFacade:
         self.planner = HierarchicalTaskPlanner(self._conn)
         self.proactive = ProactiveEngine(self._conn)
         self.agentic_loop = AgenticLoopController()
-        self.arxiv_patch = ArXivPatchEngine()
+        self.knowledge_delta = KnowledgeDeltaBuilder()
+
+        # Backward compatibility alias
+        self.arxiv_patch = self.knowledge_delta
 
         logger.info("[JarvisAgentFacade] Initialized Fase 5 Agentic Engine | db=%s", db_path)
 
@@ -393,19 +638,31 @@ class JarvisAgentFacade:
     def get_proactive_nudge_if_any(
         self,
         user_name: str = "Bos",
-        thesis_topic: str = "",
-        current_chapter: str = "",
         deadlines: Optional[List[Dict[str, str]]] = None,
         idle_hours: float = 0.0,
+        active_contexts: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
-        """Dapatkan pesan proaktif jika ada trigger yang aktif."""
+        """
+        Dapatkan pesan proaktif jika ada trigger yang aktif.
+
+        Parameters
+        ----------
+        user_name : str
+            Nama pengguna.
+        deadlines : list[dict], optional
+            Daftar deadline.
+        idle_hours : float
+            Jam sejak sesi terakhir.
+        active_contexts : dict, optional
+            Konteks domain-neutral. Domain adapter mengisi ini.
+            Contoh: {"domain": "thesis", "topic": "...", "current_task": "..."}
+        """
         active_goals = self.planner.get_active_goals()
         alert = self.proactive.check_proactive_nudge(
             user_name=user_name,
-            thesis_topic=thesis_topic,
-            current_chapter=current_chapter,
             deadlines=deadlines,
             active_goals=active_goals,
+            active_contexts=active_contexts,
             idle_hours=idle_hours,
         )
         return alert.message if alert else None

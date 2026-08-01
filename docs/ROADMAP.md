@@ -1,6 +1,6 @@
 # Roadmap Kanonis JAYA
 
-**Baseline:** 1 Agustus 2026
+**Baseline:** 2 Agustus 2026
 **Aturan:** fase selesai hanya jika seluruh exit criteria memiliki bukti yang
 dapat diaudit
 
@@ -17,6 +17,8 @@ flowchart LR
     PC --> PE["E. Promosi aman"]
     PD --> PE
     PE --> PF["F. Agent, OS, Android"]
+    PF --> PG["G. Distributed Node\n& JAYA Mesh"]
+    PG --> PH["H. Advanced\nCapabilities"]
 ```
 
 ## Ringkasan
@@ -30,6 +32,8 @@ flowchart LR
 | D. Discovery empiris | PROTOTYPE | Hipotesis dan eksperimen nyata yang dapat direproduksi |
 | E. Promosi aman ke ekosistem | BLOCKED | Artefak tervalidasi tanpa mutasi source langsung |
 | F. Agent, OS, dan Android | PROTOTYPE | Pengalaman lintas perangkat di atas API stabil |
+| G. Distributed Node & JAYA Mesh | IDEA | Cognitive Kernel portabel, 5 tier node, sinkronisasi antarnode |
+| H. Advanced Capabilities | IDEA | 3D/CAD, coding, robotika, AR, sensor fusion |
 
 Fase C dan D dapat berjalan paralel setelah kontrak dasar Fase B stabil.
 
@@ -43,10 +47,15 @@ Fase C dan D dapat berjalan paralel setelah kontrak dasar Fase B stabil.
 Exit criteria: `python scripts/validate_docs.py` lulus dan `git rev-parse
 --show-toplevel` dari `JAYA_RESEARCH` kembali ke root.
 
-## Fase A — Research foundation
+## Fase A — Research Foundation
 
-Tujuan: ingestion, retrieval, tesis, dan deep research memiliki kontrak yang
-jujur, deterministik, serta dapat diuji sebelum evaluasi ilmiah representatif.
+Tujuan: fondasi Cognitive Evolution Laboratory (CEL) — evidence acquisition,
+RAG, provenance, dan deep research memiliki kontrak yang jujur, deterministik,
+serta dapat diuji sebelum evaluasi ilmiah representatif.
+
+Thesis analysis dipertahankan sebagai domain adapter testbed untuk menguji
+ingestion PDF, retrieval, citation, gap detection, dan report generation.
+Thesis bukan tujuan utama Fase A.
 
 ### Selesai secara lokal (`PASS_LOCAL`)
 
@@ -184,3 +193,69 @@ target dengan permission, audit, degraded mode, dan rollback yang terbukti.
 3. Siapkan corpus PDF gold serta provider OCR/table/figure yang nyata.
 4. Jalankan studi empiris dan reproduksi independen dengan data yang sah.
 5. Setelah gate ilmiah tersedia, lanjutkan hardening worker/deployment Phase B.
+6. Mulai desain implementasi Cognitive Kernel portabel (Fase G prerequisite).
+
+---
+
+## Fase G — Distributed Node & JAYA Mesh
+
+**Status: IDEA** (belum dimulai, dimulai setelah Fase F stabil)
+
+Tujuan: mewujudkan visi JAYA sebagai Distributed Sovereign Intelligence —
+satu kecerdasan yang dapat hadir di banyak perangkat dengan resource berbeda.
+
+### Prerequisite
+
+- Fase F stabil (Core → Agent → OS end-to-end)
+- Schema JayaIR dibekukan (v1.0)
+- Trust boundary antarmodul terdefinisi
+
+### Exit Criteria
+
+- [ ] Cognitive Kernel (11 komponen) dapat dikompilasi dan berjalan di Raspberry Pi
+  dengan RAM ≤ 512 MB.
+- [ ] Node Standard (laptop) dapat beroperasi offline dan menyinkronkan event
+  ke Central saat tersambung.
+- [ ] Task delegation dari Edge ke Central berhasil untuk setidaknya satu
+  kemampuan (reasoning.full).
+- [ ] Node Identity Protocol: pendaftaran, sertifikat, dan pencabutan node.
+- [ ] Event Sync Protocol: event ditandatangani, terverifikasi, dan tergabung
+  tanpa duplikasi.
+- [ ] Offline mode `OFFLINE_AUTONOMOUS` berjalan di Node Mission tanpa koneksi
+  selama minimal 10 menit dengan keputusan tercatat.
+- [ ] Conflict resolution: dua node yang memperbarui data yang sama saat offline
+  diselesaikan secara deterministik.
+- [ ] Tidak ada regresi keamanan dari Fase F.
+
+---
+
+## Fase H — Advanced Capabilities
+
+**Status: IDEA** (belum dimulai, dimulai setelah Fase G stabil)
+
+Tujuan: memasang Capability Packs domain-spesifik yang memungkinkan JAYA
+menjalankan kemampuan seperti JARVIS — melalui Core yang domain-neutral.
+
+### Kemampuan yang Direncanakan
+
+| Capability Pack | Deskripsi | Prerequisite |
+|---|---|---|
+| `cad.basic` | Geometri 3D primitif, konsep desain | Fase G, CAD adapter |
+| `cad.parametric` | Desain parametrik, constraint solving | `cad.basic` |
+| `cad.simulation` | Simulasi termal, struktural, airflow | `cad.parametric` |
+| `coding.assistant` | Analisis, refactoring, debug kode | Fase G |
+| `robotics.navigation` | Path planning, obstacle avoidance | Fase G, Mission Node |
+| `robotics.control` | Kontrol aktuator, feedback loop | `robotics.navigation` |
+| `vision.advanced` | Pemahaman scene, object tracking | Fase G, GPU |
+| `spatial.ar` | Konteks ruang, AR overlay | `vision.advanced` |
+| `home.automation` | Smart home, IoT protocol | Fase G, Edge Node |
+
+### Exit Criteria
+
+- [ ] `cad.basic` tersedia sebagai Capability Pack yang dapat dipasang/dicabut
+  tanpa mempengaruhi Cognitive Kernel.
+- [ ] Satu skenario desain 3D end-to-end: input suara → Core → JayaIR → Agent
+  → CAD tool → preview → persetujuan pengguna → ekspor file.
+- [ ] Setiap pack memiliki benchmark resource (RAM, CPU, GPU, waktu).
+- [ ] Pack dapat diinstal/diuninstal tanpa restart Core.
+- [ ] Tidak ada logika domain di dalam Cognitive Kernel.

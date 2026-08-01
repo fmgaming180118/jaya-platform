@@ -23,10 +23,11 @@ jaya-research/
 | Modul | Memiliki | Tidak boleh memiliki |
 |---|---|---|
 | Research | sumber, chunk, citation, graph, hipotesis, eksperimen, paket bukti | mutasi source Core secara langsung |
-| Core | intent, reasoning, planning, memory policy, JayaIR | data riset mentah dan UI perangkat |
+| Core | intent, reasoning, planning, memory policy, JayaIR, identity, capability registry | data riset mentah dan UI perangkat |
 | Agent | task orchestration, tool routing, permission flow | logika kognitif inti dan driver perangkat |
 | OS | sandbox, process/resource policy, hardware abstraction | pengetahuan akademik dan workflow tesis |
-| Android | UI mobile, local cache, transport aman | source of truth pengetahuan atau policy pusat |
+| Mesh | node registry, secure transport, event sync, task offloading | logika kognitif, pengetahuan, atau permission policy |
+| Android/Interface | UI mobile, local cache, transport aman | source of truth pengetahuan atau policy pusat |
 
 ## Komponen dan hubungan
 
@@ -138,11 +139,125 @@ untuk produksi.
 
 ## Target deployment
 
-Arsitektur menargetkan tiga mode:
+Arsitektur menargetkan tiga mode operasi, dalam konteks distribusi lima tier node:
 
-1. **Local development:** API dan UI berjalan terpisah di workstation.
-2. **Hybrid:** retrieval/data sensitif lokal, inference tertentu melalui
-   provider eksternal.
-3. **Edge/offline:** model terkuantisasi dan layanan lokal; masih merupakan
+1. **Local development:** API dan UI berjalan terpisah di workstation (node Central).
+2. **Hybrid:** retrieval/data sensitif lokal di Central, inference tertentu melalui
+   provider eksternal, dengan node Edge mengakses Core via JAYA Mesh.
+3. **Edge/offline:** model terkuantisasi di node Edge/Mission; node beroperasi mandiri
+   saat offline dan menyinkronkan kembali saat tersambung ke Central. Masih merupakan
    target roadmap, belum baseline produksi.
 
+---
+
+## Distributed Node Architecture
+
+JAYA dirancang untuk hadir di banyak perangkat sebagai satu kecerdasan dengan
+banyak manifestasi. Setiap manifestasi disebut **node**.
+
+### Lima Tier Node
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                      JAYA CENTRAL                           │
+│ Workstation/Server — Core penuh, Research, model besar,     │
+│ long-term memory, knowledge graph, promotion gate,          │
+│ node registry, Certificate Authority                        │
+└─────────────────────────────────────┬───────────────────────┘
+                                      │ JAYA Mesh
+              ┌───────────────────────┼───────────────────────┐
+              │                       │                       │
+┌─────────────▼──────┐  ┌────────────▼───────┐  ┌───────────▼───────────┐
+│   JAYA Standard    │  │    JAYA Edge        │  │  JAYA Mission Node    │
+│ Laptop/Desktop     │  │ Ponsel/Tablet/Pi    │  │ Armor/Robot/Drone     │
+│ Core lengkap,      │  │ Intent, voice,      │  │ Operasi mandiri,      │
+│ model menengah,    │  │ model kecil,        │  │ sensor fusion,        │
+│ tool execution     │  │ knowledge cache     │  │ mission memory        │
+└────────────────────┘  └────────────┬───────┘  └───────────────────────┘
+                                     │
+                         ┌───────────▼───────────┐
+                         │   JAYA Micro Node      │
+                         │ ESP32/Sensor/Aktuator  │
+                         │ Rule engine, telemetri │
+                         └────────────────────────┘
+```
+
+### Kemampuan per Tier
+
+| Kemampuan | Central | Standard | Edge | Mission | Micro |
+|---|---|---|---|---|---|
+| Cognitive Kernel | ✓ | ✓ | ✓ | ✓ | ✗ |
+| Model besar | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Model kecil/quantized | ✓ | ✓ | ✓ | ✓ | ✗ |
+| JAYA Research | ✓ | connector | ✗ | ✗ | ✗ |
+| Long-term memory | ✓ | sync | cache | cache misi | ✗ |
+| Promotion gate | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Task delegation | ✓ | ✓ | ✓ | ✓ | event |
+| Offline operation | ✓ | partial | partial | ✓ wajib | ✓ |
+
+---
+
+## JAYA Core Internal Architecture
+
+```text
+JAYA Core
+├── Cognitive Kernel (portabel ke semua node)
+│   ├── Identity Module
+│   ├── Intent Contract Engine
+│   ├── Minimal Context Store
+│   ├── Permission Policy Enforcer
+│   ├── Capability Registry
+│   ├── JayaIR Interpreter
+│   ├── Memory Interface
+│   ├── Node Communication Layer
+│   ├── Safety Rule Engine
+│   ├── State Synchronization Manager
+│   └── Update and Rollback Verifier
+│
+└── Capability Packs (dipasang sesuai node)
+    ├── reasoning.lite / reasoning.full
+    ├── voice.recognition / voice.synthesis
+    ├── vision.basic / vision.advanced
+    ├── coding.assistant
+    ├── cad.basic / cad.parametric / cad.simulation
+    ├── robotics.navigation / robotics.control
+    ├── home.automation
+    ├── research.connector
+    └── model.router
+```
+
+Model bahasa dipilih oleh `model.router` berdasarkan resource budget perangkat.
+Model bukan identitas JAYA.
+
+Rincian desain internal di [JAYA_CORE_DESIGN.md](JAYA_CORE_DESIGN.md).
+
+---
+
+## JAYA Mesh Architecture
+
+### Sinkronisasi Event
+
+```text
+Node offline → menyimpan signed event log lokal
+     ↓ (koneksi tersedia)
+Kirim event batch ke Central
+     ↓
+Central verifikasi: signature, sequence, timestamp, konflik, izin
+     ↓
+Event valid → digabungkan ke memori Central
+Event konflik → diselesaikan dengan conflict resolution policy
+     ↓
+Central kirim update relevan kembali ke node
+```
+
+### Mode Operasi Node
+
+| Mode | Kondisi | Perilaku |
+|---|---|---|
+| `ONLINE_FULL` | Central tersedia, bandwidth baik | Semua kemampuan aktif |
+| `ONLINE_DEGRADED` | Koneksi lambat/tidak stabil | Batasi delegasi |
+| `OFFLINE_AUTONOMOUS` | Tidak ada koneksi, resource cukup | Model lokal, catat keputusan |
+| `OFFLINE_SAFE` | Tidak ada koneksi, resource rendah | Hanya fungsi penting |
+| `EMERGENCY` | Kondisi darurat | Policy darurat lokal |
+
+JAYA Mesh saat ini berstatus **IDEA**. Rincian di [JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md).

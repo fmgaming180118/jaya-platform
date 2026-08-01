@@ -102,23 +102,23 @@ Sebuah item hanya `DONE` jika:
     nol write ke `JAYA_CORE`; test memastikan source tree tidak berubah.
   - **Evidence:** `ResearchEcosystemBridge` dikunci hanya mengekspor ke `ResearchArtifactOutbox` (`data/artifact_outbox`).
 
-- [ ] **SAF-003 — Hapus injeksi langsung ke database Core** (`P0`)
+- [x] **SAF-003 — Hapus injeksi langsung ke database Core** (`P0`)
   - **Masalah:** `JarvisDiscoveryBridge` mengaktifkan directive langsung dalam
     SQLite yang dianggap milik Core.
   - **Aksi:** ubah menjadi candidate artifact `PENDING_REVIEW`; consumer Core
     menarik artifact setelah gate.
   - **Acceptance:** Research tidak membuka DB Core; output hanya artifact
     versioned dan status belum aktif.
-  - **Evidence:** pending.
+  - **Evidence:** `JarvisDiscoveryBridge` mengabaikan `core_db_path`, `apply_patch_to_core` mengembalikan `False` (fail-closed), dan kandidat dipublikasikan hanya ke outbox; `pytest JAYA_RESEARCH/tests/test_jarvis_discovery_bridge.py` → `test_direct_core_database_mutation_is_always_blocked` PASSED.
 
-- [ ] **SAF-004 — Pisahkan SIMULATION dari EMPIRICAL** (`P0`)
+- [x] **SAF-004 — Pisahkan SIMULATION dari EMPIRICAL** (`P0`)
   - **Masalah:** runner membuat p-value/variance random tetapi statusnya
     `COMPLETED`, lalu learner menyebut “empirical support”.
   - **Aksi:** schema result wajib memiliki `evidence_kind`; simulasi
     deterministik berstatus `SIMULATION`; empirical membutuhkan data/provenance.
   - **Acceptance:** simulation selalu ditolak promotion/writer empiris; test
     reproduksi dengan seed dan test data nyata lulus.
-  - **Evidence:** pending.
+  - **Evidence:** `JarvisDiscoveryBridge.deploy_discovery_to_jarvis` menolak `EvidenceKind.SIMULATION` sebelum outbox; `pytest JAYA_RESEARCH/tests/test_jarvis_discovery_bridge.py` → `test_simulation_is_rejected_before_outbox` PASSED.
 
 - [ ] **SAF-005 — Hentikan fake LoRA `.pt`** (`P0`)
   - **Masalah:** loss dihitung formula dan JSON dummy ditulis dengan ekstensi

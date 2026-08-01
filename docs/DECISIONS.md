@@ -13,6 +13,8 @@ tersimpan di arsip, tetapi status keputusan aktif hanya ditentukan di sini.
 | ADR-006 | Hasil sintetis/random wajib berstatus `SIMULATION` | Accepted |
 | ADR-007 | Loop otonom default nonaktif dan membutuhkan consent, batas, audit, serta kill switch | Accepted |
 | ADR-008 | Output benchmark/report runtime berada di `reports/`, bukan folder dokumentasi | Accepted |
+| ADR-009 | JAYA Research adalah Cognitive Evolution Laboratory; thesis adalah domain adapter; Core mutation langsung dilarang | Accepted |
+| ADR-010 | JAYA adalah Distributed Sovereign Intelligence; JAYA Core terdiri dari Cognitive Kernel portabel dan Capability Packs; JAYA Mesh adalah lapisan sinkronisasi resmi | Accepted |
 
 ## ADR-001 — Satu Git root
 
@@ -66,6 +68,109 @@ Perubahan hanya diterima jika:
 
 Research tidak boleh mengubah source Core secara langsung. Paket promosi dan
 seluruh gate dijelaskan di [GOVERNANCE.md](GOVERNANCE.md).
+
+## ADR-009 — JAYA Research adalah Cognitive Evolution Laboratory
+
+**Status:** Accepted
+**Tanggal:** 2 Agustus 2026
+
+### Konteks
+
+Repository mengalami mission drift di beberapa titik:
+
+1. Dokumentasi produk terlalu berpusat pada mahasiswa dan tugas akhir.
+2. Contoh dan default di `AgenticJarvis` terlalu berpusat pada BAB skripsi.
+3. Proactive engine memiliki parameter spesifik domain tesis.
+4. `ArXivPatchEngine.apply_micro_patch` mengembalikan `status: "applied"` yang
+   menyiratkan aktivasi tanpa promotion gate.
+5. UI menampilkan thesis sebagai identitas utama sistem.
+
+### Keputusan
+
+**JAYA Research adalah Cognitive Evolution Laboratory (CEL) — bukan aplikasi tesis.**
+
+1. Research menghasilkan candidate cognitive artifact, bukan perubahan aktif.
+2. Thesis adalah domain adapter opsional, bukan tujuan utama sistem.
+3. Core mutation langsung dari Research dilarang tanpa exception.
+4. Self-improvement berarti candidate generation dan gated promotion, bukan auto-apply.
+5. Activation tetap memerlukan: evidence, gate, approval, canary, observability, rollback.
+6. Core planner bersifat domain-neutral. Domain template didaftarkan via strategy pattern.
+7. Proactive engine menggunakan `active_contexts` (dict generic), bukan `thesis_topic`.
+8. Status knowledge candidate adalah `INDEXED_IN_RESEARCH_STORE`, bukan `applied`.
+
+### Konsekuensi
+
+- `HierarchicalTaskPlanner` menggunakan `GoalDecompositionStrategy` registry.
+- `ThesisGoalDecompositionStrategy` ada sebagai optional strategy, bukan hardcoded Core.
+- `ArXivPatchEngine` diubah namanya menjadi `KnowledgeDeltaBuilder`;
+  `apply_micro_patch` deprecated dan dikembalikan dengan `INDEXED_IN_RESEARCH_STORE`.
+- `ProactiveEngine.check_proactive_nudge` tidak menerima `thesis_topic`/`current_chapter`.
+- Terminologi `applied`, `deployed`, `installed` dilarang untuk kandidat yang belum
+  melewati promotion gate.
+- UI tidak boleh menampilkan deskripsi yang menyiratkan Core mutation.
+
+## ADR-010 — JAYA sebagai Distributed Sovereign Intelligence
+
+**Status:** Accepted
+**Tanggal:** 2 Agustus 2026
+
+### Konteks
+
+Visi JAYA sebagai asisten seperti JARVIS (Iron Man) memerlukan kemampuan untuk:
+
+1. Hadir di banyak perangkat secara bersamaan dalam satu identitas.
+2. Tetap berfungsi secara terbatas saat koneksi terputus.
+3. Menyatukan kembali pengalaman dan memori saat tersambung.
+4. Berjalan di perangkat dengan resource sangat kecil (ESP32, Raspberry Pi, ponsel).
+5. Menggunakan kemampuan berat dari node yang lebih kuat melalui delegasi.
+
+Arsitektur sebelumnya mendefinisikan JAYA sebagai sistem monolith tunggal dengan
+tiga mode deployment (local, hybrid, edge/offline) tetapi tidak mendefinisikan
+bagaimana node berinteraksi, bagaimana sinkronisasi terjadi, dan bagaimana Core
+dapat berjalan di perangkat kecil.
+
+### Keputusan
+
+1. **JAYA adalah Distributed Sovereign Intelligence** — satu identitas kognitif
+   dengan banyak manifestasi node.
+2. **Setiap node** adalah manifestasi JAYA, bukan instansi AI yang berbeda.
+3. **JAYA Core terdiri dari dua lapisan:**
+   - Cognitive Kernel: bagian minimum yang portabel ke semua node
+   - Capability Packs: modul yang dipasang sesuai resource perangkat
+4. **Lima tier node** didefinisikan: Central, Standard, Edge, Mission Node, Micro Node.
+5. **JAYA Mesh** adalah lapisan sinkronisasi resmi antarnode:
+   - Event-based (bukan database copy)
+   - Offline-first
+   - Signed everything
+   - Zero implicit trust
+6. **Model bahasa adalah mesin, bukan identitas** — mengganti model tidak mengganti
+   JAYA.
+7. **Budget-aware reasoning** — Core memilih strategi berdasarkan resource tersedia.
+8. **Capability Negotiation** — node mendelegasikan tugas ke node yang memiliki
+   capability yang dibutuhkan.
+
+### Konsekuensi
+
+- `JAYA_CORE/` akan mengembangkan `cognitive_kernel/` sebagai komponen portabel.
+- Capability Packs akan dipasang sebagai modul opsional, bukan dependency wajib.
+- JAYA Mesh akan dikembangkan sebagai modul terpisah (mulai Fase B).
+- Dokumen desain dibuat: `JAYA_CORE_DESIGN.md` dan `JAYA_MESH_DESIGN.md`.
+- Semua komponen JAYA harus mendefinisikan perilaku offline dan sinkronisasi.
+- Dokumentasi tidak boleh mengklaim implementasi yang belum ada — semua fitur
+  distribusi saat ini berstatus IDEA.
+
+### Status implementasi
+
+| Komponen | Status |
+|---|---|
+| Cognitive Kernel (portabel) | IDEA |
+| Capability Packs | IDEA (beberapa PROTOTYPE) |
+| JAYA Mesh | IDEA |
+| Node Identity Protocol | IDEA |
+| Event Sync Protocol | IDEA |
+| Offline Behavior Modes | IDEA |
+| Budget-Aware Reasoning | PROTOTYPE |
+| Capability Negotiation | IDEA |
 
 ## Proses keputusan baru
 

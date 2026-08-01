@@ -104,10 +104,10 @@ export default function ProjectListPage() {
     );
 
     const features = [
-        { icon: Brain,    title: 'Knowledge Chat',    desc: 'Dialog RAG interaktif berbasis AI dengan seluruh paper & skripsi.', path: 'chat', badge: 'RAG Chat' },
-        { icon: Search,   title: 'Deep Research',     desc: 'Pencarian hipotesis otonom dari ArXiv, Semantic Scholar & OpenAlex.', path: 'research', badge: 'AI-Q' },
-        { icon: Sparkles, title: 'Autonomous Discovery', desc: 'Loop riset otonom & injeksi patch pengetahuan ke basis data otak JAYA.', path: 'evolution', badge: 'Auto Upgrade' },
-        { icon: BookOpen, title: 'Thesis Defense',    desc: 'Analisis gap skripsi, uji novelty, dan simulasi revisi otomatis.', path: 'thesis', badge: 'Thesis AI' },
+        { icon: Brain,    title: 'Knowledge Chat',       desc: 'Dialog RAG interaktif berbasis evidence dengan paper, dokumen, dan sumber terverifikasi.', path: 'chat',     badge: 'RAG Chat' },
+        { icon: Search,   title: 'Deep Research',         desc: 'Riset rekursif otonom dari ArXiv, Semantic Scholar & OpenAlex dengan evidence tracking.', path: 'research',  badge: 'AI-Q' },
+        { icon: Sparkles, title: 'Candidate Artifacts',   desc: 'Lihat status candidate knowledge artifact — menunggu validasi, belum diaktifkan di Core.', path: 'evolution', badge: 'BLOCKED' },
+        { icon: BookOpen, title: 'Thesis Analysis',       desc: 'Domain adapter: analisis gap tesis, novelty, dan citation. Bukan identitas utama JAYA.', path: 'thesis',    badge: 'Adapter' },
     ];
 
     return (
@@ -142,10 +142,12 @@ export default function ProjectListPage() {
                         <span className="font-medium">NVIDIA NIM & AI-Q Research Architecture</span>
                     </div>
                     <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight mb-3 leading-tight clean-gradient-text">
-                        Pusat Riset & Penemuan Ilmiah JAYA
+                        JAYA Cognitive Evolution Laboratory
                     </h2>
                     <p className="text-slate-400 text-sm md:text-base leading-relaxed">
-                        Pilih modul atau workspace di bawah ini untuk memulai analisis skripsi, riset otonom, atau komunikasi RAG.
+                        Laboratorium riset untuk memperoleh pengetahuan, menguji keterbaruan, menghasilkan
+                        candidate artifact, dan mengirimkannya menuju promotion pipeline JAYA Core.
+                        Analisis tesis adalah salah satu domain adapter — bukan tujuan utama sistem.
                     </p>
                 </div>
 

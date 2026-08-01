@@ -4,6 +4,28 @@ Perubahan penting pada arah, status, arsitektur, dan dokumentasi dicatat di sini
 Format tanggal menggunakan `YYYY-MM-DD`. Klaim status harus memiliki bukti yang
 dapat dijalankan ulang.
 
+## 2026-08-02 - Restorasi Misi JAYA Core dan Arsitektur Distributed Sovereign Intelligence
+
+### Added
+
+- Menetapkan **ADR-009**: JAYA Research adalah Cognitive Evolution Laboratory (CEL); analisis tesis adalah domain adapter opsional; direct Core mutation dilarang tanpa exception.
+- Menetapkan **ADR-010**: JAYA adalah *Distributed Sovereign Intelligence* — satu kecerdasan dengan banyak manifestasi node (Central, Standard, Edge, Mission Node, Micro Node).
+- Menambahkan **[JAYA_CORE_DESIGN.md](JAYA_CORE_DESIGN.md)**: desain internal JAYA Core mencakup 11 komponen Cognitive Kernel (portabel), Capability Packs (modular), Model Router, Budget-Aware Reasoning, spesifikasi JayaIR, memori per node, dan Capability Negotiation.
+- Menambahkan **[JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md)**: desain JAYA Mesh mencakup 5 Node Tiers, Event Sync Protocol terenkripsi/signed, matriks mode operasi offline/online, conflict resolution policy, dan strategi Knowledge Cache.
+- Menambahkan **Fase G (Distributed Node & JAYA Mesh)** dan **Fase H (Advanced Capabilities: 3D/CAD, Coding, Robotika, AR, Sensor Fusion)** ke roadmap kanonis.
+- Menambahkan file pengujian batas misi: `JAYA_CORE/tests/test_agentic_jarvis_mission_boundary.py` (23 test, PASS).
+
+### Changed
+
+- Mengubah `ArXivPatchEngine` menjadi `KnowledgeDeltaBuilder` di `agentic_jarvis.py`. Mengganti status pengembalian kandidat dari `"applied"` menjadi `"INDEXED_IN_RESEARCH_STORE"`.
+- Memindahkan template BAB I-IV skripsi dari `HierarchicalTaskPlanner` ke `ThesisGoalDecompositionStrategy` terpisah via Strategy Pattern. Core planner sekarang domain-neutral secara default.
+- Mengubah `ProactiveEngine.check_proactive_nudge` agar menggunakan `active_contexts: dict` yang domain-neutral alih-alih parameter spesifik `thesis_topic`/`current_chapter`.
+- Mengubah deskripsi UI `ProjectListPage.jsx` untuk menampilkan JAYA Research sebagai CEL dan thesis sebagai domain adapter.
+- Memperbarui `PRODUCT.md`, `ARCHITECTURE.md`, `GOVERNANCE.md`, `WORKFLOWS.md`, `STATUS.md`, dan `README.md` agar selaras dengan visi CEL dan Distributed Sovereign Intelligence.
+- Menambahkan field `domain_context: Dict[str, str]` pada `UserProfile` di `episodic_memory.py` serta menandai field `thesis_topic`/`current_chapter` sebagai DEPRECATED.
+
+---
+
 ## 2026-08-01 - Phase A lulus lokal, gate ilmiah tetap eksternal
 
 ### Added

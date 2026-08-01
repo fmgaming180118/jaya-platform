@@ -5,6 +5,73 @@
 Tata kelola memastikan dokumentasi tidak kembali bercabang, klaim kemampuan
 dapat dibuktikan, dan proses otonom tidak mengambil otoritas dari manusia.
 
+---
+
+## Aturan Misi — Anti Mission Drift
+
+JAYA Research adalah Cognitive Evolution Laboratory (CEL). Setiap perubahan
+harus dapat menjawab:
+
+1. Kemampuan JARVIS apa yang didukung?
+2. Modul mana yang seharusnya memiliki kemampuan tersebut?
+3. Apakah ini kemampuan umum atau domain adapter?
+4. Bukti apa yang diperlukan?
+5. Bagaimana cara rollback?
+
+### Fitur Baru
+
+- Setiap fitur baru harus menjelaskan kontribusinya terhadap kemampuan JARVIS dalam
+  dokumentasi PR atau ADR.
+- Fitur domain-spesifik **wajib** ditempatkan sebagai adapter di:
+  ```text
+  JAYA_RESEARCH/adapters/<domain>/
+  JAYA_AGENT/adapters/<domain>/
+  ```
+- Optimasi terhadap satu adapter tidak boleh mengubah Core menjadi domain-spesifik.
+- Template, prompt, atau logika yang hanya relevan untuk satu domain tidak boleh
+  masuk ke implementasi kelas Core.
+
+### Terminology yang Dilarang untuk Kandidat
+
+Istilah berikut **dilarang** untuk kandidat yang belum melewati promotion gate:
+
+- `applied` — gunakan `INDEXED_IN_RESEARCH_STORE` atau `CANDIDATE`
+- `deployed` — gunakan `STAGED` atau `CANARY`
+- `installed` — gunakan `CANARY_INSTALLED`
+- `activated` — gunakan `PENDING_REVIEW`
+- `learned permanently` — tidak boleh digunakan sama sekali untuk kandidat
+- `production-ready` — hanya setelah VERIFIED dan deployment drill lulus
+- `proven` — hanya setelah reproducibility gate lulus
+
+Istilah yang diperbolehkan:
+
+- `CANDIDATE`
+- `INDEXED_IN_RESEARCH_STORE`
+- `PENDING_REVIEW`
+- `AWAITING_VALIDATION`
+- `AWAITING_BENCHMARK`
+- `AWAITING_APPROVAL`
+- `REJECTED`
+- `STAGED`
+- `CANARY`
+- `ROLLED_BACK`
+
+### Pelanggar Misi
+
+Agent dilarang mengubah tujuan JAYA menjadi:
+
+- aplikasi tugas akhir murni;
+- chatbot PDF;
+- generator karya akademik;
+- mesin pencari jurnal;
+- voice assistant sederhana;
+- satu produk domain-spesifik.
+
+Semua fungsi tersebut hanya dapat menjadi **bagian** dari ekosistem JAYA
+sebagai domain adapter opsional.
+
+---
+
 ## Sumber kebenaran
 
 - Dokumentasi aktif hanya berada di `docs/`.

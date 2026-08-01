@@ -2,7 +2,7 @@
 
 **Status:** kanonis  
 **Pemilik:** maintainer ekosistem JAYA  
-**Terakhir ditinjau:** 26 Juli 2026
+**Terakhir ditinjau:** 2 Agustus 2026
 
 Folder ini adalah satu-satunya sumber kebenaran untuk dokumentasi aktif
 ekosistem JAYA. Tujuannya adalah membuat visi, kondisi aktual, keputusan, dan
@@ -16,6 +16,8 @@ saling bertentangan.
 | Apa yang sedang dibangun dan untuk siapa? | [PRODUCT.md](PRODUCT.md) |
 | Modul apa yang ada dan di mana batasnya? | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Keputusan arsitektur apa yang sedang berlaku? | [DECISIONS.md](DECISIONS.md) |
+| Bagaimana desain internal JAYA Core dan Cognitive Kernel? | [JAYA_CORE_DESIGN.md](JAYA_CORE_DESIGN.md) |
+| Bagaimana arsitektur jaringan terdistribusi JAYA Mesh? | [JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md) |
 | Bagaimana alur pengguna, data, discovery, dan promosi? | [WORKFLOWS.md](WORKFLOWS.md) |
 | Apa yang benar-benar sudah bekerja? | [STATUS.md](STATUS.md) |
 | Apa urutan pekerjaan dan gerbang selesainya? | [ROADMAP.md](ROADMAP.md) |

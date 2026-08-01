@@ -1,6 +1,6 @@
 # Status Implementasi
 
-**Snapshot:** 1 Agustus 2026
+**Snapshot:** 2 Agustus 2026
 **Fokus:** membedakan bukti software lokal dari bukti mutu ilmiah dan produksi
 
 Dokumen ini adalah dashboard kondisi aktual. Urutan pengerjaan berada di
@@ -30,24 +30,44 @@ Label bukti yang dipakai bersama status kematangan:
 
 ## Dashboard aktual
 
+### CEL Pipeline Status (Area Utama)
+
+| Area CEL | Status | Bukti aktif | Gap utama |
+|---|---|---|---|
+| Evidence acquisition | IMPLEMENTED / PASS_LOCAL | Ingestion, provenance, citation, source validation diuji offline | Dataset representatif dan corpus gold belum tersedia |
+| Provenance | IMPLEMENTED / PASS_LOCAL | Citation membawa source ID/URI, page/span, chunk hash, score, license | Audit entailment dan review manusia belum tersedia |
+| Knowledge gap detection | IMPLEMENTED / PASS_LOCAL | Offline acceptance contract menolak positive novelty tanpa evaluator | Corpus berlabel dan reviewer domain belum tersedia |
+| Novelty detection | IMPLEMENTED / PASS_LOCAL | Offline acceptance contract tersedia; simulasi/unverified dilabeli | Evaluasi novelty pada corpus berlabel belum dilakukan |
+| Hypothesis generation | IMPLEMENTED / PASS_LOCAL | Hipotesis grounded dengan evidence ID tersedia | Falsifiability review oleh manusia belum ada |
+| Experiment design | IMPLEMENTED / PASS_LOCAL | ExperimentDesigner dengan acceptance criteria tersedia | Eksperimen empiris nyata belum dijalankan |
+| Experiment execution | PROTOTYPE / BLOCKED_EXTERNAL | Sandbox runner dan ExperimentRunner tersedia | Data, etik/legal, compute, dan reproduksi nyata belum ada |
+| Reproducibility | PROTOTYPE / BLOCKED_EXTERNAL | Validasi receipts ada; pipeline reproduksi tersedia | Reproduksi independen nyata belum dilakukan |
+| Candidate artifact creation | IMPLEMENTED / PASS_LOCAL | `research_artifact.py` immutable, status CANDIDATE, `executable=false` | Artifact schema lengkap masih perlu provenance + benchmark nyata |
+| Promotion gate | PROTOTYPE / BLOCKED | Gate komponen tersedia; boundary candidate-only aktif | Gate integrasi, human approval, canary nyata belum diverifikasi |
+| Core integration | PROTOTYPE / BLOCKED | Boundary kontrak ada; direct mutation dilarang dan diuji | Kontrak versioned end-to-end belum ada |
+| Regression detection | PROTOTYPE | Komponen ada | Observability produksi belum tersedia |
+| Rollback | PROTOTYPE / BLOCKED | Konsep ada | Deployment drill rollback nyata belum diuji |
+| JARVIS end-to-end | IDEA | Arah roadmap | Belum ada bukti apapun |
+
+### Domain Adapter Status
+
+| Adapter | Status | Bukti aktif | Gap utama |
+|---|---|---|---|
+| Thesis Analysis | IMPLEMENTED / PASS_LOCAL | Source extraction, sesi persisten, status, checksum, output provider berlabel tidak terverifikasi | Validasi novelty/gap/sintesis pada corpus nyata dan reviewer domain |
+| Deep Research | IMPLEMENTED / PASS_LOCAL | Retrieval bounded, abstention, citation, job status diuji | Search provider nyata, audit kualitas, worker produksi |
+
+### Infrastruktur
+
 | Area | Status | Bukti aktif | Gap utama |
 |---|---|---|---|
 | Dokumentasi dan monorepo | VERIFIED | Dokumen kanonis di root, satu Git root, validator tersedia | Disiplin pembaruan pada setiap perubahan |
-| API Research Phase A | IMPLEMENTED / PASS_LOCAL | Workspace → ingest → grounded query/citation → artefak diuji; suite API+E2E `100 passed` | Deployment, observability, dan provider nyata belum diverifikasi |
-| Ingestion dan RAG | IMPLEMENTED / PASS_LOCAL | Kontrak ingest/search/reload/isolation, provenance, abstention, dan failure path diuji; fixture aktif `rag_smoke_v2.json` berstatus `SMOKE_ONLY` | Belum ada dataset representatif yang disetujui atau benchmark produksi |
-| Citation/provenance | IMPLEMENTED / PASS_LOCAL | Citation membawa source ID/URI, page/span bila tersedia, chunk hash, score, license, dan dapat membuka path workspace yang terotorisasi | Audit entailment dan kualitas citation oleh manusia belum tersedia |
-| PDF ingestion | IMPLEMENTED / PASS_LOCAL | Extractor kanonis membedakan normal, korup, oversize, OCR-required, dan provider-unavailable | Corpus gold serta provider OCR/table/figure nyata belum dievaluasi |
-| Analisis tesis | IMPLEMENTED / PASS_LOCAL | Source extraction, sesi persisten, status, checksum, dan artefak provider tersedia; output provider tetap tidak terverifikasi | Validasi novelty/gap/sintesis pada corpus nyata dan reviewer domain |
-| Deep/recursive research | IMPLEMENTED / PASS_LOCAL | Retrieval bounded, abstention, citation, job status, dan artefak checksum diuji | Search provider nyata, audit kualitas, worker produksi, dan review manusia |
-| Deep Research UI | IMPLEMENTED / PASS_LOCAL | Kontrak service tepat ke `/research/recursive`; status `ANSWERED`/abstain/conflict, citation/provenance, URI/SHA artefak, dan batas non-promotable ditampilkan; auth memory-only, `ApiError`, idempotency/CORS, router tervalidasi, Vite 8, serta lazy chunks diuji | Browser E2E, deployment, dan provider live belum diverifikasi |
-| Novelty, gap, hipotesis, eksperimen, writer | IMPLEMENTED / PASS_LOCAL | Acceptance contract offline menolak positive novelty tanpa evaluator dan melabeli simulasi/unverified | Seluruh klaim ilmiah representatif tetap `BLOCKED_EXTERNAL` |
-| Knowledge graph | IMPLEMENTED | Graph dan tes komponen tersedia | Skala, migrasi schema, dan kualitas retrieval dunia nyata belum dibuktikan |
-| Auto-finetune/LoRA | PROTOTYPE / BLOCKED_EXTERNAL | Boundary kandidat dan artefak lokal tersedia | Dataset, training, compute, evaluasi holdout, model card, dan approval nyata |
-| JAYA Core reasoning/JayaIR | IMPLEMENTED | Source, tes unit, readiness contract, dan gate artefak tersedia | Model target final dan benchmark hardware belum tersedia |
-| Promosi Research → Core | PROTOTYPE / BLOCKED | Candidate-only boundary dan komponen gate tersedia | Gate integrasi, human approval, dan deployment drill nyata belum diverifikasi dalam Phase A |
-| JAYA Agent | PROTOTYPE | API/tool boundary dan tes komponen tersedia | E2E dengan provider dan environment produksi belum dibuktikan |
-| JAYA OS | PROTOTYPE | Capability sandbox dan runtime komponen tersedia | Ownership kernel legacy dan deployment target belum dituntaskan |
-| JAYA Android | PROTOTYPE | Proyek, unit test, dan kontrol konfigurasi tersedia | Build APK, model, sync, dan perangkat fisik tetap `BLOCKED_EXTERNAL` |
+| API Research Phase A | IMPLEMENTED / PASS_LOCAL | Suite API+E2E `100 passed` | Deployment, observability, dan provider nyata belum diverifikasi |
+| Knowledge graph | IMPLEMENTED | Graph dan tes komponen tersedia | Skala, migrasi schema, dan kualitas retrieval dunia nyata |
+| Auto-finetune/LoRA | PROTOTYPE / BLOCKED_EXTERNAL | Boundary kandidat dan artefak lokal tersedia | Dataset, training, compute, evaluasi holdout, model card, approval nyata |
+| JAYA Core reasoning/JayaIR | IMPLEMENTED | Source, tes unit, readiness contract, dan gate artefak tersedia | Model target final dan benchmark hardware |
+| JAYA Agent | PROTOTYPE | API/tool boundary dan tes komponen tersedia | E2E dengan provider dan environment produksi |
+| JAYA OS | PROTOTYPE | Capability sandbox dan runtime komponen tersedia | Ownership kernel legacy dan deployment target |
+| JAYA Android | PROTOTYPE | Proyek, unit test, dan kontrol konfigurasi tersedia | Build APK, model, sync, dan perangkat fisik `BLOCKED_EXTERNAL` |
 
 ## Bukti audit aktif — 1 Agustus 2026
 

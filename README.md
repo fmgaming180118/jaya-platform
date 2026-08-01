@@ -1,5 +1,9 @@
 # JAYA
 
+> **JAYA Research mencari dan memverifikasi pengetahuan atau kemampuan baru untuk menghasilkan
+> kandidat peningkatan bagi JAYA Core. Analisis tesis hanyalah salah satu domain adapter,
+> bukan tujuan utama sistem.**
+
 JAYA adalah monorepo untuk membangun asisten AI berdaulat yang menghubungkan
 riset berbukti, otak AI, orkestrasi agen, runtime kebijakan, dan antarmuka
 Android.
@@ -26,7 +30,7 @@ Kontrak dan bukti Phase A dijelaskan di
 
 | Modul | Tanggung jawab |
 |---|---|
-| [JAYA_RESEARCH](JAYA_RESEARCH/) | Mengambil sumber, membangun bukti, menguji hipotesis, dan menghasilkan candidate artifact. |
+| [JAYA_RESEARCH](JAYA_RESEARCH/) | **Laboratorium Evolusi Kognitif (CEL)**: memperoleh sumber, membangun evidence, mendeteksi gap, menguji hipotesis, dan menghasilkan candidate cognitive artifact untuk JAYA Core. Analisis tesis adalah salah satu domain adapter. |
 | [JAYA_CORE](JAYA_CORE/) | Otak, model runtime, protokol aksi, serta gate instalasi dan rollback. |
 | [JAYA_AGENT](JAYA_AGENT/) | Orkestrasi intent dan pemanggilan capability yang diizinkan. |
 | [JAYA_OS](JAYA_OS/) | Sandbox, policy enforcement, dan adapter tindakan sistem. |
