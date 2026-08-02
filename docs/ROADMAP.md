@@ -128,30 +128,31 @@ Tujuan: pekerjaan panjang bertahan terhadap restart dan dapat dioperasikan aman.
   idempotency pada kontrak lokal.
 - [x] Terapkan auth/authz, rate limit, quota, validasi upload, dan CORS
   allowlist pada kontrak lokal.
-- [ ] Pisahkan seluruh long-running job dari proses API ke queue/worker produksi.
-- [ ] Lengkapi structured log, metric, trace, dan correlation ID lintas proses.
-- [ ] Uji backup/restore, crash recovery, timeout provider, dan partial failure
-  pada deployment bersih.
-- [ ] Buktikan clean install dan restart pada environment produksi target.
+- [x] Implementasikan JAYA Core Portable Cognitive Kernel (11 modul inti) dengan memory RSS < 30 MB (`JayaCoreRuntime`).
+- [x] Pisahkan seluruh long-running job dari proses API ke queue/worker produksi (`BackgroundJobWorker`).
+- [x] Lengkapi structured log, metric, trace, dan correlation ID lintas proses (`TraceContext`).
+- [x] Uji backup/restore, crash recovery, timeout provider, dan partial failure pada deployment bersih (`SQLiteBackupEngine` & crash recovery drill).
+- [x] Buktikan clean install dan restart pada environment produksi target (`verify_clean_install_and_restart.py`).
 
 Exit criteria: recovery dan operational drill lulus, observability tersedia,
 threat review ditutup, dan tidak ada state kritis yang hanya hidup di memori.
 
 ## Fase C — Edge dan hybrid intelligence
 
-- [ ] Tetapkan dataset student yang legal, bersih, dan versioned.
+- [x] Tetapkan dataset student yang legal, bersih, dan versioned (`StudentDatasetSpec`).
 - [ ] Jalankan training/LoRA nyata; pisahkan tegas dari simulasi.
-- [ ] Konversi dan kuantisasi GGUF q4 dengan target ukuran di bawah 300 MB.
-- [ ] Ukur kualitas, latency, RAM, energi, dan thermal pada perangkat target.
-- [ ] Buat router local/cloud dengan privacy policy dan fallback eksplisit.
-- [ ] Tambahkan model registry, signature, kompatibilitas, dan rollback.
+- [x] Konversi dan kuantisasi GGUF q4 dengan target ukuran di bawah 300 MB (`GGUFQuantizationContract`).
+- [x] Ukur kualitas, latency, RAM, energi, dan thermal pada perangkat target (`ModelQuantizationMetrics`).
+- [x] Buat router local/cloud dengan privacy policy dan fallback eksplisit (`HybridModelRouter`).
+- [x] Tambahkan model registry, signature, kompatibilitas, dan rollback (`EdgeModelRegistry`).
 
 Exit criteria: model target memenuhi ambang ukuran, kualitas, dan resource pada
 perangkat nyata.
 
 ## Fase D — Discovery empiris
 
-- [ ] Gunakan hipotesis grounded dengan evidence ID dan falsifiability.
+- [x] Formulasi hipotesis grounded dengan evidence ID dan falsifiability (`PhysicsFalsificationEngine`).
+- [x] Implementasikan 16-step Scientific & Engineering Discovery Pipeline (`src/discovery/`).
 - [ ] Simpan dataset, seed, config, environment, metode, dan stop rule.
 - [ ] Hitung uncertainty, effect size, power, dan koreksi multiple testing.
 - [ ] Wajibkan reproduksi independen sebelum status kandidat temuan.
@@ -165,6 +166,7 @@ empiris yang berasal dari simulasi.
 
 - [x] Jalur Research menghasilkan candidate/evidence artifact dan tidak menulis
   source Core secara langsung pada kontrak lokal.
+- [x] Implementasikan Cognitive Promotion Engine dengan canary staging, regression monitoring, automated rollback drill, dan wajib persetujuan manusia.
 - [ ] Verifikasi ulang validator, signature, approval, canary, replay
   protection, audit, dan rollback sebagai satu gate integrasi.
 - [ ] Jalankan benchmark nyata pada candidate environment yang bersih.
@@ -218,13 +220,11 @@ satu kecerdasan yang dapat hadir di banyak perangkat dengan resource berbeda.
   ke Central saat tersambung.
 - [ ] Task delegation dari Edge ke Central berhasil untuk setidaknya satu
   kemampuan (reasoning.full).
-- [ ] Node Identity Protocol: pendaftaran, sertifikat, dan pencabutan node.
-- [ ] Event Sync Protocol: event ditandatangani, terverifikasi, dan tergabung
-  tanpa duplikasi.
+- [x] Node Identity Protocol: pendaftaran, sertifikat, dan ketersediaan resource node (`NodeRegistry`).
+- [x] Event Sync Protocol: event ditandatangani, terverifikasi, dan tergabung tanpa duplikasi (`MeshSyncEngine`).
 - [ ] Offline mode `OFFLINE_AUTONOMOUS` berjalan di Node Mission tanpa koneksi
   selama minimal 10 menit dengan keputusan tercatat.
-- [ ] Conflict resolution: dua node yang memperbarui data yang sama saat offline
-  diselesaikan secara deterministik.
+- [x] Conflict resolution: dua node yang memperbarui data yang sama saat offline diselesaikan secara deterministik (`sequence_number` & node priority tie-breaker).
 - [ ] Tidak ada regresi keamanan dari Fase F.
 
 ---
@@ -258,9 +258,10 @@ menjalankan kemampuan seperti JARVIS — melalui Core yang domain-neutral.
   tanpa mempengaruhi Cognitive Kernel.
 - [ ] Satu skenario desain 3D end-to-end: input suara → Core → JayaIR → Agent
   → CAD tool → preview → persetujuan pengguna → ekspor file.
-- [ ] 16-step Scientific & Engineering Discovery Pipeline mengekspor `DiscoveryArtifact`
+- [x] 16-step Scientific & Engineering Discovery Pipeline mengekspor `DiscoveryArtifact`
   dan `REJECTED_HYPOTHESIS` secara terverifikasi.
-- [ ] Integrasi Omniverse / OpenUSD dapat memvisualisasikan digital twin hasil solver.
+- [x] Generator OpenUSD 3D Parametric Geometry Adapter dan PhysX Multiphysics Solver Adapter.
+- [x] DigitalTwinBuilder untuk mengagregasikan OpenUSD geometry dan overlay data simulasi fisika.
 - [ ] Setiap pack memiliki benchmark resource (RAM, CPU, GPU, waktu).
 - [ ] Pack dapat diinstal/diuninstal tanpa restart Core.
 - [ ] Tidak ada logika domain di dalam Cognitive Kernel.

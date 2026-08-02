@@ -19,6 +19,7 @@ CANONICAL_DOCS = (
     Path("docs/JAYA_CORE_DESIGN.md"),
     Path("docs/JAYA_MESH_DESIGN.md"),
     Path("docs/DISCOVERY_PIPELINE_DESIGN.md"),
+    Path("docs/COMPLETED_PHASES_CHECKLIST.md"),
     Path("docs/WORKFLOWS.md"),
     Path("docs/STATUS.md"),
     Path("docs/ROADMAP.md"),
