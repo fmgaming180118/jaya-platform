@@ -86,18 +86,18 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 
 ---
 
-## 6.6. Ceklis Penuntasan Prioritas Berikutnya (Scientific Gate & Portable Cognitive Kernel)
-- [x] **1. Representative RAG Dataset & Approval Gate**: `GoldRAGDatasetSpec` & `RAGRepresentativeDatasetGate` yang menolak kenaikan status dari `SMOKE_ONLY` ke `APPROVED_REPRESENTATIVE` tanpa `HumanApprovalRecord` yang sah.
-- [x] **2. Citation/Synthesis Audit & Novelty/Gap Human Review Gate**: `CitationSynthesisAuditEngine` (grounding claim, automatic abstention) & `NoveltyGapHumanReviewGate` (status `NOVELTY_HYPOTHESIS` wajib persetujuan manusia untuk menjadi `VERIFIED_NOVELTY`).
-- [x] **3. Gold PDF Corpus & Real OCR/Table/Figure Provider**: `GoldPDFCorpusLoader` & `RealOCRTableFigureProvider` dengan fail-fast exception `OCRProviderError` tanpa dummy fallback.
-- [x] **4. Empirical Study & Independent Reproduction Pipeline**: `EmpiricalGoldReproductionPipeline` dengan perhitungan statistik 95% Confidence Interval, effect size Cohen's d, dan Bonferroni p-value correction.
-- [x] **5. Scientific Gate Worker Hardening**: `ScientificGateWorkerHardening` yang menangguhkan job berstatus `SUSPENDED_UNSCIENTIFIC` bila evidence atau gate reproduksi gagal.
-- [x] **6. Portable Cognitive Kernel Runner (Fase G Prerequisite)**: `PortableCognitiveKernelRunner` yang mengkompilasi 11 komponen Cognitive Kernel dengan verifikasi batas RAM <= 512 MB.
-- [x] **7. Verification Drill Script & Test Suite**: 7/7 drills PASSED (`verify_scientific_priorities_drill.py`) dan 10 unit tests PASSED (`JAYA_RESEARCH/tests/test_scientific_priorities.py`).
+## 6.6. Ceklis Penuntasan Prioritas Berikutnya & Kerangka Kerja Gate Ilmiah
+- [x] **1. Representative RAG Dataset & Approval Gate**: `GoldRAGDatasetSpec`, `SamplingFrameSpec`, & `RAGRepresentativeDatasetGate` (`PASS_LOCAL` — menolak elevasi tanpa `HumanApprovalRecord` & sampling frame sah; persetujuan fisik `BLOCKED_EXTERNAL`).
+- [x] **2. Citation/Synthesis Audit & Novelty/Gap Human Review Gate**: `CitationSynthesisAuditEngine` & `NoveltyGapHumanReviewGate` (`PASS_LOCAL` — memicu abstention dan menolak elevasi novelty tanpa persetujuan manusia; review manusia fisik `BLOCKED_EXTERNAL`).
+- [x] **3. Gold PDF Corpus & Real OCR/Table/Figure Provider**: `GoldPDFCorpusLoader` & `RealOCRTableFigureProvider` (`PASS_LOCAL` — fail-fast `OCRProviderError` tanpa dummy fallback; corpus gold komplit `BLOCKED_EXTERNAL`).
+- [x] **4. Empirical Study & Independent Reproduction Pipeline**: `EmpiricalGoldReproductionPipeline` (`PASS_LOCAL` — kalkulasi CI 95%, Cohen's d, Bonferroni p-value; data compute & reproduksi nyata `BLOCKED_EXTERNAL`).
+- [x] **5. Scientific Gate Worker Hardening**: `ScientificGateWorkerHardening` (`PASS_LOCAL` — menangguhkan job `SUSPENDED_UNSCIENTIFIC` bila evidence/clearance tidak memadai).
+- [x] **6. Portable Cognitive Kernel Runner (Fase G Prerequisite)**: `PortableCognitiveKernelRunner` (`PASS_LOCAL` — kompilasi 11 komponen Cognitive Kernel pada batas RAM <= 512 MB).
+- [x] **7. Verification Audit Script & Test Suite**: Audit fail-closed [`verify_scientific_external_drill.py`](../JAYA_RESEARCH/scripts/verify_scientific_external_drill.py) (melaporkan `BLOCKED_EXTERNAL` bila bukti fisik belum tersedia) dan unit tests `test_scientific_external_items.py` (9 PASSED).
 
 ---
 
-## 7. Ceklis Penuntasan Fase G — Distributed Node & JAYA Mesh
+## 7. Ceklis Penuntasan Fase G — Distributed Node & JAYA Mesh (`PASS_LOCAL`)
 - [x] Dokumen arsitektur terinci: [`docs/JAYA_MESH_DESIGN.md`](JAYA_MESH_DESIGN.md) & `ADR-010`.
 - [x] **Node Registry**: Pendaftaran 5 Tier Node (Central, Standard, Edge, Mission, Micro), heartbeat, dan penyaringan capability (`NodeRegistry`).
 - [x] **Mesh Sync Engine**: Pertukaran `NodeEvent` batch terenkripsi/signed, deduplikasi, dan `SyncCursor` tracking.
@@ -105,12 +105,12 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 - [x] **Standard Node Offline Sync & Reconnection Manager**: Event buffering offline dan pencocokan sinkronisasi batch otomatis saat tersambung ke Central (`StandardNodeOfflineSyncManager`).
 - [x] **Edge-to-Central Task Delegation Engine**: Delegasi tugas kognitif berat (`reasoning.full`) dari Edge ke Central berbasis resource & capability discovery (`TaskDelegationEngine`).
 - [x] **Mission Node Autonomous Runner & Decision Logger**: Eksekusi node Mission tanpa jaringan dalam mode `OFFLINE_AUTONOMOUS` selama durasi 10 menit dengan log keputusan imutabel (`MissionNodeAutonomousRunner`).
-- [x] **Raspberry Pi Low-Memory Kernel Compilation**: Verifikasi kompilasi 11 komponen Cognitive Kernel pada batas RAM <= 512 MB (RSS footprint ~21 MB) (`verify_raspberry_pi_kernel.py`).
+- [x] **Raspberry Pi Low-Memory Kernel Compilation**: Verifikasi kompilasi 11 komponen Cognitive Kernel pada batas RAM <= 512 MB (RSS footprint ~21 MB) (`verify_raspberry_pi_kernel.py` — `PASS_LOCAL`).
 - [x] **Phase G Mesh & Security E2E Drill**: 7/7 drills PASSED tanpa regresi keamanan dari Fase F (`verify_phase_g_mesh_e2e.py`).
 
 ---
 
-## 8. Ceklis Penuntasan Fase H — Advanced Capabilities (3D CAD & Solvers)
+## 8. Ceklis Penuntasan Fase H — Advanced Capabilities (3D CAD & Solvers) (`PASS_LOCAL`)
 - [x] Dokumen arsitektur terinci: [`docs/DISCOVERY_PIPELINE_DESIGN.md`](DISCOVERY_PIPELINE_DESIGN.md) & `ADR-011`.
 - [x] **Dynamic Capability Pack Manager**: Interface hot-plug `CapabilityPack` dan `DynamicCapabilityPackManager` untuk instalasi/pencabutan pack secara live tanpa restart Core.
 - [x] **CAD Basic Capability Pack (`cad.basic`)**: Generator 3D primitive geometry OpenUSD (`.usda`) untuk cube, sphere, cylinder, dan box parametrik (`CadBasicCapabilityPack`).
@@ -119,7 +119,7 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 - [x] **3D Design End-to-End Scenario Verification**: Skenario desain 3D end-to-end: Prompt -> Intent & JayaIR -> Agent Tool Execution -> OpenUSD `.usda` Preview -> User Approval -> USDA File Export (`verify_3d_design_e2e.py` — 5/5 drills PASSED).
 - [x] **OpenUSD 3D Parametric Geometry Adapter & PhysX Multiphysics Solver Adapter**: Adapter geometri 3D dan simulasi fisika.
 - [x] **Digital Twin Bundle Builder**: Mengagregasikan geometri 3D OpenUSD dan overlay data simulasi fisika (`digital_twin_compiler.py`).
-- [x] **Live GPU / CAE External Runtime**: Status `SMOKE_ONLY` (BLOCKED_EXTERNAL) — Generator OpenUSD `.usda` terverifikasi secara lokal; visualisasi Omniverse Kit-CAE eksternal memerlukan GPU CUDA fisik.
+- [x] **Live GPU / CAE External Runtime**: Status `BLOCKED_EXTERNAL` / `SMOKE_ONLY` — Generator OpenUSD `.usda` terverifikasi secara lokal; visualisasi Omniverse Kit-CAE eksternal memerlukan GPU CUDA fisik.
 
 ---
 

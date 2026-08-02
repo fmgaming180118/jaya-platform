@@ -112,6 +112,13 @@ class TestQATargetEvidenceRunner:
         assert receipt.status == "TARGET_FAILED"
         assert receipt.accuracy_pct == 75.0
 
+    def test_load_and_eval_dataset_file_succeeds(self):
+        runner = QATargetEvidenceRunner()
+        dataset_file = repo_root / "data" / "evaluations" / "rag_representative_gold_v1.json"
+        receipt = runner.load_and_eval_dataset_file(dataset_file_path=dataset_file)
+        assert receipt.status == "TARGET_ACHIEVED_PASS"
+        assert receipt.accuracy_pct >= 85.0
+
 
 class TestNoveltyGapAndEntailmentAuditor:
     def test_domain_reviewer_evaluator(self):

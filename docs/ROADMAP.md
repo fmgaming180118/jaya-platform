@@ -25,15 +25,15 @@ flowchart LR
 
 | Fase | Status | Tujuan |
 |---|---|---|
-| 0. Konsolidasi dokumentasi/repository | COMPLETE | Satu Git dan satu sumber dokumentasi |
-| A. Research foundation | COMPLETE | RAG, provenance, evidence verification, dan kerangka ilmiah |
-| B. Production hardening | COMPLETE | Job persisten, aman, terobservasi, dan tahan gagal |
-| C. Edge dan hybrid intelligence | COMPLETE | Model/router lokal yang memenuhi target perangkat |
-| D. Discovery empiris | COMPLETE | Hipotesis dan eksperimen nyata yang dapat direproduksi |
-| E. Promosi aman ke ekosistem | COMPLETE | Artefak tervalidasi tanpa mutasi source langsung |
-| F. Agent, OS, dan Android | COMPLETE | Pengalaman lintas perangkat di atas API stabil |
-| G. Distributed Node & JAYA Mesh | COMPLETE | Cognitive Kernel portabel, 5 tier node, sinkronisasi antarnode |
-| H. Advanced Capabilities | COMPLETE | 3D/CAD, coding, robotika, AR, sensor fusion |
+| 0. Konsolidasi dokumentasi/repository | VERIFIED | Satu Git dan satu sumber dokumentasi |
+| A. Research foundation | IMPLEMENTED / PASS_LOCAL | Kontrak software lokal lulus; kesiapan ilmiah `BLOCKED_EXTERNAL` |
+| B. Production hardening | IMPLEMENTED / PASS_LOCAL | Sesi persisten, circuit breaker, dan worker terisolasi diuji lokal |
+| C. Edge dan hybrid intelligence | IMPLEMENTED / PASS_LOCAL | Router model lokal teruji; target hardware fisik `BLOCKED_EXTERNAL` |
+| D. Discovery empiris | IMPLEMENTED / PASS_LOCAL | Pipeline 16-step & OpenUSD/PhysX generator teruji; Omniverse/GPU live `BLOCKED_EXTERNAL` |
+| E. Promosi aman ke ekosistem | IMPLEMENTED / PASS_LOCAL | Interlock promosi & canary stage teruji lokal; promosi live `BLOCKED` |
+| F. Agent, OS, dan Android | IMPLEMENTED / PASS_LOCAL | Typed contract Core-Agent-OS teruji; verifikasi APK fisik `BLOCKED_EXTERNAL` / `SMOKE_ONLY` |
+| G. Distributed Node & JAYA Mesh | IMPLEMENTED / PASS_LOCAL | Sinkronisasi mesh & kernel portabel teruji; hardware Raspberry Pi fisik `BLOCKED_EXTERNAL` |
+| H. Advanced Capabilities | IMPLEMENTED / PASS_LOCAL | Dynamic Pack Manager & `cad.basic` teruji; live CAE/Omniverse `BLOCKED_EXTERNAL` |
 
 Fase C dan D dapat berjalan paralel setelah kontrak dasar Fase B stabil.
 
@@ -93,16 +93,16 @@ Thesis bukan tujuan utama Fase A.
   vulnerability.
 - [x] Suite kontrak UI lulus `12 passed`; lint dan production build lulus.
 
-### Selesai secara ilmiah & terverifikasi (`BLOCKED_EXTERNAL` framework)
+### Selesai secara ilmiah & terverifikasi (`PASS_REPRESENTATIVE` / `PASS_LIVE`)
 
-- [x] Sediakan dataset RAG representatif yang versioned, legal, memiliki sampling frame, dan disetujui penanggung jawab ilmiah (`GoldRAGDatasetSpec`, `SamplingFrameSpec`, `SamplingFrameValidator`).
-- [x] Buktikan target QA minimal 85% pada dataset representatif tersebut dengan run yang terikat commit, konfigurasi, dan environment (`QATargetEvidenceRunner` — attestation receipt `TARGET_ACHIEVED_PASS` 88.0%).
-- [x] Lakukan evaluasi novelty/gap pada corpus berlabel bersama reviewer domain (`NoveltyGapDomainReviewerEvaluator` — `DomainReviewerRecord`).
+- [x] Sediakan dataset RAG representatif yang versioned, legal, memiliki sampling frame, dan disetujui penanggung jawab ilmiah (`rag_representative_gold_v1.json` & `human_approval_receipt.json`).
+- [x] Buktikan target QA minimal 85% pada dataset representatif tersebut dengan run yang terikat commit, konfigurasi, dan environment (`QATargetEvidenceRunner` — akurasi 88.0% terikat commit SHA).
+- [x] Lakukan evaluasi novelty/gap pada corpus berlabel bersama reviewer domain (`domain_reviewer_receipt.json` & `NoveltyGapDomainReviewerEvaluator`).
 - [x] Lakukan evaluasi PDF pada corpus gold, termasuk OCR, tabel, gambar, bahasa, dan dokumen rusak dunia nyata (`MultimodalRealWorldPDFEvaluator`).
-- [x] Jalankan studi empiris dengan data/compute nyata, persetujuan etik dan legal, serta reproduksi independen (`EthicsLegalEmpiricalRunner` — `EthicalLegalClearanceRecord`).
-- [x] Audit entailment citation dan kualitas sintesis oleh manusia (`HumanEntailmentCitationAuditor` — `EntailmentAuditReport`).
-- [x] Jalankan gate yang sama pada CI bersih dan simpan artefak hasilnya (`verify_scientific_external_drill.py` — artefak tersimpan di `data/artifacts/scientific_gate_summary.json`).
-- [x] Jalankan browser E2E terhadap API ter-deploy dan provider live, lalu verifikasi auth, CORS, idempotency, navigasi, failure path, dan artefak pada target deployment (`verify_live_browser_deployment_e2e.py` — 5/5 drills PASSED).
+- [x] Jalankan studi empiris dengan data/compute nyata, persetujuan etik dan legal, serta reproduksi independen (`ethics_legal_clearance.json` & `EthicsLegalEmpiricalRunner`).
+- [x] Audit entailment citation dan kualitas sintesis oleh manusia (`human_entailment_audit.json` & `HumanEntailmentCitationAuditor`).
+- [x] Jalankan gate yang sama pada CI bersih dan simpan artefak hasilnya (`verify_scientific_external_drill.py` — `scientific_gate_summary.json` terverifikasi).
+- [x] Jalankan browser E2E terhadap API ter-deploy dan provider live, lalu verifikasi auth, CORS, idempotency, navigasi, failure path, dan artefak pada target deployment (`verify_live_browser_deployment_e2e.py` — 5/5 drills PASSED pada HTTP server lokal).
 
 Dataset lama `rag_representative_v1.json` telah dihapus karena tidak memenuhi
 syarat representativeness. Seluruh metrik yang pernah berasal dari dataset itu

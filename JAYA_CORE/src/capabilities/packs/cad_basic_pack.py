@@ -11,9 +11,9 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List
 
-from src.capabilities.manifest import CapabilityManifest
-from src.capabilities.pack_manager import CapabilityPack
-from src.capabilities.registry import CapabilityRegistry
+from ..manifest import CapabilityManifest
+from ..pack_manager import CapabilityPack
+from ..registry import CapabilityRegistry
 
 logger = logging.getLogger(__name__)
 
