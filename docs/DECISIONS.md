@@ -15,6 +15,7 @@ tersimpan di arsip, tetapi status keputusan aktif hanya ditentukan di sini.
 | ADR-008 | Output benchmark/report runtime berada di `reports/`, bukan folder dokumentasi | Accepted |
 | ADR-009 | JAYA Research adalah Cognitive Evolution Laboratory; thesis adalah domain adapter; Core mutation langsung dilarang | Accepted |
 | ADR-010 | JAYA adalah Distributed Sovereign Intelligence; JAYA Core terdiri dari Cognitive Kernel portabel dan Capability Packs; JAYA Mesh adalah lapisan sinkronisasi resmi | Accepted |
+| ADR-011 | JAYA Research menganut Dual-Track Architecture: Cognitive Evolution Research (Internal) dan Scientific & Engineering Discovery (External/3D/Physical AI); Omniverse/Solvers adalah optional capability providers | Accepted |
 
 ## ADR-001 — Satu Git root
 
@@ -171,6 +172,31 @@ dapat berjalan di perangkat kecil.
 | Offline Behavior Modes | IDEA |
 | Budget-Aware Reasoning | PROTOTYPE |
 | Capability Negotiation | IDEA |
+
+## ADR-011 — Dual-Track JAYA Research Architecture (Cognitive Evolution & Scientific Discovery)
+
+**Status:** Accepted  
+**Tanggal:** 2 Agustus 2026  
+
+### Konteks
+
+Definisi JAYA Research sebelumnya terlalu sempit karena seluruh output diarahkan kembali untuk memperbarui JAYA Core. Pengguna memerlukan JAYA Research untuk tidak hanya meneliti perbaikan internal JAYA, tetapi juga **meneliti masalah rekayasa dan fenomena ilmiah di dunia nyata** (seperti penerjemahan konsep reaktor portabel, material baru, 3D CAD, simulasi fisika, dan digital twin).
+
+### Keputusan
+
+1. **JAYA Research menganut Dual-Track Architecture:**
+   - **Track 1: Cognitive Evolution Research (Internal)**: Meneliti cara memperbaiki JAYA sendiri $\rightarrow$ `Candidate Cognitive Artifact`.
+   - **Track 2: Scientific and Engineering Discovery (External / Physical AI / 3D)**: Meneliti dunia luar, rekayasa 3D CAD, fisika, material, dan digital twin $\rightarrow$ `Discovery Artifact` / `REJECTED_HYPOTHESIS`.
+2. **16-Step Scientific & Engineering Discovery Pipeline** ditetapkan sebagai standar alur riset eksternal (Fiction-to-Requirement → Physics Constraints → Falsification → 3D Parametric → Multiphysics → Digital Twin → Discovery Artifact).
+3. **Pemberlakuan Rejection / Falsification First**: Eksperimen yang membuktikan desain atau hipotesis gagal diterbitkan sebagai **`REJECTED_HYPOTHESIS`** yang bernilai ilmiah.
+4. **NVIDIA Omniverse, OpenUSD, dan Solver Domain** (PhysX, FEA, CFD, EM, Modulus) berkedudukan sebagai **Optional / Remote Capability Providers**. Tidak ada dependency GPU/CUDA/Omniverse yang diwajibkan dalam base installation JAYA Core.
+5. **Dokumen Desain**: Dibuat [`docs/DISCOVERY_PIPELINE_DESIGN.md`](DISCOVERY_PIPELINE_DESIGN.md).
+
+### Konsekuensi
+
+- Module `JAYA_RESEARCH` menambahkan paket `src/discovery/` untuk menangani requirement translation, physics falsification, dan discovery contracts.
+- Jenis artefak baru ditambahkan: `DISCOVERY_CANDIDATE`, `PARAMETRIC_GEOMETRY`, `DIGITAL_TWIN`, `REJECTED_HYPOTHESIS`, `SIMULATION_RESULT`, `ENGINEERING_REQUIREMENTS`, `SCIENTIFIC_HYPOTHESIS`.
+- Penemuan ilmiah fiksi (seperti Arc Reactor) diterjemahkan secara jujur menjadi spesifikasi rekayasa terukur, faktor penolak (blockers), dan sub-masalah penelitian terisolasi.
 
 ## Proses keputusan baru
 

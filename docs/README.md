@@ -18,6 +18,7 @@ saling bertentangan.
 | Keputusan arsitektur apa yang sedang berlaku? | [DECISIONS.md](DECISIONS.md) |
 | Bagaimana desain internal JAYA Core dan Cognitive Kernel? | [JAYA_CORE_DESIGN.md](JAYA_CORE_DESIGN.md) |
 | Bagaimana arsitektur jaringan terdistribusi JAYA Mesh? | [JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md) |
+| Bagaimana alur 16-langkah penemuan ilmiah dan rekayasa multimodal? | [DISCOVERY_PIPELINE_DESIGN.md](DISCOVERY_PIPELINE_DESIGN.md) |
 | Bagaimana alur pengguna, data, discovery, dan promosi? | [WORKFLOWS.md](WORKFLOWS.md) |
 | Apa yang benar-benar sudah bekerja? | [STATUS.md](STATUS.md) |
 | Apa urutan pekerjaan dan gerbang selesainya? | [ROADMAP.md](ROADMAP.md) |

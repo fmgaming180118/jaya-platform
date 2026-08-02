@@ -10,8 +10,11 @@ dapat dijalankan ulang.
 
 - Menetapkan **ADR-009**: JAYA Research adalah Cognitive Evolution Laboratory (CEL); analisis tesis adalah domain adapter opsional; direct Core mutation dilarang tanpa exception.
 - Menetapkan **ADR-010**: JAYA adalah *Distributed Sovereign Intelligence* — satu kecerdasan dengan banyak manifestasi node (Central, Standard, Edge, Mission Node, Micro Node).
+- Menetapkan **ADR-011**: JAYA Research menganut *Dual-Track Architecture* — Track 1: Cognitive Evolution Research (Internal) & Track 2: Scientific and Engineering Discovery (External/3D/Physical AI/Digital Twin).
+- Menambahkan **[DISCOVERY_PIPELINE_DESIGN.md](DISCOVERY_PIPELINE_DESIGN.md)**: desain 16-step Scientific & Engineering Discovery Pipeline, Omniverse/OpenUSD/Solvers integration, dan contoh riset Arc Reactor.
 - Menambahkan **[JAYA_CORE_DESIGN.md](JAYA_CORE_DESIGN.md)**: desain internal JAYA Core mencakup 11 komponen Cognitive Kernel (portabel), Capability Packs (modular), Model Router, Budget-Aware Reasoning, spesifikasi JayaIR, memori per node, dan Capability Negotiation.
 - Menambahkan **[JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md)**: desain JAYA Mesh mencakup 5 Node Tiers, Event Sync Protocol terenkripsi/signed, matriks mode operasi offline/online, conflict resolution policy, dan strategi Knowledge Cache.
+- Menambahkan modul `JAYA_RESEARCH/src/discovery/` (`contracts.py`, `requirement_engine.py`, `falsification_engine.py`) dan unit test `JAYA_RESEARCH/tests/test_scientific_discovery.py` (4 test, PASS).
 - Menambahkan **Fase G (Distributed Node & JAYA Mesh)** dan **Fase H (Advanced Capabilities: 3D/CAD, Coding, Robotika, AR, Sensor Fusion)** ke roadmap kanonis.
 - Menambahkan file pengujian batas misi: `JAYA_CORE/tests/test_agentic_jarvis_mission_boundary.py` (23 test, PASS).
 

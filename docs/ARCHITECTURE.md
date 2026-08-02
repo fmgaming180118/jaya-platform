@@ -22,11 +22,12 @@ jaya-research/
 
 | Modul | Memiliki | Tidak boleh memiliki |
 |---|---|---|
-| Research | sumber, chunk, citation, graph, hipotesis, eksperimen, paket bukti | mutasi source Core secara langsung |
-| Core | intent, reasoning, planning, memory policy, JayaIR, identity, capability registry | data riset mentah dan UI perangkat |
+| Research | sumber, chunk, citation, graph, hipotesis, 16-step discovery pipeline, solver contracts | mutasi source Core secara langsung |
+| Core | intent, reasoning, planning, memory policy, JayaIR, identity, capability registry | data riset mentah, GPU solvers, dan UI 3D |
 | Agent | task orchestration, tool routing, permission flow | logika kognitif inti dan driver perangkat |
 | OS | sandbox, process/resource policy, hardware abstraction | pengetahuan akademik dan workflow tesis |
 | Mesh | node registry, secure transport, event sync, task offloading | logika kognitif, pengetahuan, atau permission policy |
+| Solver Adapters | Omniverse, OpenUSD, PhysX, FEA/CFD, Modulus, digital twin rendering | logika kognitif, policy, atau otoritas promosi |
 | Android/Interface | UI mobile, local cache, transport aman | source of truth pengetahuan atau policy pusat |
 
 ## Komponen dan hubungan

@@ -349,13 +349,30 @@ Promosi atau rollback
 
 Tidak ada tahap yang boleh melewati evidence, validation, dan rollback.
 
+### 5.6 Dual-Track Research Architecture
+
+JAYA Research beroperasi dalam dua jalur utama:
+
+1. **Cognitive Evolution Research (Internal)**: Meneliti cara memicu evolusi dan peningkatan kemampuan JAYA sendiri (reasoning strategies, memory architecture, model adapters, tool capabilities, planning strategies, knowledge updates). Output berupa `Candidate Cognitive Artifact`.
+2. **Scientific and Engineering Discovery (External / Physical AI / 3D)**: Meneliti fenomena dunia luar dan masalah rekayasa (konsep energi baru, material, desain mesin 3D CAD, robotika, kendaraan, sistem propulsi, fisika). Output berupa `Discovery Artifact`, `Digital Twin`, `Engineering Design`, atau `REJECTED_HYPOTHESIS`.
+
+### 5.7 Physical AI, 3D CAD, Solvers & Omniverse Digital Twin Integration
+
+Untuk penemuan ilmiah dan rekayasa fisik, JAYA Research terintegrasi dengan stack simulasi dan visualisasi 3D:
+
+* **16-Step Discovery Pipeline**: Penerjemahan gagasan fiksi ke persyaratan terukur → analisis batas fisika → hipotesis → permodelan matematika → geometri 3D parametrik → simulasi multiphysics → uji falsifikasi → optimasi → digital twin → prototype plan.
+* **Solver Adapters (Optional Capability Providers)**: PhysX (dinamika), FEA (struktural), CFD (fluida/pendinginan), EM (elektromagnetik), Thermal, dan Physics-Informed Neural Networks (NVIDIA Modulus).
+* **Omniverse / OpenUSD Integration**: Bertindak sebagai ruang agregasi digital twin dan visualisasi 3D terpadu. Seluruh dependency solver bersifat opsional dan berjalan via remote capability/API boundary tanpa membebani base installation Core.
+
+Rincian lengkap di [docs/DISCOVERY_PIPELINE_DESIGN.md](DISCOVERY_PIPELINE_DESIGN.md).
+
 ---
 
 ## 6. Candidate Cognitive Artifact
 
 JAYA Research menghasilkan kandidat, bukan perubahan aktif.
 
-Jenis artefak yang diperbolehkan:
+Artefak evolusi kognitif internal:
 
 * `KNOWLEDGE_DELTA`
 * `REASONING_STRATEGY`
@@ -367,6 +384,16 @@ Jenis artefak yang diperbolehkan:
 * `SYSTEM_POLICY_CANDIDATE`
 * `EVALUATION_DATASET`
 * `BENCHMARK_SUITE`
+
+Artefak penemuan ilmiah dan rekayasa fisik (Scientific & Engineering Discovery):
+
+* `SCIENTIFIC_HYPOTHESIS`
+* `ENGINEERING_REQUIREMENTS`
+* `PARAMETRIC_GEOMETRY`
+* `SIMULATION_RESULT`
+* `DIGITAL_TWIN`
+* `REJECTED_HYPOTHESIS`
+* `DISCOVERY_CANDIDATE`
 
 Artefak minimum harus berisi:
 

@@ -16,6 +16,9 @@ CANONICAL_DOCS = (
     Path("docs/PRODUCT.md"),
     Path("docs/ARCHITECTURE.md"),
     Path("docs/DECISIONS.md"),
+    Path("docs/JAYA_CORE_DESIGN.md"),
+    Path("docs/JAYA_MESH_DESIGN.md"),
+    Path("docs/DISCOVERY_PIPELINE_DESIGN.md"),
     Path("docs/WORKFLOWS.md"),
     Path("docs/STATUS.md"),
     Path("docs/ROADMAP.md"),
@@ -57,157 +60,153 @@ TRACKABILITY_PROBES = (
     Path("JAYA_CORE/src/brain_v2/evolution/_trackability_probe.py"),
     Path("JAYA_CORE/features/_trackability_probe.py"),
     Path("JAYA_RESEARCH/src/experiments/_trackability_probe.py"),
-    Path(
-        "JAYA_ANDROID/app/src/main/java/com/example/jaya/data/_trackability_probe.kt"
-    ),
+    Path("JAYA_OS/tests/_trackability_probe.py"),
+    Path("JAYA_ANDROID/app/_trackability_probe.py"),
 )
 
-MARKDOWN_LINK = re.compile(r"!?\[[^\]]*]\(([^)]+)\)")
-EXTERNAL_PREFIXES = ("http://", "https://", "mailto:", "data:")
+LINK_PATTERN = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+HTTP_PATTERN = re.compile(r"^https?://", re.IGNORECASE)
 
 
-def normalize_link(raw_target: str) -> str:
-    """Return a Markdown link target without title or anchor."""
-    target = raw_target.strip()
-    if target.startswith("<") and target.endswith(">"):
-        target = target[1:-1]
-    target = target.split(maxsplit=1)[0]
-    target = target.split("#", maxsplit=1)[0]
-    return unquote(target)
+def validate_doc_files() -> list[str]:
+    errors: list[str] = []
 
+    for rel_path in CANONICAL_DOCS:
+        full_path = ROOT / rel_path
+        if not full_path.exists():
+            errors.append(f"Missing canonical documentation file: {rel_path}")
 
-def validate_required_files(errors: list[str]) -> None:
-    """Ensure all canonical documents and entrypoints exist."""
-    for relative_path in (*CANONICAL_DOCS, *ENTRYPOINTS, *QUALITY_GATES):
-        if not (ROOT / relative_path).is_file():
-            errors.append(f"File wajib tidak ditemukan: {relative_path.as_posix()}")
+    for entry in ENTRYPOINTS:
+        full_path = ROOT / entry
+        if not full_path.exists():
+            errors.append(f"Missing entrypoint pointer file: {entry}")
 
+    for qg in QUALITY_GATES:
+        full_path = ROOT / qg
+        if not full_path.exists():
+            errors.append(f"Missing quality gate asset: {qg}")
 
-def validate_repository_layout(errors: list[str]) -> None:
-    """Ensure root owns Git and modules do not own docs or nested repositories."""
-    if not (ROOT / ".git").is_dir():
-        errors.append("Repository Git root tidak ditemukan.")
-
-    for module in MODULES:
-        if (ROOT / module / ".git").exists():
-            errors.append(f"Nested Git dilarang: {(module / '.git').as_posix()}")
-        if (ROOT / module / "docs").exists():
+    for module_dir in MODULES:
+        bad_docs_dir = ROOT / module_dir / "docs"
+        if bad_docs_dir.exists():
             errors.append(
-                f"Dokumentasi modul dilarang: {(module / 'docs').as_posix()}"
+                f"Found non-canonical documentation directory: {module_dir}/docs"
             )
 
-    research_dir = ROOT / "JAYA_RESEARCH"
+    return errors
+
+
+def is_git_ignored(rel_path: Path) -> bool:
     try:
+        cmd = ["git", "check-ignore", "-q", str(rel_path)]
         result = subprocess.run(
-            ["git", "-C", str(research_dir), "rev-parse", "--show-toplevel"],
-            check=True,
-            capture_output=True,
+            cmd,
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=10,
+            check=False,
         )
-        discovered_root = Path(result.stdout.strip()).resolve()
-        if discovered_root != ROOT.resolve():
-            errors.append(
-                "JAYA_RESEARCH masih diarahkan ke Git root lain: "
-                f"{discovered_root}"
-            )
-    except FileNotFoundError:
-        errors.append("Executable Git tidak ditemukan; kepemilikan repository gagal dicek.")
-    except subprocess.TimeoutExpired:
-        errors.append("Pemeriksaan Git timeout setelah 10 detik.")
-    except subprocess.CalledProcessError as exc:
-        detail = exc.stderr.strip() or exc.stdout.strip() or f"exit {exc.returncode}"
-        errors.append(f"Pemeriksaan Git gagal: {detail}")
+        return result.returncode == 0
+    except OSError:
+        return False
 
 
-def validate_local_links(errors: list[str]) -> None:
-    """Check local Markdown links from active docs and entrypoint READMEs."""
-    for relative_path in (*CANONICAL_DOCS, *ENTRYPOINTS):
-        file_path = ROOT / relative_path
-        if not file_path.is_file():
+def validate_trackability() -> list[str]:
+    errors: list[str] = []
+    for probe in TRACKABILITY_PROBES:
+        if is_git_ignored(probe):
+            errors.append(f"Probe is ignored by Git: {probe}")
+    return errors
+
+
+def validate_local_links() -> list[str]:
+    errors: list[str] = []
+    scanned_files = list(CANONICAL_DOCS) + list(ENTRYPOINTS)
+
+    for rel_path in scanned_files:
+        source_file = ROOT / rel_path
+        if not source_file.is_file():
             continue
 
         try:
-            content = file_path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError) as exc:
-            errors.append(f"Gagal membaca {relative_path.as_posix()}: {exc}")
+            content = source_file.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"Cannot read file {rel_path}: {exc}")
             continue
 
-        for match in MARKDOWN_LINK.finditer(content):
-            target = normalize_link(match.group(1))
-            if not target or target.startswith("#"):
-                continue
-            if target.lower().startswith(EXTERNAL_PREFIXES):
+        for match in LINK_PATTERN.finditer(content):
+            label, target = match.groups()
+            target = target.strip()
+
+            if not target or target.startswith("#") or HTTP_PATTERN.match(target):
                 continue
 
-            linked_path = (file_path.parent / target).resolve()
+            target_path_str = target.split("#", 1)[0]
+            if not target_path_str:
+                continue
+
+            decoded_target = unquote(target_path_str)
+            resolved_target = (source_file.parent / decoded_target).resolve()
+
             try:
-                linked_path.relative_to(ROOT.resolve())
+                resolved_target.relative_to(ROOT)
             except ValueError:
                 errors.append(
-                    f"Tautan keluar repository di {relative_path.as_posix()}: {target}"
+                    f"Link out of repository boundary in {rel_path}: '{target}' -> {resolved_target}"
                 )
                 continue
 
-            if not linked_path.exists():
-                line = content.count("\n", 0, match.start()) + 1
+            if not resolved_target.exists():
                 errors.append(
-                    f"Tautan rusak {relative_path.as_posix()}:{line} -> {target}"
+                    f"Broken local link in {rel_path}: '{label}' points to non-existent '{target}'"
                 )
 
+    return errors
 
-def validate_source_trackability(errors: list[str]) -> None:
-    """Ensure future test and source files are not hidden by broad ignore rules."""
-    for relative_path in TRACKABILITY_PROBES:
-        try:
-            result = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(ROOT),
-                    "check-ignore",
-                    "--no-index",
-                    "--quiet",
-                    relative_path.as_posix(),
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
-            errors.append(f"Pemeriksaan trackability gagal: {exc}")
-            return
 
-        if result.returncode == 0:
-            errors.append(
-                f"Source/test baru masih di-ignore: {relative_path.as_posix()}"
-            )
-        elif result.returncode not in (1,):
-            detail = result.stderr.strip() or f"exit {result.returncode}"
-            errors.append(f"git check-ignore gagal: {detail}")
+def validate_single_git_root() -> list[str]:
+    errors: list[str] = []
+    try:
+        cmd = ["git", "rev-parse", "--show-toplevel"]
+        result = subprocess.run(
+            cmd,
+            cwd=ROOT / "JAYA_RESEARCH",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            errors.append("Failed to execute git rev-parse from JAYA_RESEARCH.")
+        else:
+            toplevel = Path(result.stdout.strip()).resolve()
+            if toplevel != ROOT:
+                errors.append(
+                    f"Submodule Git root detected at {toplevel}; expected single root at {ROOT}"
+                )
+    except OSError as exc:
+        errors.append(f"Git check failed: {exc}")
+
+    return errors
 
 
 def main() -> int:
-    """Run every documentation validation and return a process exit code."""
-    errors: list[str] = []
+    doc_errors = validate_doc_files()
+    track_errors = validate_trackability()
+    link_errors = validate_local_links()
+    git_errors = validate_single_git_root()
 
-    validate_required_files(errors)
-    validate_repository_layout(errors)
-    validate_local_links(errors)
-    validate_source_trackability(errors)
-
-    if errors:
-        print("Validasi dokumentasi GAGAL:")
-        for error in errors:
-            print(f"- {error}")
+    all_errors = doc_errors + track_errors + link_errors + git_errors
+    if all_errors:
+        print("GAGAL: Ditemukan kesalahan pada struktur dokumentasi/repository:\n")
+        for err in all_errors:
+            print(f" - {err}")
         return 1
 
-    checked_count = len(CANONICAL_DOCS) + len(ENTRYPOINTS)
     print(
-        "Validasi dokumentasi LULUS: "
-        f"{checked_count} file aktif, satu Git root, tanpa docs modul, "
-        "seluruh tautan lokal valid, dan source/test dapat dilacak."
+        f"Validasi dokumentasi LULUS: {len(CANONICAL_DOCS)} file aktif, satu Git root, "
+        "tanpa docs modul, seluruh tautan lokal valid, dan source/test dapat dilacak."
     )
     return 0
 

@@ -8,9 +8,12 @@
 | Citation | Referensi yang menghubungkan klaim ke lokasi bukti pada sumber |
 | Cognitive Kernel | Bagian minimum JAYA Core yang portabel dan wajib ada di semua node |
 | Core | Modul kognitif untuk reasoning, planning, memory policy, dan JayaIR |
+| Digital Twin | Agregasi bentuk 3D (OpenUSD) dan data simulasi fisika untuk visualisasi & inspeksi |
 | Discovery | Pipeline observasi → hipotesis → eksperimen → analisis → laporan |
+| Dual-Track Research | Arsitektur dua jalur JAYA Research: Cognitive Evolution (Internal) & Scientific Discovery (External) |
 | Evidence | Data, sumber, metode, hasil, serta batasan yang dapat diaudit |
 | Exit criteria | Seluruh kondisi yang harus terbukti sebelum fase/status selesai |
+| Falsification Gate | Gerbang pengujian hipotesis untuk menolak desain/teori yang melanggar hukum fisika |
 | Hybrid | Operasi yang membagi tugas antara perangkat lokal dan provider eksternal |
 | Human approval | Persetujuan eksplisit maintainer setelah meninjau bukti dan dampak |
 | Ingestion | Validasi, ekstraksi, normalisasi, chunking, dan indexing sumber |

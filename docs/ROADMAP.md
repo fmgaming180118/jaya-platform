@@ -243,6 +243,8 @@ menjalankan kemampuan seperti JARVIS — melalui Core yang domain-neutral.
 | `cad.basic` | Geometri 3D primitif, konsep desain | Fase G, CAD adapter |
 | `cad.parametric` | Desain parametrik, constraint solving | `cad.basic` |
 | `cad.simulation` | Simulasi termal, struktural, airflow | `cad.parametric` |
+| `discovery.multimodal` | 16-step Scientific & Engineering Discovery Pipeline | Fase G, Solver Adapters |
+| `digital_twin.omniverse` | Agregasi OpenUSD & visualisasi 3D digital twin | `cad.parametric`, Omniverse |
 | `coding.assistant` | Analisis, refactoring, debug kode | Fase G |
 | `robotics.navigation` | Path planning, obstacle avoidance | Fase G, Mission Node |
 | `robotics.control` | Kontrol aktuator, feedback loop | `robotics.navigation` |
@@ -256,6 +258,9 @@ menjalankan kemampuan seperti JARVIS — melalui Core yang domain-neutral.
   tanpa mempengaruhi Cognitive Kernel.
 - [ ] Satu skenario desain 3D end-to-end: input suara → Core → JayaIR → Agent
   → CAD tool → preview → persetujuan pengguna → ekspor file.
+- [ ] 16-step Scientific & Engineering Discovery Pipeline mengekspor `DiscoveryArtifact`
+  dan `REJECTED_HYPOTHESIS` secara terverifikasi.
+- [ ] Integrasi Omniverse / OpenUSD dapat memvisualisasikan digital twin hasil solver.
 - [ ] Setiap pack memiliki benchmark resource (RAM, CPU, GPU, waktu).
 - [ ] Pack dapat diinstal/diuninstal tanpa restart Core.
 - [ ] Tidak ada logika domain di dalam Cognitive Kernel.
