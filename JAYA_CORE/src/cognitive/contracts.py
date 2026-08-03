@@ -42,6 +42,15 @@ class ActionStatus(str, Enum):
 
 
 @dataclass
+class ConstraintViolation:
+    """Represents a constraint violation."""
+    constraint_name: str
+    message: str
+    severity: str = "error"  # "error" or "warning"
+    details: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class UserRequest:
     request_id: str
     raw_prompt: str
@@ -198,8 +207,8 @@ class JayaIRRequest:
     goal: Dict[str, Any]
     constraints: Dict[str, Any]
     required_capabilities: List[str]
-    steps: List[JayaIRAction]
-    resource_budget: ResourceBudget
+    steps: List[JayaIRAction] = field(default_factory=list)
+    resource_budget: ResourceBudget = field(default_factory=ResourceBudget)
     approval_required_before: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:

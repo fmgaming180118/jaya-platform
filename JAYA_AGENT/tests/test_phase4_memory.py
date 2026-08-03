@@ -13,9 +13,9 @@ agent_source = Path(__file__).resolve().parents[1] / "src"
 if str(agent_source) not in sys.path:
     sys.path.insert(0, str(agent_source))
 
-from memory.rag_memory import RAGMemoryEngine
-from memory.sync_bridge import EcosystemSyncBridge, LegacySyncDisabled
-from memory.working_memory import WorkingMemoryManager
+from JAYA_AGENT.src.memory.rag_memory import RAGMemoryEngine
+from JAYA_AGENT.src.memory.sync_bridge import EcosystemSyncBridge, LegacySyncDisabled
+from JAYA_AGENT.src.memory.working_memory import WorkingMemoryManager
 
 
 class TestPhase4Memory(unittest.TestCase):

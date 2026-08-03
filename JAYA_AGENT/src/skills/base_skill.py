@@ -9,7 +9,7 @@ import logging
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from security.capability_sandbox import (
+from JAYA_AGENT.src.security.capability_sandbox import (
     CapabilityDenied,
     CapabilitySandbox,
     require_active_capability,
