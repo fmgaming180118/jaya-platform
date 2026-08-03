@@ -1,8 +1,14 @@
 """
 cad_basic_pack.py — CAD Basic Capability Pack (`cad.basic`).
 
-Implements 3D primitive geometry generation (cube, sphere, cylinder, parametric box)
-in OpenUSD (.usda) format. Hot-pluggable without touching Cognitive Kernel source.
+STATUS: IMPLEMENTED_LOCAL — USDA Primitive Text Generator Only
+
+This module provides BASIC 3D primitive geometry generation in OpenUSD (.usda) format.
+It is a LOCAL TEXT GENERATOR for simple primitives (cube, sphere, cylinder, box).
+It is NOT a full CAD system - no constraint solving, no parametric design,
+no simulation, no feature tree, no assembly management.
+
+Hot-pluggable without touching Cognitive Kernel source.
 """
 
 from __future__ import annotations
@@ -19,13 +25,18 @@ logger = logging.getLogger(__name__)
 
 
 class CadBasicCapabilityPack(CapabilityPack):
-    """Capability Pack providing basic 3D CAD geometry generation in OpenUSD (.usda) format."""
+    """
+    Capability Pack providing BASIC 3D CAD primitive geometry generation in OpenUSD (.usda) format.
+    
+    STATUS: IMPLEMENTED_LOCAL - USDA text generator for primitives only.
+    NOT a full CAD system - no constraints, parametrics, simulation, assemblies.
+    """
 
     def __init__(self) -> None:
         super().__init__(
             pack_id="cad.basic",
             version="1.0.0",
-            description="Basic 3D CAD primitive geometry generation in OpenUSD USDA format",
+            description="BASIC 3D CAD primitive geometry generation in OpenUSD USDA format (IMPLEMENTED_LOCAL)",
         )
 
     def get_manifests(self) -> List[CapabilityManifest]:

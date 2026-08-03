@@ -1,12 +1,23 @@
 """
 verify_3d_design_e2e.py — Phase H 3D Design End-to-End & Capability Pack Verification Script.
 
-Validates:
-1. Cognitive Kernel 100% Domain Neutrality (DomainBoundaryValidator)
-2. Live CapabilityPack Installation without Core restart (DynamicCapabilityPackManager)
-3. Pack Resource Benchmark (CapabilityPackBenchmarkEngine)
-4. End-to-End 3D Design Scenario: User Prompt -> Core -> JayaIR -> Agent -> CAD Tool -> Preview -> Approval -> USDA File Export
-5. Dynamic Pack Uninstallation without Core side effects
+STATUS: PROTOTYPE / NOT REAL E2E
+
+This script is a PROTOTYPE/SCAFFOLD only. It does NOT perform real end-to-end
+3D design pipeline. It does NOT:
+- Call JayaCoreRuntime or actual Core
+- Generate JayaIR from user prompt
+- Call JAYA Agent for tool execution
+- Have user approval flow
+- Perform real CAD tool integration
+
+Current implementation:
+- Hardcoded user_prompt (not used)
+- Directly calls cad.basic.create_box with hardcoded dimensions
+- Checks for "#usda 1.0" string as "preview success"
+- Writes string to file
+
+MUST NOT be claimed as "end-to-end 3D design pipeline" or "JARVIS 3D capability".
 """
 
 from __future__ import annotations
@@ -54,9 +65,9 @@ def run_3d_design_e2e_drill() -> dict:
     drill3_pass = bench_report.status == "BENCHMARK_PASSED" and bench_report.ram_delta_mb <= 30.0
     results["drill_3_pack_resource_benchmark"] = "SUCCESS" if drill3_pass else "FAILED"
 
-    # Drill 4: End-to-End 3D Design Scenario Execution
-    # User Input -> JayaIR step execution -> OpenUSD Preview -> Approval -> File Export
-    user_prompt = "Create a 3D box with width 4, height 2, depth 5"
+    # Drill 4: End-to-End 3D Design Scenario Execution - PROTOTYPE ONLY
+    # This is NOT a real E2E pipeline - it directly calls the capability pack
+    user_prompt = "Create a 3D box with width 4, height 2, depth 5"  # NOT USED
     exec_output = pack_manager.execute_pack_capability(
         "cad.basic", "cad.basic.create_box", inputs={"width": 4.0, "height": 2.0, "depth": 5.0}
     )
@@ -72,7 +83,7 @@ def run_3d_design_e2e_drill() -> dict:
 
     file_exported = export_path.is_file() and export_path.stat().st_size > 0
     drill4_pass = (exec_output["status"] == "SUCCESS") and has_preview and file_exported
-    results["drill_4_3d_design_e2e_pipeline"] = "SUCCESS" if drill4_pass else "FAILED"
+    results["drill_4_3d_design_e2e_pipeline"] = "PROTOTYPE_ONLY" if drill4_pass else "FAILED"
 
     # Drill 5: Dynamic Pack Uninstallation without Core side effects
     uninstall_ok = pack_manager.uninstall_pack("cad.basic")
@@ -85,14 +96,17 @@ def run_3d_design_e2e_drill() -> dict:
 
 def main() -> int:
     print("VERIFIKASI DRILL E2E FASE H: ADVANCED CAPABILITIES & 3D CAD...")
+    print("PERINGATAN: Drill 4 adalah PROTOTYPE - bukan E2E nyata (tidak pakai Core/Agent/JayaIR)")
     res = run_3d_design_e2e_drill()
     print(json.dumps(res, indent=2))
 
-    if all(status == "SUCCESS" for status in res.values()):
-        print("\nSeluruh 5 drill E2E Fase H VERIFIED SUCCESSFUL!")
+    # Drill 4 is prototype only - don't fail overall if others pass
+    core_drills = {k: v for k, v in res.items() if k != "drill_4_3d_design_e2e_pipeline"}
+    if all(status == "SUCCESS" for status in core_drills.values()):
+        print("\nCore drills (1,2,3,5) PASSED. Drill 4 is PROTOTYPE_ONLY.")
         return 0
 
-    print("\nPhase H E2E verification FAILED!")
+    print("\nPhase H core verification FAILED!")
     return 1
 
 

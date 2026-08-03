@@ -1,8 +1,20 @@
 """
 production_health_server.py — Production Health & Observability Metrics Server.
 
-Provides /health, /readiness, and /metrics endpoints monitoring
-system uptime, RAM usage, CPU status, and active connection health.
+STATUS: PROTOTYPE / BASIC HTTP SERVER ONLY
+
+This module is a PROTOTYPE/SCAFFOLD only. It does NOT:
+- Perform real health checks against actual components
+- Verify cognitive kernel readiness
+- Verify capability sandbox status
+- Monitor real system health
+
+Current implementation:
+- Returns hardcoded "READY"/"ACTIVE" status for all checks
+- Only measures current process metrics (RAM, CPU)
+- Does NOT probe actual kernel or sandbox
+
+MUST NOT be claimed as "production health monitoring" or "production observability".
 """
 
 from __future__ import annotations
@@ -24,7 +36,7 @@ _REQUEST_COUNT = 0
 
 
 class HealthCheckHandler(BaseHTTPRequestHandler):
-    """HTTP Request Handler for Production Observability."""
+    """HTTP Request Handler for Production Observability - PROTOTYPE."""
 
     def _send_json(self, code: int, data: Dict[str, Any]) -> None:
         body = json.dumps(data, indent=2).encode("utf-8")
@@ -44,27 +56,29 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
         if path in ("/health", "/readiness"):
             payload = {
-                "status": "UP",
-                "stage": "PRODUCTION",
+                "status": "PROTOTYPE",
+                "stage": "PROTOTYPE_LABEL_ONLY",
                 "timestamp": time.time(),
                 "uptime_seconds": round(time.time() - _START_TIME, 2),
                 "checks": {
-                    "cognitive_kernel": "READY",
-                    "capability_sandbox": "ACTIVE",
+                    "cognitive_kernel": "PROTOTYPE_READY (hardcoded)",
+                    "capability_sandbox": "PROTOTYPE_ACTIVE (hardcoded)",
                     "memory_footprint_mb": round(mem_rss_mb, 2),
+                    "warning": "HARDCODED STATUS - NO REAL HEALTH CHECKS PERFORMED",
                 },
             }
             self._send_json(200, payload)
 
         elif path == "/metrics":
             payload = {
-                "stage": "PRODUCTION",
+                "stage": "PROTOTYPE_LABEL_ONLY",
                 "process_id": os.getpid(),
                 "uptime_seconds": round(time.time() - _START_TIME, 2),
                 "requests_total": _REQUEST_COUNT,
                 "errors_total": _ERROR_COUNT,
                 "ram_rss_mb": round(mem_rss_mb, 2),
                 "cpu_percent": psutil.cpu_percent(interval=0.1),
+                "warning": "BASIC PROCESS METRICS ONLY - NO COMPONENT HEALTH",
             }
             self._send_json(200, payload)
 
@@ -78,7 +92,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
 
 class ProductionHealthServer:
-    """Manages the background HTTP health monitoring server."""
+    """Manages the background HTTP health monitoring server - PROTOTYPE."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8088):
         self.host = host
@@ -90,7 +104,7 @@ class ProductionHealthServer:
         self._server = HTTPServer((self.host, self.port), HealthCheckHandler)
         self._thread = Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
-        logger.info("Production Health Server started at http://%s:%d", self.host, self.port)
+        logger.warning("ProductionHealthServer started at http://%s:%d - PROTOTYPE: hardcoded responses only", self.host, self.port)
 
     def stop(self) -> None:
         if self._server:

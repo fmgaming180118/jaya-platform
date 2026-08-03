@@ -34,6 +34,8 @@ V18 additions
 * **SelfBootstrap** (Pillar 28): detects idle > 300 s and injects
   self-study curriculum tasks.
 * **LiveEvolver**: (1+1)-ES micro-evolution wired to live NanoModel weights.
+* **CognitiveModelAdapter** (NEW): integrates real LLMs (llama.cpp, cloud APIs)
+    for genuine cognitive reasoning — the JARVIS brain.
 """
 
 import asyncio
@@ -44,9 +46,9 @@ import os
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, cast
+from typing import Any, Callable, Dict, List, Optional, cast
 
-from src.brain_v2.model.readiness import (
+from JAYA_CORE.src.brain_v2.model.readiness import (
     ModelFailureCode,
     ModelReadinessReport,
     ModelReadinessState,
@@ -894,7 +896,7 @@ class IronEngine:
     # ------------------------------------------------------------------
 
     def execute_intent(self, text: str) -> Dict[str, Any]:
-        """Run one natural-language intent through Lingua -> JayaIR."""
+        """Run one natural-language intent through Lingua -> JayaIR (symbolic path)."""
         if not self._lingua:
             from src.brain_v2.soul.lingua_logica import LinguaLogica
             self._lingua = LinguaLogica()
@@ -1006,6 +1008,161 @@ class IronEngine:
             except Exception as exc:
                 logger.debug("AgenticRAG hint generation failed: %s", exc)
         return out
+
+    # ------------------------------------------------------------------
+    # Cognitive Model Integration — Real LLM Inference
+    # ------------------------------------------------------------------
+
+    def _init_cognitive_model(self) -> None:
+        """Initialize the cognitive model adapter for real LLM inference."""
+        try:
+            from src.ai_connectors.cognitive_model_adapter import (
+                CognitiveModelAdapter,
+                create_cognitive_adapter_from_env,
+            )
+            self._cognitive_model = create_cognitive_adapter_from_env()
+            logger.info("[CognitiveModel] Adapter initialized: %s", self._cognitive_model.get_status())
+        except ImportError as exc:
+            logger.warning("CognitiveModelAdapter unavailable: %s", exc)
+            self._cognitive_model = None
+        except Exception as exc:
+            logger.error("Failed to initialize CognitiveModelAdapter: %s", exc)
+            self._cognitive_model = None
+
+    def cognitive_reason(
+        self,
+        text: str,
+        context: Optional[Dict[str, Any]] = None,
+        force_local: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Perform real cognitive reasoning using integrated LLM.
+        
+        This is the MAIN entry point for JARVIS-like cognitive capabilities:
+        - Uses real LLM (local GGUF via llama.cpp, or cloud fallback)
+        - Respects privacy policies (sensitive content → local only)
+        - Falls back gracefully if models unavailable
+        - Returns structured response with source attribution
+        
+        Returns:
+            Dict with keys: ok, text, source, model_used, confidence, metadata
+        """
+        # Lazy init cognitive model
+        if not hasattr(self, "_cognitive_model") or self._cognitive_model is None:
+            self._init_cognitive_model()
+        
+        if self._cognitive_model is None:
+            return {
+                "ok": False,
+                "error": "cognitive_model_unavailable",
+                "text": "Model kognitif tidak tersedia. Jalankan dengan model GGUF lokal atau aktifkan cloud.",
+                "source": "none",
+                "model_used": "none",
+                "confidence": 0.0,
+            }
+        
+        try:
+            # Generate cognitive response
+            response = self._cognitive_model.generate(
+                prompt=text,
+                context=context,
+                force_local=force_local,
+                network_available=True,  # Could be made configurable
+            )
+            
+            # Store in narrative memory
+            if self._narrative:
+                try:
+                    self._narrative.remember_turn(
+                        user_text=text,
+                        logic_expr=f"COGNITIVE:{response.source}",
+                        runtime_result={"response": response.text, "source": response.source},
+                    )
+                except Exception as exc:
+                    logger.debug("NarrativeContinuity cognitive trace failed: %s", exc)
+            
+            # Teach IntentEngine
+            if self._intent:
+                self._intent.learn(text)
+            
+            return {
+                "ok": True,
+                "text": response.text,
+                "source": response.source,
+                "model_used": response.model_used,
+                "confidence": response.confidence,
+                "metadata": response.metadata,
+                "intent": text,
+            }
+            
+        except Exception as exc:
+            logger.error("Cognitive reasoning failed: %s", exc)
+            return {
+                "ok": False,
+                "error": f"cognitive_reasoning_failed: {exc}",
+                "text": "Maaf, terjadi kesalahan saat memproses pertanyaan Anda.",
+                "source": "error",
+                "model_used": "none",
+                "confidence": 0.0,
+            }
+
+    def cognitive_chat(
+        self,
+        messages: List[Dict[str, str]],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Multi-turn cognitive chat using real LLM.
+        
+        Args:
+            messages: List of {"role": "user|assistant|system", "content": "..."}
+            context: Optional context dict
+            
+        Returns:
+            Structured response like cognitive_reason
+        """
+        if not hasattr(self, "_cognitive_model") or self._cognitive_model is None:
+            self._init_cognitive_model()
+        
+        if self._cognitive_model is None:
+            return {
+                "ok": False,
+                "error": "cognitive_model_unavailable",
+                "text": "Model kognitif tidak tersedia untuk chat.",
+                "source": "none",
+            }
+        
+        try:
+            response = self._cognitive_model.chat(messages, context)
+            return {
+                "ok": True,
+                "text": response.text,
+                "source": response.source,
+                "model_used": response.model_used,
+                "confidence": response.confidence,
+                "metadata": response.metadata,
+            }
+        except Exception as exc:
+            logger.error("Cognitive chat failed: %s", exc)
+            return {
+                "ok": False,
+                "error": f"cognitive_chat_failed: {exc}",
+                "text": "Maaf, chat kognitif gagal.",
+                "source": "error",
+            }
+
+    def get_cognitive_status(self) -> Dict[str, Any]:
+        """Get status of cognitive model adapter for health checks."""
+        if not hasattr(self, "_cognitive_model") or self._cognitive_model is None:
+            self._init_cognitive_model()
+        
+        if self._cognitive_model is None:
+            return {
+                "available": False,
+                "error": "cognitive_model_adapter_not_initialized",
+            }
+        
+        return self._cognitive_model.get_status()
 
     def narrative_context(self, limit: int = 5, max_chars: int = 600) -> Dict[str, Any]:
         """Return bounded autobiographical context (Pillar 31)."""

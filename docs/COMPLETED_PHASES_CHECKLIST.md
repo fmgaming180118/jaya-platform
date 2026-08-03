@@ -3,7 +3,9 @@
 **Baseline:** 2 Agustus 2026  
 **Standar Validasi:** `AGENTS.md`, `ACCEPTANCE_CRITERIA.md`, dan `STATUS.md`  
 
-Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen perangkat lunak per fase dalam arsitektur JAYA.
+**PERINGATAN: Dokumen ini sebelumnya mengklaim fase-fase "COMPLETE" yang tidak benar.**
+**Status aktual telah dikoreksi berdasarkan audit realisasi kode (2 Agustus 2026).**
+**Hampir semua fase yang sebelumnya "COMPLETE" sebenarnya PROTOTYPE/SCAFFOLD.**
 
 ---
 
@@ -28,13 +30,14 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 
 ## 3. Ceklis Penuntasan Fase B — Production Hardening & JAYA Core Kernel
 - [x] Persistensikan sesi dengan repository SQLite dan recovery state.
-- [x] **Portable Cognitive Kernel (11 Komponen)**: Identitas, Resource Profiler, Mode Controller, Capability Registry, Model Router, Memory SQLite, Intent Engine, Context Manager, Planner, Decision Gate, Evaluator (`JayaCoreRuntime`).
+- [ ] **Portable Cognitive Kernel (11 Komponen)**: **PROTOTYPE ONLY** - `PortableCognitiveKernelRunner` hanya mengukur RSS proses Python, TIDAK menginisialisasi/validasi 11 komponen. Status: `PROTOTYPE_SCAFFOLD`.
 - [x] State machine job, progress, cancel, resume, retry, dan idempotency pada kontrak lokal.
-- [x] Benchmark footprint memori ringan: RSS delta kernel hanya 0.89 MB (RAM Total ~25 MB).
+- [x] Benchmark footprint memori ringan: RSS delta kernel hanya 0.89 MB (RAM Total ~25 MB) - **hanya proses Python, bukan kernel**.
 - [x] **Background Job Worker Queue**: Isolation handler untuk job berdurasi panjang, thread pool, retry backoff, dan `BackgroundJobWorker`.
 - [x] **Correlation ID Tracing**: Context-local correlation ID propagation untuk audit log terstruktur lintas modul (`TraceContext`).
 - [x] **SQLite Backup & Crash Recovery Engine**: Hot online backup snapshot, verifikasi checksum integritas, dan automated crash recovery drill (`SQLiteBackupEngine`).
 - [x] **Clean Install & Process Restart Drill**: Verifikasi inisialisasi zero-state, readiness probes, dan survival memori episodik pasca-restart (`verify_clean_install_and_restart.py`).
+- [ ] **Production deployment dengan observability nyata, security review, load test, rollback drill** - BELUM DILAKUKAN.
 
 ---
 
@@ -46,7 +49,7 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 - [x] **GGUF Q4 Quantization Contract**: Contract Evaluator untuk memastikan model GGUF Q4 memenuhi target <300 MB size, <=512 MB RAM, <500 ms latency, dan thermal <45°C (`GGUFQuantizationContract`).
 - [x] **Privacy-Aware Hybrid Model Router**: Rute otomatis prompt sensitif ke Local Edge dan fallback eksplisit saat offline (`HybridModelRouter`).
 - [x] **Edge Model Registry**: Registrasi model, verifikasi tanda tangan SHA-256, pengecekan kompatibilitas, dan automated model rollback (`EdgeModelRegistry`).
-- [x] **Edge LoRA Fine-Tuning Engine**: Framework eksekusi training LoRA empiris terverifikasi SHA-256 dan penandaan metadata isolasi simulasi (`EdgeLoRATrainer`).
+- [ ] **Edge LoRA Fine-Tuning Engine**: **NOT IMPLEMENTED** - `EdgeLoRATrainer` hanya membuat file placeholder, TIDAK melakukan training model nyata. Status: `PROTOTYPE / NOT_IMPLEMENTED`.
 
 ---
 
@@ -54,12 +57,14 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 - [x] Formulasi spesifikasi rekayasa terukur dari ide abstrak/fiksi (`FictionToRequirementTranslator`).
 - [x] Uji falsifikasi fisika terverifikasi terhadap Lawson Criterion & batas termodinamika (`PhysicsFalsificationEngine`).
 - [x] Generator `REJECTED_HYPOTHESIS` untuk mempublikasikan alasan numerik kegagalan hipotesis/desain.
-- [x] Adapter OpenUSD (`OpenUSDGeometryAdapter`) dan PhysX (`PhysXSolverAdapter`).
+- [x] Adapter OpenUSD (`OpenUSDGeometryAdapter`) - **IMPLEMENTED_LOCAL: USDA text generator**.
+- [ ] **PhysX Multiphysics Solver Adapter**: **NOT IMPLEMENTED** - `PhysXSolverAdapter` hanya melakukan aritmetika trivial (`force/mass`), TIDAK memanggil PhysX atau solver fisika apa pun. Status: `PROTOTYPE / MOCK`.
 - [x] Agregasi `DigitalTwinBuilder` untuk paket OpenUSD + data overlay simulasi fisika.
 - [x] **Empirical Experiment Store & Statistical Calculator**: Pencatatan eksperimen ter-versioned, kalkulasi confidence interval, effect size Cohen's d, dan koreksi Bonferroni (`EmpiricalExperimentStore` & `StatisticalAnalysisResult`).
 - [x] **Independent Reproduction Gate**: Gate verifikasi reproduksi independen wajib sebelum klaim kandidat temuan disetujui (`verify_independent_reproduction`).
 - [x] **Evidence-Gated Scientific Writer**: Penulis laporan ilmiah yang wajib terikat pada `EvidenceStore` dengan fitur *automatic abstention* jika evidence tidak memadai (`EvidenceGatedScientificWriter`).
 - [x] **Ethics, License, Privacy, & Resource Gate**: Gate keselamatan yang memvalidasi etik, lisensi open-source, pemindaian kata kunci PII, dan batas anggaran GPU/biaya (`EthicsLicensePrivacyGate`).
+- [ ] **Studi empiris nyata dengan reproduksi independen** - BELUM DILAKUKAN.
 
 ---
 
@@ -68,56 +73,58 @@ Dokumen ini mencatat rencana dan status verifikasi ceklis penuntasan komponen pe
 - [x] Candidate-only rule: Modul Research dilarang mengubah source Core secara langsung.
 - [x] **Cognitive Promotion Engine**: Canary staging (`stage_canary`), monitoring regresi (`report_canary_metrics`), dan automated rollback drill (`error_rate > 0.05`).
 - [x] Wajib persetujuan manusia (`human_approved=True`) sebelum promosi akhir ke Core (`HUMAN_APPROVAL_GATE`).
-- [x] **Unified Multi-Gate Promotion Pipeline**: Menggabungkan 7 gate verifikasi wajib (Schema Validation, Signature Verification, Replay Check, Candidate Benchmark, Security & License Gate, Human Approval Check, Revocation & Rollback Capability Check) (`UnifiedPromotionGate`).
+- [x] **Unified Multi-Gate Promotion Pipeline**: Menggabungkan 7 gate verifikasi wajib (`UnifiedPromotionGate`).
 - [x] **Replay Protection Engine**: Mencegah replay attack dengan verifikasi `nonce`, timestamp, dan digest hash (`ReplayProtectionEngine`).
-- [x] **Clean Candidate Benchmark Engine**: Pengujian kandidat pada environment memori terisolasi bersih dengan batas RAM delta <= 30 MB, init <= 200 ms, dan error rate <= 0.01 (`CleanCandidateBenchmarkEngine`).
+- [x] **Clean Candidate Benchmark Engine**: Pengujian kandidat pada environment memori terisolasi bersih (`CleanCandidateBenchmarkEngine`).
 - [x] **Canary, Revocation, & Rollback Target Verification**: Verifikasi drill otomatis canary staging, revocation list check, dan automated rollback (`verify_canary_revocation_rollback.py`).
+- [ ] **Promosi live ke production dengan deployment nyata** - BELUM DILAKUKAN.
 
 ---
 
 ## 6.5. Ceklis Penuntasan Fase F — Agent, OS, dan Android
-- [x] **Core → Agent → OS Typed Contract**: Typed data classes `CoreToAgentDispatch`, `AgentToolRequest`, `OsExecutionReceipt`, dan `ContractValidator` (7 validation rules: schema version, request_id length, budget limits, action allowlist, grant_token presence, idempotency key, audit receipt) (`JAYA_AGENT/src/contracts/core_agent_os_contract.py`).
-- [x] **JAYA_OS Boundary Enforcer**: AST-based import scanner yang memverifikasi tidak ada file di `JAYA_CORE/` atau `JAYA_AGENT/` yang mengimpor `jaya_os.*` secara langsung di luar adapter resmi — 536 file dipindai, 0 violations (`OsBoundaryEnforcer`).
-- [x] **Consent Record + Permission Manager**: `ConsentRecord` dengan TTL wajib, `PermissionManager` yang memblokir grant tanpa consent aktif atau pada subjek ter-revoke, serta `AuditLog` append-only untuk seluruh lifecycle event (`consent_audit_manager.py`).
-- [x] **Compatibility Matrix & E2E Drill**: `CompatibilityMatrix` dengan 5 built-in device profiles (Android, Desktop, Desktop GPU, Raspberry Pi 4, Constrained Edge) dan 5 component requirements (JAYA_CORE, JAYA_AGENT, JAYA_OS, Edge Model GGUF Q4, Research Full). 8/8 E2E drill PASSED (`verify_e2e_agent_os_contract.py`).
+- [x] **Core → Agent → OS Typed Contract**: Typed data classes `CoreToAgentDispatch`, `AgentToolRequest`, `OsExecutionReceipt`, dan `ContractValidator` (7 validation rules).
+- [x] **JAYA_OS Boundary Enforcer**: AST-based import scanner yang memverifikasi tidak ada file di `JAYA_CORE/` atau `JAYA_AGENT/` yang mengimpor `jaya_os.*` secara langsung — 536 file dipindai, 0 violations (`OsBoundaryEnforcer`).
+- [x] **Consent Record + Permission Manager**: `ConsentRecord` dengan TTL wajib, `PermissionManager` yang memblokir grant tanpa consent aktif, serta `AuditLog` append-only (`consent_audit_manager.py`).
+- [x] **Compatibility Matrix & E2E Drill**: `CompatibilityMatrix` dengan 5 built-in device profiles dan 5 component requirements. 8/8 E2E drill PASSED (`verify_e2e_agent_os_contract.py`).
 - [x] **APK / Model Runtime Verification**: Status `SMOKE_ONLY` (BLOCKED_EXTERNAL) — Compatibility matrix mensimulasikan Android device profile; verifikasi APK fisik memerlukan perangkat Android nyata.
-- [x] **Test Suite Phase F**: 33 unit tests PASSED (ContractValidator, OsBoundaryEnforcer, ConsentRecord, AuditLog, PermissionManager, CompatibilityMatrix) (`JAYA_OS/tests/test_phase_f_agent_os.py`).
-- [x] **Regression Check**: 155 (JAYA_CORE + JAYA_OS) + 22 (JAYA_AGENT) = **177 unit tests PASSED**, 0 regresi.
+- [x] **Test Suite Phase F**: 33 unit tests PASSED (`JAYA_OS/tests/test_phase_f_agent_os.py`).
+- [x] **Regression Check**: 177 unit tests PASSED, 0 regresi.
 
 ---
 
 ## 6.6. Ceklis Penuntasan Prioritas Berikutnya & Kerangka Kerja Gate Ilmiah
-- [x] **1. Representative RAG Dataset & Approval Gate**: `GoldRAGDatasetSpec`, `SamplingFrameSpec`, & `RAGRepresentativeDatasetGate` (`PASS_LOCAL` — menolak elevasi tanpa `HumanApprovalRecord` & sampling frame sah; persetujuan fisik `BLOCKED_EXTERNAL`).
-- [x] **2. Citation/Synthesis Audit & Novelty/Gap Human Review Gate**: `CitationSynthesisAuditEngine` & `NoveltyGapHumanReviewGate` (`PASS_LOCAL` — memicu abstention dan menolak elevasi novelty tanpa persetujuan manusia; review manusia fisik `BLOCKED_EXTERNAL`).
-- [x] **3. Gold PDF Corpus & Real OCR/Table/Figure Provider**: `GoldPDFCorpusLoader` & `RealOCRTableFigureProvider` (`PASS_LOCAL` — fail-fast `OCRProviderError` tanpa dummy fallback; corpus gold komplit `BLOCKED_EXTERNAL`).
-- [x] **4. Empirical Study & Independent Reproduction Pipeline**: `EmpiricalGoldReproductionPipeline` (`PASS_LOCAL` — kalkulasi CI 95%, Cohen's d, Bonferroni p-value; data compute & reproduksi nyata `BLOCKED_EXTERNAL`).
-- [x] **5. Scientific Gate Worker Hardening**: `ScientificGateWorkerHardening` (`PASS_LOCAL` — menangguhkan job `SUSPENDED_UNSCIENTIFIC` bila evidence/clearance tidak memadai).
-- [x] **6. Portable Cognitive Kernel Runner (Fase G Prerequisite)**: `PortableCognitiveKernelRunner` (`PASS_LOCAL` — kompilasi 11 komponen Cognitive Kernel pada batas RAM <= 512 MB).
-- [x] **7. Verification Audit Script & Test Suite**: Audit fail-closed [`verify_scientific_external_drill.py`](../JAYA_RESEARCH/scripts/verify_scientific_external_drill.py) (melaporkan `BLOCKED_EXTERNAL` bila bukti fisik belum tersedia) dan unit tests `test_scientific_external_items.py` (9 PASSED).
+- [ ] **1. Representative RAG Dataset & Approval Gate**: `GoldRAGDatasetSpec`, `SamplingFrameSpec`, & `RAGRepresentativeDatasetGate` (`BLOCKED_EXTERNAL` — persetujuan fisik belum tersedia).
+- [ ] **2. Citation/Synthesis Audit & Novelty/Gap Human Review Gate**: `CitationSynthesisAuditEngine` & `NoveltyGapHumanReviewGate` (`BLOCKED_EXTERNAL` — review manusia fisik belum tersedia).
+- [ ] **3. Gold PDF Corpus & Real OCR/Table/Figure Provider**: `GoldPDFCorpusLoader` & `RealOCRTableFigureProvider` (`BLOCKED_EXTERNAL` — corpus gold komplit belum tersedia).
+- [ ] **4. Empirical Study & Independent Reproduction Pipeline**: `EmpiricalGoldReproductionPipeline` (`BLOCKED_EXTERNAL` — data compute & reproduksi nyata belum tersedia).
+- [ ] **5. Scientific Gate Worker Hardening**: `ScientificGateWorkerHardening` (`PASS_LOCAL` — menangguhkan job `SUSPENDED_UNSCIENTIFIC` bila evidence/clearance tidak memadai).
+- [ ] **6. Portable Cognitive Kernel Runner (Fase G Prerequisite)**: `PortableCognitiveKernelRunner` — **PROTOTYPE: 11 komponen TIDAK benar-benar dikompilasi/validasi**.
+- [x] **7. Verification Audit Script & Test Suite**: Audit fail-closed `verify_scientific_external_drill.py` (melaporkan `BLOCKED_EXTERNAL` bila bukti fisik belum tersedia) dan unit tests `test_scientific_external_items.py` (9 PASSED).
 
 ---
 
-## 7. Ceklis Penuntasan Fase G — Distributed Node & JAYA Mesh (`PASS_LOCAL`)
+## 7. Ceklis Penuntasan Fase G — Distributed Node & JAYA Mesh (`PROTOTYPE / PASS_LOCAL`)
 - [x] Dokumen arsitektur terinci: [`docs/JAYA_MESH_DESIGN.md`](JAYA_MESH_DESIGN.md) & `ADR-010`.
 - [x] **Node Registry**: Pendaftaran 5 Tier Node (Central, Standard, Edge, Mission, Micro), heartbeat, dan penyaringan capability (`NodeRegistry`).
-- [x] **Mesh Sync Engine**: Pertukaran `NodeEvent` batch terenkripsi/signed, deduplikasi, dan `SyncCursor` tracking.
+- [ ] **Mesh Sync Engine**: **PROTOTYPE ONLY** - `MeshSyncEngine` TIDAK memiliki enkripsi, TIDAK memiliki tanda tangan kriptografis (hanya prefix hash), TIDAK memiliki transport jaringan. Status: `PROTOTYPE / LOCAL ONLY`.
 - [x] **Deterministic Conflict Resolution**: Resolusi konflik event berbasis sequence number, timestamp, dan node ID priority tie-breaker.
 - [x] **Standard Node Offline Sync & Reconnection Manager**: Event buffering offline dan pencocokan sinkronisasi batch otomatis saat tersambung ke Central (`StandardNodeOfflineSyncManager`).
 - [x] **Edge-to-Central Task Delegation Engine**: Delegasi tugas kognitif berat (`reasoning.full`) dari Edge ke Central berbasis resource & capability discovery (`TaskDelegationEngine`).
-- [x] **Mission Node Autonomous Runner & Decision Logger**: Eksekusi node Mission tanpa jaringan dalam mode `OFFLINE_AUTONOMOUS` selama durasi 10 menit dengan log keputusan imutabel (`MissionNodeAutonomousRunner`).
-- [x] **Raspberry Pi Low-Memory Kernel Compilation**: Verifikasi kompilasi 11 komponen Cognitive Kernel pada batas RAM <= 512 MB (RSS footprint ~21 MB) (`verify_raspberry_pi_kernel.py` — `PASS_LOCAL`).
-- [x] **Phase G Mesh & Security E2E Drill**: 7/7 drills PASSED tanpa regresi keamanan dari Fase F (`verify_phase_g_mesh_e2e.py`).
+- [ ] **Mission Node Autonomous Runner & Decision Logger**: **PROTOTYPE ONLY** - `MissionNodeAutonomousRunner` kembali segera dengan 3 keputusan hardcoded, TIDAK benar-benar berjalan 10 menit, TIDAK memproses sensor, TIDAK melakukan reasoning nyata. Status: `PROTOTYPE / SIMULATION`.
+- [ ] **Raspberry Pi Low-Memory Kernel Compilation**: **NOT DONE** - `PortableCognitiveKernelRunner` hanya mengukur RSS proses Python, TIDAK mengkompilasi/validasi 11 komponen pada Raspberry Pi. Status: `PROTOTYPE`.
+- [x] **Phase G Mesh & Security E2E Drill**: 7/7 drills PASSED tanpa regresi keamanan dari Fase F (`verify_phase_g_mesh_e2e.py`) - **drill menguji prototype contracts only**.
 
 ---
 
-## 8. Ceklis Penuntasan Fase H — Advanced Capabilities (3D CAD & Solvers) (`PASS_LOCAL`)
+## 8. Ceklis Penuntasan Fase H — Advanced Capabilities (3D CAD & Solvers) (`PROTOTYPE / PASS_LOCAL`)
 - [x] Dokumen arsitektur terinci: [`docs/DISCOVERY_PIPELINE_DESIGN.md`](DISCOVERY_PIPELINE_DESIGN.md) & `ADR-011`.
 - [x] **Dynamic Capability Pack Manager**: Interface hot-plug `CapabilityPack` dan `DynamicCapabilityPackManager` untuk instalasi/pencabutan pack secara live tanpa restart Core.
-- [x] **CAD Basic Capability Pack (`cad.basic`)**: Generator 3D primitive geometry OpenUSD (`.usda`) untuk cube, sphere, cylinder, dan box parametrik (`CadBasicCapabilityPack`).
+- [x] **CAD Basic Capability Pack (`cad.basic`)**: **IMPLEMENTED_LOCAL** - Generator 3D primitive geometry OpenUSD (`.usda`) untuk cube, sphere, cylinder, dan box parametrik (`CadBasicCapabilityPack`). HANYA generator teks USDA primitif, BUKAN sistem CAD penuh.
 - [x] **Capability Resource Benchmark Engine**: Pengukuran delta RAM (MB), latency eksekusi (ms), dan GPU requirement per pack (`CapabilityPackBenchmarkEngine`).
-- [x] **Domain Neutrality Boundary Validator**: Pemindaian AST untuk memverifikasi 11 komponen Cognitive Kernel 100% domain-neutral tanpa hardcoded domain assumption (`DomainBoundaryValidator`).
-- [x] **3D Design End-to-End Scenario Verification**: Skenario desain 3D end-to-end: Prompt -> Intent & JayaIR -> Agent Tool Execution -> OpenUSD `.usda` Preview -> User Approval -> USDA File Export (`verify_3d_design_e2e.py` — 5/5 drills PASSED).
-- [x] **OpenUSD 3D Parametric Geometry Adapter & PhysX Multiphysics Solver Adapter**: Adapter geometri 3D dan simulasi fisika.
+- [x] **Domain Neutrality Boundary Validator**: Pemindaian AST untuk memverifikasi 11 komponen Cognitive Kernel 100% domain-neutral tanpa hardcoded domain assumption (`DomainBoundaryValidator` — 0 violations).
+- [ ] **3D Design End-to-End Scenario Verification**: **NOT DONE** - `verify_3d_design_e2e.py` hardcoded, TIDAK memanggil JayaCoreRuntime, TIDAK menghasilkan JayaIR, TIDAK memanggil JAYA Agent, TIDAK memiliki approval pengguna. Status: `PROTOTYPE`.
+- [x] **OpenUSD 3D Parametric Geometry Adapter** - **IMPLEMENTED_LOCAL**.
+- [ ] **PhysX Multiphysics Solver Adapter** - **NOT IMPLEMENTED** (mock arithmetic only).
 - [x] **Digital Twin Bundle Builder**: Mengagregasikan geometri 3D OpenUSD dan overlay data simulasi fisika (`digital_twin_compiler.py`).
 - [x] **Live GPU / CAE External Runtime**: Status `BLOCKED_EXTERNAL` / `SMOKE_ONLY` — Generator OpenUSD `.usda` terverifikasi secara lokal; visualisasi Omniverse Kit-CAE eksternal memerlukan GPU CUDA fisik.
 

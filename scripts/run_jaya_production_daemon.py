@@ -1,8 +1,22 @@
 """
 run_jaya_production_daemon.py — Production Stage System Daemon & Launcher.
 
-Validates environment security, launches Production Health Server,
-initializes Backup & Rollback Manager, and executes JAYA Kernel in Production Mode.
+STATUS: PROTOTYPE / LABEL ONLY
+
+This script is a PROTOTYPE/SCAFFOLD only. It does NOT:
+- Deploy to production environment
+- Perform real security validation
+- Run real health checks against actual components
+- Initialize real backup/rollback systems
+- Run on target hardware
+
+Current implementation:
+- Sets environment variables locally only
+- Starts a basic HTTP server that returns hardcoded "READY"/"ACTIVE" status
+- Prints hardcoded memory footprint (~23.5 MB)
+- Does NOT verify actual kernel or sandbox readiness
+
+MUST NOT be claimed as "production deployment" or "production stage".
 """
 
 from __future__ import annotations
@@ -26,36 +40,37 @@ logger = logging.getLogger("JayaProductionDaemon")
 
 def start_production_daemon(port: int = 8088) -> tuple[ProductionHealthServer, ProductionBackupManager]:
     print("=" * 65)
-    print("      PELUNCUR SYSTEM DAEMON — JAYA PRODUCTION STAGE")
+    print("      PROTOTYPE: JAYA PRODUCTION DAEMON (NOT REAL PRODUCTION)")
     print("=" * 65)
 
-    # 1. Environment & Security Validation
-    os.environ["JAYA_STAGE"] = "PRODUCTION"
-    os.environ["JAYA_STRICT_SANDBOX"] = "true"
-    print("\n1. [SECURITY VALIDATION] Memvalidasi Mode Keamanan Produksi...")
-    print("   -> JAYA_STAGE           : PRODUCTION")
-    print("   -> Strict Sandbox Mode  : ENABLED")
+    # 1. Environment & Security Validation - PROTOTYPE ONLY
+    os.environ["JAYA_STAGE"] = "PROTOTYPE_LABEL_ONLY"
+    os.environ["JAYA_STRICT_SANDBOX"] = "prototype"
+    print("\n1. [PROTOTYPE] Setting local environment variables only...")
+    print("   -> JAYA_STAGE           : PROTOTYPE_LABEL_ONLY (NOT real production)")
+    print("   -> Strict Sandbox Mode  : prototype (NOT real sandbox)")
 
-    # 2. Production Backup & Rollback Manager Initializing
-    print("\n2. [BACKUP & ROLLBACK] Inisialisasi Production Backup Manager...")
+    # 2. Production Backup & Rollback Manager - PROTOTYPE
+    print("\n2. [PROTOTYPE] Initializing backup manager (placeholder)...")
     backup_mgr = ProductionBackupManager()
     print(f"   -> Backup Storage Directory : {backup_mgr.backup_dir}")
 
-    # 3. Production Health Server Initializing
-    print("\n3. [OBSERVABILITY] Meluncurkan Production Health Check Server...")
+    # 3. Production Health Server - PROTOTYPE
+    print("\n3. [PROTOTYPE] Starting basic HTTP server with hardcoded responses...")
     health_server = ProductionHealthServer(port=port)
     health_server.start()
-    print(f"   -> Health Check URL  : {health_server.url}/health")
-    print(f"   -> Metrics Endpoint  : {health_server.url}/metrics")
+    print(f"   -> Health Check URL  : {health_server.url}/health (returns hardcoded READY)")
+    print(f"   -> Metrics Endpoint  : {health_server.url}/metrics (basic process metrics)")
 
-    # 4. Portable Cognitive Kernel Launch
-    print("\n4. [JAYA CORE KERNEL] Menjalankan Portable Cognitive Kernel...")
+    # 4. Portable Cognitive Kernel - PROTOTYPE
+    print("\n4. [PROTOTYPE] Running PortableCognitiveKernelRunner (scaffold only)...")
     kernel = PortableCognitiveKernelRunner()
-    print(f"   -> Kernel Status     : {kernel.status['status']}")
-    print(f"   -> Memory Footprint  : ~23.5 MB RSS")
+    print(f"   -> Kernel Status     : {kernel.status['status'] if hasattr(kernel, 'status') else 'PROTOTYPE_SCAFFOLD'}")
+    print(f"   -> Memory Footprint  : ~23.5 MB RSS (HARDCODED PLACEHOLDER)")
 
     print("\n" + "=" * 65)
-    print(f"   SUKSES: JAYA DEPLOYED IN PRODUCTION STAGE (HEALTH: {health_server.url}/health)")
+    print(f"   PROTOTYPE RUNNING: JAYA PROTOTYPE DAEMON (HEALTH: {health_server.url}/health)")
+    print("   WARNING: THIS IS NOT A REAL PRODUCTION DEPLOYMENT")
     print("=" * 65)
 
     return health_server, backup_mgr

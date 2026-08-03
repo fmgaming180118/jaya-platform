@@ -7,7 +7,7 @@ import logging
 from typing import Any, Dict, Optional
 
 import requests
-from protection.filters import is_domain_allowed
+from JAYA_CORE.src.protection.filters import is_domain_allowed
 
 logger = logging.getLogger(__name__)
 

@@ -1,5 +1,7 @@
 """
 test_solver_adapters.py — Unit tests for OpenUSD & Physics Solver Adapters & Digital Twin Builder.
+
+STATUS: PhysX test updated to verify PROTOTYPE behavior (mock arithmetic only).
 """
 
 from __future__ import annotations
@@ -35,18 +37,22 @@ class TestSolverAdapters:
         assert len(out.output_files) == 1
         assert "minipc_case.usda" in out.output_files[0]
 
-    def test_physx_solver_adapter(self):
+    def test_physx_solver_adapter_prototype(self):
+        """Verify PhysXSolverAdapter returns PROTOTYPE_MOCK status (not SUCCESS)."""
         adapter = PhysXSolverAdapter()
         inp = SolverInput(
             solver_name="PhysXSolverAdapter",
-            domain="physics.multiphysics",
+            domain="physics.multiphysics.prototype",
             parameters={"mass_kg": 10.0, "applied_force_n": 500.0},
         )
         out = adapter.solve(inp)
 
-        assert out.status == "SUCCESS"
+        # PROTOTYPE: Should return PROTOTYPE_MOCK, not SUCCESS
+        assert out.status == "PROTOTYPE_MOCK"
         assert out.metrics["calculated_acceleration_m_s2"] == 50.0
         assert "estimated_max_stress_mpa" in out.metrics
+        assert "warning" in out.metrics
+        assert "MOCK CALCULATIONS ONLY" in out.metrics["warning"]
 
     def test_digital_twin_builder(self):
         openusd = OpenUSDGeometryAdapter()
@@ -62,7 +68,7 @@ class TestSolverAdapters:
 
         inp_phys = SolverInput(
             solver_name="PhysXSolverAdapter",
-            domain="physics.multiphysics",
+            domain="physics.multiphysics.prototype",
             parameters={"mass_kg": 2.0, "applied_force_n": 50.0},
         )
         out_phys = physx.solve(inp_phys)

@@ -6,8 +6,8 @@ Implements hierarchy: Local -> LAN -> Internet (with fallback)
 import logging
 from typing import Any, Dict, Optional
 
-from protection.filters import filter_inbound, sanitize_outbound
-from soul.value_scoring import evaluate_intent_value
+from JAYA_CORE.src.protection.filters import filter_inbound, sanitize_outbound
+from JAYA_CORE.src.soul.value_scoring import evaluate_intent_value
 
 from .lan_sync_client import LANSyncClient
 from .local_llm_adapter import LocalLLMAdapter

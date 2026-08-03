@@ -1,7 +1,10 @@
 # Status Implementasi
 
-**Snapshot:** 2 Agustus 2026
+**Snapshot:** 2 Agustus 2026 (KOREKSI SETELAH AUDIT REALISASI)
 **Fokus:** membedakan bukti software lokal dari bukti mutu ilmiah dan produksi
+
+**PERINGATAN: Status sebelumnya mengklaim tingkat kematangan yang tidak didukung oleh kode.**
+**Dokumen ini telah dikoreksi untuk mencerminkan kondisi AKTUAL kode (bukan aspirasi).**
 
 Dokumen ini adalah dashboard kondisi aktual. Urutan pengerjaan berada di
 [ROADMAP.md](ROADMAP.md), sedangkan gate ilmiah Phase A berada di
@@ -28,7 +31,7 @@ Label bukti yang dipakai bersama status kematangan:
 | `BLOCKED_EXTERNAL` | Bukti memerlukan corpus, provider, reviewer, approval, compute, atau perangkat nyata |
 | `SMOKE_ONLY` | Fixture kecil untuk memeriksa wiring/kontrak; bukan benchmark kualitas |
 
-## Dashboard aktual
+## Dashboard aktual (KOREKSI)
 
 ### CEL Pipeline Status (Area Utama)
 
@@ -63,13 +66,26 @@ Label bukti yang dipakai bersama status kematangan:
 | Dokumentasi dan monorepo | VERIFIED | Dokumen kanonis di root, satu Git root, validator tersedia | Disiplin pembaruan pada setiap perubahan |
 | API Research Phase A | IMPLEMENTED / PASS_LOCAL | Suite API+E2E `100 passed` | Deployment, observability, dan provider nyata belum diverifikasi |
 | Knowledge graph | IMPLEMENTED | Graph dan tes komponen tersedia | Skala, migrasi schema, dan kualitas retrieval dunia nyata |
-| Auto-finetune/LoRA | PROTOTYPE / BLOCKED_EXTERNAL | Boundary kandidat dan artefak lokal tersedia | Dataset, training, compute, evaluasi holdout, model card, approval nyata |
-| JAYA Core reasoning/JayaIR | IMPLEMENTED | Source, tes unit, readiness contract, dan gate artefak tersedia | Model target final dan benchmark hardware |
+| Auto-finetune/LoRA | **PROTOTYPE / NOT_IMPLEMENTED** | `EdgeLoRATrainer` hanya placeholder, TIDAK training nyata | Dataset, training, compute, evaluasi holdout, model card, approval nyata |
+| JAYA Core reasoning/JayaIR | IMPLEMENTED | Source, tes unit, readiness contract, dan gate artefak tersedia | **Model kognitif nyata BELUM terintegrasi** (hanya rule-based/keyword) |
 | JAYA Agent | PROTOTYPE | API/tool boundary dan tes komponen tersedia | E2E dengan provider dan environment produksi |
 | JAYA OS | PROTOTYPE | Capability sandbox dan runtime komponen tersedia | Ownership kernel legacy dan deployment target |
 | JAYA Android | PROTOTYPE | Proyek, unit test, dan kontrol konfigurasi tersedia | Build APK, model, sync, dan perangkat fisik `BLOCKED_EXTERNAL` |
 
-## Bukti audit aktif — 1 Agustus 2026
+### Komponen Kritis - Status Realisasi (KOREKSI)
+
+| Komponen | Status Sebelumnya | Status Aktual | Bukti |
+|---|---|---|---|
+| `EdgeLoRATrainer` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / NOT_IMPLEMENTED** | Hanya membuat file placeholder, loss hardcode 0.042, TIDAK ada forward/backward pass |
+| `PhysXSolverAdapter` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / MOCK** | Hanya aritmetika `force/mass`, komentar "mock FEA stress estimation" |
+| `MeshSyncEngine` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / LOCAL ONLY** | Tidak ada crypto/enkripsi, signature hanya prefix hash, tidak ada network transport |
+| `MissionNodeAutonomousRunner` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / SIMULATION** | Kembali segera dengan 3 keputusan hardcoded, tidak benar-benar 10 menit |
+| `PortableCognitiveKernelRunner` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / SCAFFOLD** | Hanya mengukur RSS proses Python, 11 komponen hardcoded "READY" |
+| `run_jaya_production_daemon.py` | PRODUCTION | **PROTOTYPE / LABEL ONLY** | Set env var lokal, health server hardcoded "READY", memory hardcoded |
+| `verify_3d_design_e2e.py` | COMPLETE / VERIFIED | **PROTOTYPE** | Hardcoded, tidak memanggil Core/Agent/JayaIR, tidak ada approval user |
+| `CadBasicCapabilityPack` | COMPLETE | **IMPLEMENTED_LOCAL** | Generator teks USDA primitif saja, bukan sistem CAD penuh |
+
+## Bukti audit aktif — 1 Agustus 2026 (Dikoreksi 2 Agustus 2026)
 
 - Suite Research offline: `352 passed, 11 deselected`.
 - Acceptance suite Phase A terarah: `194 passed`.
@@ -96,9 +112,9 @@ Label bukti yang dipakai bersama status kematangan:
   sebagai `PASS_LOCAL`, sedangkan kesiapan ilmiah Phase A tetap
   `BLOCKED_EXTERNAL`.
 
-Angka tes adalah snapshot dari working tree lokal, bukan pengganti CI bersih.
-Setiap klaim baru wajib menyertakan command, commit, konfigurasi, environment,
-dan artefak hasil yang dapat diulang.
+**KOREKSI PENTING:** Angka tes di atas adalah snapshot dari working tree lokal,
+bukan pengganti CI bersih. **Status "COMPLETE"/"VERIFIED"/"PRODUCTION" pada
+dokumen sebelumnya TIDAK VALID karena tidak didukung implementasi nyata.**
 
 ## Keputusan Phase A
 
@@ -122,11 +138,53 @@ dan artefak hasil yang dapat diulang.
 Nilai dari fixture sintetis, output LLM, persona ahli, self-score, atau simulasi
 tidak boleh diberi label representatif, empiris, verified, atau promotable.
 
-### P0 — dataset representatif belum tersedia
+### P0 — Status dokumen tidak konsisten dengan kode (ARCHITECTURE THEATRE)
 
-Sampling frame, lisensi/provenance, label relevansi, reviewer, serta approval
-dataset belum tersedia. Target QA 85% tetap merupakan exit gate, bukan hasil
-yang sudah dicapai.
+Dokumen ROADMAP.md, COMPLETED_PHASES_CHECKLIST.md, dan script verifikasi
+mengklaim fase "COMPLETE"/"VERIFIED" sedangkan implementasi nyata adalah
+PROTOTYPE/SCAFFOLD/MOCK. **Ini adalah risiko integritas proyek tertinggi.**
+
+### P0 — Otak JAYA masih rule-based/keyword
+
+`IntentEngine` menggunakan n-gram + TF-IDF (bukan model kognitif). Planner
+menggunakan template hardcoded. Model default hanya menghasilkan kalimat statis.
+`ModelRouter` hanya mendaftarkan model rule-based. **Tidak ada model kognitif nyata terintegrasi.**
+
+### P0 — LoRA training palsu
+
+`EdgeLoRATrainer` tidak melakukan training. Menulis string placeholder ke file,
+loss hardcode 0.042, label `EMPIRICAL_RESULT` palsu. Tes hanya memeriksa file
+ada, bukan model/optimizer/forward pass.
+
+### P0 — PhysX/Multiphysics palsu
+
+`PhysXSolverAdapter` tidak memanggil PhysX. Hanya `force/mass` dan rumus mock.
+Komentar source: "mock FEA stress estimation". Checklist menyebut "PhysX multiphysics solver".
+
+### P0 — Mesh "terenkripsi/ditandatangani" palsu
+
+`MeshSyncEngine` tidak punya crypto. Signature hanya prefix hash. Verifikasi
+hanya cek prefix. Tidak ada enkripsi. Docstring: "Encrypted / Signed Mesh".
+
+### P0 — Autonomous mission simulasi nama
+
+`MissionNodeAutonomousRunner` tidak jalan 10 menit. 3 keputusan hardcoded,
+langsung return, durasi simulasi 600 detik hardcoded.
+
+### P0 — Verifikasi 3D tidak end-to-end
+
+`verify_3d_design_e2e.py` tidak pakai Core/Agent/JayaIR. Hardcoded panggil
+`cad.basic.create_box` langsung. Preview cek string `#usda 1.0`. Tidak ada approval.
+
+### P0 — Production hanya label
+
+`run_jaya_production_daemon.py` set env var sendiri, health server hardcoded
+"READY"/"ACTIVE", memory hardcoded "~23.5 MB". Tidak ada readiness probe nyata.
+
+### P0 — Portable kernel hanya status READY
+
+`PortableCognitiveKernelRunner` tidak kompilasi 11 komponen. Baca RAM proses
+Python, hardcoded dictionary semua "READY". Belum dijalankan di Raspberry Pi.
 
 ### P1 — dependency eksternal
 

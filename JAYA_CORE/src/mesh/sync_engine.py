@@ -1,5 +1,21 @@
 """
-sync_engine.py — Encrypted / Signed Mesh Event Sync & Deterministic Conflict Resolution.
+sync_engine.py — Mesh Event Sync & Deterministic Conflict Resolution.
+
+STATUS: PROTOTYPE / LOCAL ONLY
+
+This module is a PROTOTYPE/SCAFFOLD only. It does NOT provide:
+- Real cryptographic signatures (no private/public keys, HMAC, certificates)
+- Real encryption (no encryption at all)
+- Network transport (local in-memory only)
+- Secure distributed mesh
+
+Current implementation:
+- Creates deterministic hash-based "signatures" (NOT cryptographic)
+- Only verifies signature prefix format (trivial check)
+- No actual signature verification or sender authentication
+- Local event log only, no network sync
+
+MUST NOT be claimed as "encrypted/signed mesh" or secure distributed system.
 """
 
 from __future__ import annotations
@@ -19,7 +35,7 @@ class SyncBatch:
     target_node_id: str
     events: List[NodeEvent]
     cursor: SyncCursor
-    batch_signature: str
+    batch_signature: str  # PROTOTYPE: hash-based prefix only, NOT cryptographic
 
     def to_dict(self) -> dict:
         return {
@@ -36,16 +52,33 @@ class SyncBatch:
 
 
 class MeshSyncEngine:
-    """Synchronizes events across JAYA Mesh nodes with deterministic conflict resolution."""
+    """
+    Mesh event synchronization - CURRENTLY A PROTOTYPE/SCAFFOLD.
+    
+    Does NOT provide:
+    - Cryptographic signatures (no keys, no verification)
+    - Encryption (none)
+    - Network transport (local only)
+    - Secure distributed consensus
+    
+    Only provides:
+    - Local event log management
+    - Deterministic conflict resolution (sequence/timestamp/node_id)
+    - Placeholder signature format for contract testing
+    """
 
     def __init__(self, local_node_id: str, local_event_log: AppendOnlyEventLog) -> None:
         self.local_node_id = local_node_id
         self.event_log = local_event_log
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning("MeshSyncEngine initialized - THIS IS A PROTOTYPE: no crypto, no encryption, no network transport")
 
     def create_sync_batch(self, target_node_id: str, last_known_seq: int = 0) -> SyncBatch:
         events = self.event_log.get_events_since(last_known_seq)
         cursor = self.event_log.get_cursor()
 
+        # PROTOTYPE: Deterministic hash prefix - NOT a cryptographic signature
         raw_payload = f"{self.local_node_id}:{target_node_id}:{len(events)}:{cursor.last_sequence_number}"
         signature = f"sig-sha256-{hashlib.sha256(raw_payload.encode('utf-8')).hexdigest()[:16]}"
 
@@ -62,9 +95,16 @@ class MeshSyncEngine:
         appended = 0
         skipped = 0
 
-        # Verify signature prefix
+        # PROTOTYPE: Only checks signature prefix format - NO actual verification
         if not batch.batch_signature.startswith("sig-sha256-"):
-            raise ValueError(f"Invalid batch signature: {batch.batch_signature}")
+            raise ValueError(f"Invalid batch signature format: {batch.batch_signature}")
+
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "MeshSyncEngine.receive_sync_batch() - PROTOTYPE: Only verifying signature prefix format. "
+            "NO cryptographic verification, NO sender authentication."
+        )
 
         for event in batch.events:
             success = self.event_log.append_raw(event)

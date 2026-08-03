@@ -1,5 +1,17 @@
 """
-lora_trainer.py — Edge LoRA Fine-Tuning Engine with Strict Empirical vs Simulation Separation.
+lora_trainer.py — Edge LoRA Fine-Tuning Engine.
+
+STATUS: PROTOTYPE / NOT IMPLEMENTED
+
+This module is a PLACEHOLDER/SCAFFOLD only. It does NOT perform actual LoRA training.
+Real LoRA training requires:
+- PyTorch/transformers/peft dependencies
+- GPU compute
+- Actual model loading, forward/backward passes, optimizer steps
+- Holdout evaluation
+
+Current implementation only creates a deterministic placeholder file for testing
+contract wiring. It MUST NOT be used for production or claimed as empirical training.
 """
 
 from __future__ import annotations
@@ -25,7 +37,7 @@ class LoRATrainingConfig:
     batch_size: int = 4
     epochs: int = 1
     output_dir: str = "/tmp/lora_adapters"
-    is_simulation: bool = False
+    is_simulation: bool = True  # DEFAULT TO TRUE - this is a prototype
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -34,26 +46,37 @@ class LoRATrainingConfig:
 @dataclass
 class LoRATrainingResult:
     adapter_id: str
-    status: str  # "COMPLETED", "FAILED"
+    status: str  # "COMPLETED", "FAILED", "NOT_IMPLEMENTED"
     final_loss: float
     execution_time_sec: float
     dataset_hash: str
     weights_sha256: str
-    provenance_type: str  # "EMPIRICAL_RESULT" or "SIMULATION"
+    provenance_type: str  # "EMPIRICAL_RESULT" or "SIMULATION" or "NOT_IMPLEMENTED"
     is_simulation: bool
     output_adapter_path: str
+    error_message: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 class EdgeLoRATrainer:
-    """Executes LoRA adapter fine-tuning for Edge models with strict empirical provenance rules."""
+    """
+    LoRA training adapter - CURRENTLY A PROTOTYPE/SCAFFOLD.
+    
+    Does NOT perform actual model training. Only creates placeholder artifacts
+    for contract testing. Real implementation requires ML framework integration.
+    """
 
     def __init__(self, target_platform: str = "win32") -> None:
         self.target_platform = target_platform
+        logger.warning("EdgeLoRATrainer initialized - THIS IS A PROTOTYPE, NOT REAL TRAINING")
 
     def train(self, config: LoRATrainingConfig, dataset_bytes: bytes) -> LoRATrainingResult:
+        """
+        PROTOTYPE: Creates a deterministic placeholder file only.
+        Does NOT load model, compute gradients, update weights, or evaluate.
+        """
         start_time = time.time()
         dataset_hash = hashlib.sha256(dataset_bytes).hexdigest()
 
@@ -62,48 +85,39 @@ class EdgeLoRATrainer:
         adapter_filename = f"{adapter_id}.bin"
         adapter_path = os.path.join(config.output_dir, adapter_filename)
 
-        # Generate deterministic weights content based on base_id + dataset_hash
-        weights_content = f"LORA_WEIGHTS_BASE_{config.model_base_id}_HASH_{dataset_hash}_R{config.r}".encode("utf-8")
+        # PLACEHOLDER: This is NOT real LoRA weights - just a deterministic string
+        weights_content = f"LORA_PLACEHOLDER_BASE_{config.model_base_id}_HASH_{dataset_hash}_R{config.r}_PROTOTYPE".encode("utf-8")
         with open(adapter_path, "wb") as f:
             f.write(weights_content)
 
         weights_sha256 = hashlib.sha256(weights_content).hexdigest()
         exec_time = time.time() - start_time
 
-        provenance_type = "SIMULATION" if config.is_simulation else "EMPIRICAL_RESULT"
-        logger.info(
-            "Completed LoRA training %s (base=%s, provenance=%s, weights_hash=%s)",
+        # ALWAYS mark as SIMULATION/NOT_IMPLEMENTED since no real training occurs
+        provenance_type = "NOT_IMPLEMENTED"
+        logger.warning(
+            "EdgeLoRATrainer.train() called - RETURNING PLACEHOLDER (no real training performed). "
+            "adapter_id=%s, provenance=%s",
             adapter_id,
-            config.model_base_id,
             provenance_type,
-            weights_sha256[:8],
         )
 
         return LoRATrainingResult(
             adapter_id=adapter_id,
-            status="COMPLETED",
-            final_loss=0.042,
+            status="NOT_IMPLEMENTED",
+            final_loss=0.0,
             execution_time_sec=round(exec_time, 4),
             dataset_hash=dataset_hash,
             weights_sha256=weights_sha256,
             provenance_type=provenance_type,
-            is_simulation=config.is_simulation,
+            is_simulation=True,
             output_adapter_path=adapter_path,
+            error_message="LoRA training not implemented - this is a prototype scaffold only",
         )
 
     def can_promote_to_production(self, result: LoRATrainingResult) -> Tuple[bool, str]:
         """Validates whether a LoRA training result can be promoted to candidate registry."""
-        if result.is_simulation or result.provenance_type == "SIMULATION":
-            reason = "SIMULATION labeled adapters are strictly forbidden from production promotion (AGENTS.md Candidate Rule)"
-            logger.warning("Promotion rejected for %s: %s", result.adapter_id, reason)
-            return False, reason
-
-        if result.status != "COMPLETED":
-            reason = f"Training status is '{result.status}', expected 'COMPLETED'"
-            return False, reason
-
-        if not result.weights_sha256 or not result.dataset_hash:
-            reason = "Missing cryptographic dataset_hash or weights_sha256 provenance"
-            return False, reason
-
-        return True, "Empirical LoRA adapter verified for candidate staging"
+        # NEVER allow promotion from prototype
+        reason = "LoRA training not implemented (prototype only) - cannot promote to production"
+        logger.warning("Promotion rejected for %s: %s", result.adapter_id, reason)
+        return False, reason

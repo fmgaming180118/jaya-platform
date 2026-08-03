@@ -1,5 +1,7 @@
 """
 test_phase_g_mesh.py — Unit tests for Phase G: Distributed Node & JAYA Mesh.
+
+STATUS: MissionNodeAutonomousRunner test updated to verify PROTOTYPE behavior.
 """
 
 from __future__ import annotations
@@ -94,16 +96,19 @@ class TestTaskDelegationEngine:
 
 
 class TestMissionNodeAutonomousRunner:
-    def test_mission_node_runs_10min_autonomous_window(self):
+    def test_mission_node_prototype_returns_simulation(self):
+        """Verify MissionNodeAutonomousRunner returns PROTOTYPE_SIMULATION (not real 10-min run)."""
         log = AppendOnlyEventLog()
         runner = MissionNodeAutonomousRunner("mission-node-77", log)
 
         report = runner.run_mission_window("mission-op-77", simulated_duration_seconds=600.0)
 
-        assert report.status == "OFFLINE_AUTONOMOUS_SUCCESS"
-        assert report.total_duration_seconds == 600.0
-        assert report.decisions_count >= 3
+        # PROTOTYPE: Returns immediately with hardcoded decisions, NOT real 10-min run
+        assert report.status == "PROTOTYPE_SIMULATION"
+        assert report.total_duration_seconds == 600.0  # Simulated duration
+        assert report.decisions_count == 3  # 3 hardcoded decisions
         assert report.is_network_isolated is True
+        assert report.operation_mode == "OFFLINE_AUTONOMOUS_PROTOTYPE"
         assert log.get_cursor().last_sequence_number >= 3
 
 
