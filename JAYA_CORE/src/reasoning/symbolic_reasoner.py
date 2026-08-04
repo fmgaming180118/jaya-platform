@@ -21,18 +21,23 @@ from JAYA_CORE.src.cognitive.contracts import (
     RiskClass,
     Constraint,
     CapabilityRequirement,
+    ResourceBudget,
 )
+from JAYA_CORE.src.capabilities.registry import CapabilityRegistry
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ConstraintViolation:
+class ConstraintViolation(Exception):
     """Represents a constraint violation."""
     constraint_name: str
     message: str
     severity: str = "error"  # "error" or "warning"
     details: Dict[str, Any] = field(default_factory=dict)
+    
+    def __str__(self):
+        return f"ConstraintViolation({self.constraint_name}): {self.message}"
 
 
 @dataclass
@@ -43,6 +48,21 @@ class VerificationResult:
     warnings: List[str] = field(default_factory=list)
 
 
+class ResourceProfile:
+    """Resource profile for constraint checking."""
+    def __init__(
+        self,
+        max_memory_mb: int = 512,
+        max_duration_seconds: int = 300,
+        allow_network: bool = True,
+        allow_remote_offload: bool = True,
+    ):
+        self.max_memory_mb = max_memory_mb
+        self.max_duration_seconds = max_duration_seconds
+        self.allow_network = allow_network
+        self.allow_remote_offload = allow_remote_offload
+
+
 class ConstraintSolver:
     """
     Constraint Solver for checking hard and soft constraints.
@@ -50,31 +70,37 @@ class ConstraintSolver:
     Real implementation - no mocks.
     """
     
-    def __init__(self):
+    def __init__(
+        self,
+        resource_profile: ResourceProfile = None,
+        capability_registry: CapabilityRegistry = None,
+    ):
         self.constraints: Dict[str, Constraint] = {}
+        self.resource_profile = resource_profile or ResourceProfile()
+        self.capability_registry = capability_registry or CapabilityRegistry()
         self._register_default_constraints()
     
     def _register_default_constraints(self):
-        """Register default system constraints."""
-        # Resource constraints
+        """Register default system constraints from resource profile."""
+        # Resource constraints from profile
         self.add_constraint(Constraint(
             name="max_memory_mb",
-            value=512,
+            value=self.resource_profile.max_memory_mb,
             is_hard_constraint=True,
         ))
         self.add_constraint(Constraint(
             name="max_duration_seconds",
-            value=300,
+            value=self.resource_profile.max_duration_seconds,
             is_hard_constraint=True,
         ))
         self.add_constraint(Constraint(
             name="allow_network",
-            value=True,
+            value=self.resource_profile.allow_network,
             is_hard_constraint=False,
         ))
         self.add_constraint(Constraint(
             name="allow_remote_offload",
-            value=True,
+            value=self.resource_profile.allow_remote_offload,
             is_hard_constraint=False,
         ))
         
@@ -128,23 +154,23 @@ class ConstraintSolver:
                         details={"capability": cap}
                     ))
         
-        # Check resource limits
+        # Check resource limits from resource profile
         if hasattr(ir, 'resource_budget'):
             budget = ir.resource_budget
-            if budget.max_memory_mb > 512:
+            if budget.max_memory_mb > self.resource_profile.max_memory_mb:
                 violations.append(ConstraintViolation(
                     constraint_name="max_memory_mb",
-                    message=f"Memory budget exceeds limit: {budget.max_memory_mb}MB > 512MB",
+                    message=f"Memory budget exceeds limit: {budget.max_memory_mb}MB > {self.resource_profile.max_memory_mb}MB",
                     severity="error",
-                    details={"requested": budget.max_memory_mb, "limit": 512}
+                    details={"requested": budget.max_memory_mb, "limit": self.resource_profile.max_memory_mb}
                 ))
             
-            if budget.max_duration_seconds > 300:
+            if budget.max_duration_seconds > self.resource_profile.max_duration_seconds:
                 violations.append(ConstraintViolation(
                     constraint_name="max_duration_seconds",
-                    message=f"Duration budget exceeds limit: {budget.max_duration_seconds}s > 300s",
+                    message=f"Duration budget exceeds limit: {budget.max_duration_seconds}s > {self.resource_profile.max_duration_seconds}s",
                     severity="error",
-                    details={"requested": budget.max_duration_seconds, "limit": 300}
+                    details={"requested": budget.max_duration_seconds, "limit": self.resource_profile.max_duration_seconds}
                 ))
         
         # Check destructive actions require approval
@@ -161,20 +187,32 @@ class ConstraintSolver:
         return violations
     
     def _is_capability_available(self, capability: str, context: Dict[str, Any]) -> bool:
-        """Check if a capability is available."""
-        # In real implementation, this would check capability registry
-        # For now, return True for known capabilities
-        known_capabilities = {
-            "text.reasoning.basic",
-            "cad.parametric_modeling",
-            "system.file.read",
-            "system.file.write",
-            "device.control",
-            "memory.read",
-            "memory.write",
-            "web.search",
-        }
-        return capability in known_capabilities
+        """Check if a capability is available via CapabilityRegistry."""
+        # Check registry
+        manifest = self.capability_registry.lookup(capability)
+        if manifest is None:
+            logger.warning("Capability not in registry: %s", capability)
+            return False
+        
+        # Check health status
+        if manifest.health_status != "HEALTHY":
+            logger.warning("Capability unhealthy: %s (status: %s)", capability, manifest.health_status)
+            return False
+        
+        # Check memory availability
+        memory_available = context.get("memory_available_mb", self.resource_profile.max_memory_mb)
+        if manifest.min_memory_mb > memory_available:
+            logger.warning("Capability %s requires %dMB, only %dMB available", 
+                          capability, manifest.min_memory_mb, memory_available)
+            return False
+        
+        # Check online/offline
+        is_online = context.get("is_online", True)
+        if not is_online and not manifest.offline_available:
+            logger.warning("Capability %s not available offline", capability)
+            return False
+        
+        return True
 
 
 class LogicEngine:
@@ -484,12 +522,20 @@ class SymbolicReasoner:
         }
 
 
-def create_symbolic_reasoner() -> SymbolicReasoner:
+def create_symbolic_reasoner(
+    resource_profile: ResourceProfile = None,
+    capability_registry: CapabilityRegistry = None,
+) -> SymbolicReasoner:
     """Factory function to create SymbolicReasoner with default components."""
     from JAYA_CORE.src.cognitive.planner import GenericHierarchicalPlanner
+    
+    constraint_solver = ConstraintSolver(
+        resource_profile=resource_profile,
+        capability_registry=capability_registry,
+    )
     
     return SymbolicReasoner(
         htn_planner=GenericHierarchicalPlanner(),
         logic_engine=LogicEngine(),
-        constraint_solver=ConstraintSolver(),
+        constraint_solver=constraint_solver,
     )

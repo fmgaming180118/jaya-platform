@@ -36,6 +36,26 @@ class IntentEngine:
             if "gpu_dimension" not in context_dict and "gpu" not in p_lower:
                 missing.append("gpu_dimension")
 
+        elif "eksekusi kode" in p_lower or "jalankan kode" in p_lower or "run code" in p_lower:
+            intent_type = IntentType.WRITE_CODE
+            domain = "software_engineering"
+            entities["language"] = "python" if "python" in p_lower else "general"
+
+        elif "buat rencana" in p_lower or "buatkan rencana" in p_lower or "rapikan" in p_lower or "susun" in p_lower:
+            intent_type = IntentType.CREATE_PLAN
+            domain = "planning"
+            # Extract topic and duration from input
+            import re
+            # Look for "belajar X" or "rencana X" or "buat rencana X"
+            match = re.search(r'(?:belajar|rencana|buat rencana|buatkan rencana)\s+(\w+(?:\s+\w+)*)', p_lower)
+            if match:
+                entities["topic"] = match.group(1)
+            
+            # Extract duration
+            duration_match = re.search(r'(\d+\s*(?:hari|minggu|bulan|tahun))', p_lower)
+            if duration_match:
+                entities["duration"] = duration_match.group(1)
+
         elif "program" in p_lower or "kode" in p_lower or "script" in p_lower or "python" in p_lower:
             intent_type = IntentType.WRITE_CODE
             domain = "software_engineering"
@@ -49,17 +69,15 @@ class IntentEngine:
             intent_type = IntentType.MANAGE_MEMORY
             domain = "memory"
 
-        elif "buat rencana" in p_lower or "rapikan" in p_lower or "susun" in p_lower:
-            intent_type = IntentType.CREATE_PLAN
-            domain = "planning"
-
-        elif "siapa" in p_lower or "apa" in p_lower or "bagaimana" in p_lower or "jelaskan" in p_lower:
+        elif "siapa" in p_lower or "apa" in p_lower or "bagaimana" in p_lower or "jelaskan" in p_lower or "cari tahu" in p_lower:
             intent_type = IntentType.ASK_INFORMATION
             domain = "general"
 
         else:
             intent_type = IntentType.EXECUTE_TASK
             domain = "general"
+            # Low confidence for unrecognized input
+            confidence = 0.3
 
         clarification = len(missing) > 0 and intent_type == IntentType.CREATE_3D_DESIGN
 
@@ -67,7 +85,7 @@ class IntentEngine:
             intent_id=intent_id,
             intent_type=intent_type,
             domain=domain,
-            confidence=0.9 if intent_type != IntentType.UNKNOWN else 0.4,
+            confidence=confidence if 'confidence' in locals() else (0.9 if intent_type != IntentType.UNKNOWN else 0.4),
             extracted_entities=entities,
             missing_context=missing,
             clarification_required=clarification,

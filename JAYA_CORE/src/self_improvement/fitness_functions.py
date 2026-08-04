@@ -394,11 +394,10 @@ def create_real_fitness_function(
             if custom_weights:
                 # Compute individual scores
                 scores = {}
-                registry = get_fitness_registry()
                 for name in ["task_success", "latency", "error_rate", "user_satisfaction", "memory_efficiency", "throughput"]:
                     fn = registry.get(name)
                     if fn:
-                        scores[name] = fn({**collected, **params})
+                        scores[name] = fn(merged_params)
                 
                 # Apply custom weights
                 weights = custom_weights or {
@@ -411,11 +410,14 @@ def create_real_fitness_function(
                 }
                 return sum(weights.get(k, 0) * scores.get(k, 0) for k in weights)
             else:
-                return registry.get("composite")({**collected, **params})
+                fn = registry.get("composite")
+                if fn:
+                    return fn(merged_params)
+                return 0.5
         else:
             fn = registry.get(metric_name)
             if fn:
-                return fn({**collected, **params})
+                return fn(merged_params)
             return 0.5
     
     return fitness_fn

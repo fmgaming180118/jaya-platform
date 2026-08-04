@@ -122,13 +122,17 @@ class TinyNeuralNet(nn.Module):
         Forward pass.
         
         Args:
-            input_ids: [batch_size, seq_len] token IDs
+            input_ids: [batch_size, seq_len] token IDs (or [batch, 2, seq_len] for rerank)
             attention_mask: [batch_size, seq_len] attention mask (1 = attend, 0 = pad)
             task: One of "embed", "classify", "rerank"
             
         Returns:
             Task-specific output tensor
         """
+        # Handle 3D input for rerank task first
+        if task == "rerank" and input_ids.dim() == 3:
+            return self._forward_rerank(input_ids, attention_mask)
+        
         batch_size, seq_len = input_ids.shape
         
         # Embedding + positional encoding
@@ -158,39 +162,35 @@ class TinyNeuralNet(nn.Module):
             # Use CLS token for classification
             cls_token = x[:, 0, :]  # [batch, d_model]
             return self.classifier_head(cls_token)  # [batch, n_classes]
-            
-        elif task == "rerank":
-            # Expect input shape: [batch, 2, seq_len] for query-candidate pairs
-            # Reshape: [batch*2, seq_len] -> encode -> [batch, 2, d_model] -> concat -> rerank
-            if input_ids.dim() == 3:
-                batch, pair, seq = input_ids.shape
-                input_ids = input_ids.view(batch * 2, seq)
-                if attention_mask is not None:
-                    attention_mask = attention_mask.view(batch * 2, seq)
-                
-                # Re-run forward for paired input
-                x = self.embedding(input_ids)
-                x = x + self.pos_encoding[:, :input_ids.size(1), :]
-                x = self.dropout(x)
-                
-                if attention_mask is not None:
-                    src_key_padding_mask = (attention_mask == 0)
-                else:
-                    src_key_padding_mask = None
-                
-                x = self.encoder(x, src_key_padding_mask=src_key_padding_mask)
-                x = self.ln_final(x)
-                
-                # Use CLS tokens
-                cls_tokens = x[:, 0, :].view(-1, 2, x.size(-1))  # [batch, 2, d_model]
-                # Concatenate query and candidate representations
-                combined = torch.cat([cls_tokens[:, 0], cls_tokens[:, 1]], dim=-1)  # [batch, 2*d_model]
-                return self.reranker_head(combined)  # [batch, 1]
-            else:
-                raise ValueError("For rerank task, input_ids must be 3D [batch, 2, seq_len]")
         
         else:
             raise ValueError(f"Unknown task: {task}. Must be 'embed', 'classify', or 'rerank'")
+    
+    def _forward_rerank(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Forward pass for rerank task with 3D input [batch, 2, seq_len]."""
+        batch, pair, seq = input_ids.shape
+        input_ids = input_ids.view(batch * 2, seq)
+        if attention_mask is not None:
+            attention_mask = attention_mask.view(batch * 2, seq)
+        
+        # Re-run forward for paired input
+        x = self.embedding(input_ids)
+        x = x + self.pos_encoding[:, :input_ids.size(1), :]
+        x = self.dropout(x)
+        
+        if attention_mask is not None:
+            src_key_padding_mask = (attention_mask == 0)
+        else:
+            src_key_padding_mask = None
+        
+        x = self.encoder(x, src_key_padding_mask=src_key_padding_mask)
+        x = self.ln_final(x)
+        
+        # Use CLS tokens
+        cls_tokens = x[:, 0, :].view(-1, 2, x.size(-1))  # [batch, 2, d_model]
+        # Concatenate query and candidate representations
+        combined = torch.cat([cls_tokens[:, 0], cls_tokens[:, 1]], dim=-1)  # [batch, 2*d_model]
+        return self.reranker_head(combined)  # [batch, 1]
     
     def get_embedding(self, input_ids: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
         """Get sentence embeddings (alias for forward with task='embed')."""

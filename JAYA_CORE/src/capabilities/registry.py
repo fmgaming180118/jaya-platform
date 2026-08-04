@@ -30,6 +30,10 @@ class CapabilityRegistry:
     def lookup(self, capability_id: str) -> Optional[CapabilityManifest]:
         return self._capabilities.get(capability_id)
 
+    def has_capability(self, capability_id: str) -> bool:
+        """Check if a capability is registered."""
+        return capability_id in self._capabilities
+
     def list_capabilities(self) -> List[CapabilityManifest]:
         return list(self._capabilities.values())
 

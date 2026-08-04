@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Union
 
 from JAYA_CORE.src.observability import get_structured_logger, record_error
-from JAYA_CORE.src.security import get_audit_logger, require_capability, get_capability_manager, Capability
+from JAYA_CORE.src.security import get_audit_logger, require_capability, get_capability_manager, Capability, InputValidator
 
 logger = get_structured_logger(__name__, component="code_sandbox")
 audit_logger = get_audit_logger()
@@ -162,15 +162,18 @@ class SubprocessSandbox(SandboxBackend):
     
     def _get_interpreter(self, language: Language) -> List[str]:
         """Get interpreter command for language."""
+        import sys
+        is_windows = sys.platform == "win32"
+        
         interpreters = {
-            Language.PYTHON: ["python3", "-u"],
+            Language.PYTHON: ["python", "-u"] if is_windows else ["python3", "-u"],
             Language.JAVASCRIPT: ["node"],
             Language.TYPESCRIPT: ["npx", "ts-node"],
             Language.BASH: ["bash"],
             Language.SH: ["sh"],
             Language.POWERSHELL: ["pwsh", "-Command"],
         }
-        return interpreters.get(language, ["python3", "-u"])
+        return interpreters.get(language, ["python", "-u"] if is_windows else ["python3", "-u"])
     
     def _prepare_files(self, request: ExecutionRequest, work_dir: Path):
         """Prepare input files."""

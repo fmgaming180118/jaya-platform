@@ -234,7 +234,6 @@ class AuditLogger:
         
         # Log to structured logger
         logger.info(
-            "audit",
             f"Audit: {event.event_type}.{event.action}",
             extra_fields=log_entry,
         )

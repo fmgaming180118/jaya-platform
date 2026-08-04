@@ -244,6 +244,7 @@ class LiveEvolver:
                 best_candidate=self.best_candidate,
                 population_size=len(self.population),
                 generations=self.generation,
+                generation=self.generation,
                 fitness_improvement=fitness_improvement,
                 duration_ms=(time.time() - start_time) * 1000,
             )
@@ -637,9 +638,11 @@ class MorphicKernel:
     def _apply_parameter_patch(self, component: Any, changes: Dict[str, Any]):
         """Apply parameter changes."""
         for key, value in changes.items():
+            # Set on component if it has the attribute
             if hasattr(component, key):
                 setattr(component, key, value)
-            elif hasattr(component, 'config') and hasattr(component.config, key):
+            # Also set on component.config if it exists and has the attribute
+            if hasattr(component, 'config') and hasattr(component.config, key):
                 setattr(component.config, key, value)
     
     def _apply_config_patch(self, component: Any, changes: Dict[str, Any]):

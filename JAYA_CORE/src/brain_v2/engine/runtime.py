@@ -697,6 +697,137 @@ class IronEngine:
         except ImportError as exc:
             logger.warning("LiveEvolver unavailable: %s", exc)
 
+        # Phase 2: NLU-Symbolic Bridge (primary cognitive path)
+        try:
+            from JAYA_CORE.src.nlu import create_nlu_symbolic_bridge
+            from JAYA_CORE.src.reasoning import create_symbolic_reasoner
+            from JAYA_CORE.src.reasoning.symbolic_reasoner import ResourceProfile
+            from JAYA_CORE.src.capabilities.registry import CapabilityRegistry
+            from JAYA_CORE.src.capabilities.manifest import CapabilityManifest
+            from JAYA_CORE.src.ai_connectors.cognitive_model_adapter import create_cognitive_adapter_from_env
+            
+            nlu_adapter = create_cognitive_adapter_from_env()
+            
+            # Create resource profile from config
+            resource_profile = ResourceProfile(
+                max_memory_mb=512,
+                max_duration_seconds=300,
+                allow_network=True,
+                allow_remote_offload=True,
+            )
+            
+            capability_registry = CapabilityRegistry()
+            
+            # Register default capabilities
+            default_capabilities = [
+                CapabilityManifest(
+                    capability_id="text.reasoning.basic",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=16,
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="system.file.read",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=16,
+                    permissions_required=["file_read"],
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="system.file.write",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=16,
+                    permissions_required=["file_write"],
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="web.search",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=32,
+                    offline_available=False,
+                ),
+                CapabilityManifest(
+                    capability_id="web.fetch",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=32,
+                    offline_available=False,
+                ),
+                CapabilityManifest(
+                    capability_id="code.execution",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=64,
+                    permissions_required=["code_exec"],
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="cad.parametric_modeling",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=128,
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="device.control",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=32,
+                    permissions_required=["device_control"],
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="memory.read",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=16,
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="memory.write",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=16,
+                    permissions_required=["memory_write"],
+                    offline_available=True,
+                ),
+            ]
+            
+            for cap in default_capabilities:
+                capability_registry.register(cap)
+            
+            symbolic_reasoner = create_symbolic_reasoner(
+                resource_profile=resource_profile,
+                capability_registry=capability_registry,
+            )
+            
+            self._nlu_symbolic_bridge = create_nlu_symbolic_bridge(
+                nlu_adapter=nlu_adapter,
+                symbolic_reasoner=symbolic_reasoner,
+                confidence_threshold=0.7,
+            )
+            logger.info("[Phase 2] NLUSymbolicBridge ready as primary cognitive path")
+        except ImportError as exc:
+            logger.warning("NLUSymbolicBridge unavailable: %s", exc)
+            self._nlu_symbolic_bridge = None
+        except Exception as exc:
+            logger.error("Failed to initialize NLUSymbolicBridge: %s", exc)
+            self._nlu_symbolic_bridge = None
+
         # Indonesian NLG — Pillar 21 output layer
         try:
             from src.brain_v2.soul.indonesian_responder import IndonesianResponder
@@ -1036,18 +1167,90 @@ class IronEngine:
         force_local: bool = False,
     ) -> Dict[str, Any]:
         """
-        Perform real cognitive reasoning using integrated LLM.
+        Perform real cognitive reasoning using NLU-Symbolic Bridge as primary path.
         
         This is the MAIN entry point for JARVIS-like cognitive capabilities:
-        - Uses real LLM (local GGUF via llama.cpp, or cloud fallback)
+        - Primary: NLUSymbolicBridge (LLM NLU → Symbolic Reasoning → Plan)
+        - Fallback: CognitiveModelAdapter (direct LLM inference)
         - Respects privacy policies (sensitive content → local only)
         - Falls back gracefully if models unavailable
         - Returns structured response with source attribution
         
         Returns:
-            Dict with keys: ok, text, source, model_used, confidence, metadata
+            Dict with keys: ok, text, source, model_used, confidence, metadata, plan (if available)
         """
-        # Lazy init cognitive model
+        ctx = context or {}
+        
+        # PRIMARY PATH: NLU-Symbolic Bridge
+        if self._nlu_symbolic_bridge is not None:
+            try:
+                from JAYA_CORE.src.nlu.symbolic_bridge import ClarificationNeeded, IRVerificationFailed
+                
+                result = self._nlu_symbolic_bridge.process(text, ctx)
+                
+                if isinstance(result, ClarificationNeeded):
+                    return {
+                        "ok": True,
+                        "text": result.message,
+                        "source": "nlu_symbolic_bridge",
+                        "model_used": "symbolic_reasoner",
+                        "confidence": 0.5,
+                        "metadata": {"clarification_needed": True, "alternatives": [a.value for a in result.alternatives] if result.alternatives else []},
+                        "intent": text,
+                    }
+                
+                if isinstance(result, IRVerificationFailed):
+                    return {
+                        "ok": False,
+                        "error": "ir_verification_failed",
+                        "text": f"Verifikasi simbolik gagal: {', '.join(result.errors)}",
+                        "source": "nlu_symbolic_bridge",
+                        "model_used": "symbolic_reasoner",
+                        "confidence": 0.0,
+                        "metadata": {"errors": result.errors},
+                        "intent": text,
+                    }
+                
+                # Success - SymbolicPlan returned
+                # Store in narrative memory
+                if self._narrative:
+                    try:
+                        self._narrative.remember_turn(
+                            user_text=text,
+                            logic_expr=f"NLU_SYMBOLIC:{result.plan.plan_id if hasattr(result.plan, 'plan_id') else 'unknown'}",
+                            runtime_result={
+                                "plan": str(result.plan),
+                                "goal": str(result.goal),
+                                "ir": str(result.ir),
+                            },
+                        )
+                    except Exception as exc:
+                        logger.debug("NarrativeContinuity NLU-Symbolic trace failed: %s", exc)
+                
+                # Teach IntentEngine
+                if self._intent:
+                    self._intent.learn(text)
+                
+                return {
+                    "ok": True,
+                    "text": f"Rencana dibuat: {result.goal.title}" if hasattr(result.goal, 'title') else "Rencana dibuat",
+                    "source": "nlu_symbolic_bridge",
+                    "model_used": "symbolic_reasoner",
+                    "confidence": result.nlu_result.confidence if hasattr(result, 'nlu_result') else 0.8,
+                    "metadata": {
+                        "plan": result.plan,
+                        "goal": result.goal,
+                        "ir": result.ir,
+                        "nlu_result": result.nlu_result,
+                    },
+                    "intent": text,
+                }
+                
+            except Exception as exc:
+                logger.warning("NLUSymbolicBridge failed, falling back to cognitive model: %s", exc)
+                # Fall through to fallback
+        
+        # FALLBACK: CognitiveModelAdapter (direct LLM)
         if not hasattr(self, "_cognitive_model") or self._cognitive_model is None:
             self._init_cognitive_model()
         
@@ -1067,7 +1270,7 @@ class IronEngine:
                 prompt=text,
                 context=context,
                 force_local=force_local,
-                network_available=True,  # Could be made configurable
+                network_available=True,
             )
             
             # Store in narrative memory
