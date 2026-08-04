@@ -201,7 +201,15 @@ class NLUSymbolicBridge:
         if nlu_result.confidence < self.confidence_threshold:
             logger.warning("Low confidence NLU result: %.2f", nlu_result.confidence)
             return ClarificationNeeded(
-                alternatives=[Intent(intent_type=IntentType(a["intent"]), confidence=a["confidence"]) for a in nlu_result.alternative_intents],
+                alternatives=[
+                    Intent(
+                        intent_id=f"alt-{i}-{hash(user_input) % 10000:04d}",
+                        intent_type=IntentType(a["intent"]),
+                        domain=self._infer_domain(a["intent"], {}),
+                        confidence=float(a["confidence"]),
+                    )
+                    for i, a in enumerate(nlu_result.alternative_intents)
+                ],
                 message=f"Confidence rendah ({nlu_result.confidence:.2f}). Perlu klarifikasi.",
                 missing_slots=[k for k, v in nlu_result.slots.items() if not v],
                 ambiguity=nlu_result.ambiguity,
@@ -211,7 +219,15 @@ class NLUSymbolicBridge:
         missing_required = self._check_required_slots(nlu_result)
         if missing_required:
             return ClarificationNeeded(
-                alternatives=[Intent(intent_type=IntentType(a["intent"]), confidence=a["confidence"]) for a in nlu_result.alternative_intents],
+                alternatives=[
+                    Intent(
+                        intent_id=f"alt-{i}-{hash(user_input) % 10000:04d}",
+                        intent_type=IntentType(a["intent"]),
+                        domain=self._infer_domain(a["intent"], {}),
+                        confidence=float(a["confidence"]),
+                    )
+                    for i, a in enumerate(nlu_result.alternative_intents)
+                ],
                 message=f"Slot wajib hilang: {', '.join(missing_required)}",
                 missing_slots=missing_required,
                 ambiguity=nlu_result.ambiguity,
@@ -251,8 +267,8 @@ class NLUSymbolicBridge:
             # Use IntentEngine for basic intent classification as fallback
             base_intent = self.intent_engine.detect_intent(user_input, context)
             
-            # Use LLM adapter for richer understanding if available
-            if self.nlu and self.nlu.is_local_available():
+            # Use LLM adapter for richer understanding if available (local or cloud)
+            if self.nlu and (self.nlu.is_local_available() or self.nlu.is_cloud_available()):
                 # Use structured prompt for NLU
                 prompt = self._build_nlu_prompt(user_input, context)
                 
@@ -262,51 +278,56 @@ class NLUSymbolicBridge:
                     temperature=0.1,  # Low temperature for structured output
                 )
                 
-                # Parse structured LLM response
-                nlu_data = self._parse_structured_nlu(response.text)
-                
-                # Create Intent from parsed data
-                intent = Intent(
-                    intent_type=IntentType(nlu_data["intent"]),
-                    confidence=nlu_data["confidence"],
-                    domain=self._infer_domain(nlu_data["intent"], nlu_data["entities"]),
-                )
-                
-                # Convert alternative intents
-                alternatives = []
-                for alt in nlu_data.get("alternative_intents", []):
-                    alternatives.append({
-                        "intent": alt["intent"],
-                        "confidence": alt["confidence"],
-                    })
-                
-                return NLUResult(
-                    intent=intent,
-                    entities=nlu_data.get("entities", {}),
-                    slots=nlu_data.get("slots", {}),
-                    constraints=nlu_data.get("constraints", {}),
-                    relations=nlu_data.get("relations", []),
-                    ambiguity=nlu_data.get("ambiguity", []),
-                    alternative_intents=alternatives,
-                    confidence=nlu_data["confidence"],
-                    raw_response=user_input,
-                )
-            else:
-                # Fallback: extract slots/entities from base intent
-                entities = base_intent.extracted_entities or {}
-                slots = self._extract_slots_from_entities(base_intent.intent_type, entities, user_input)
-                
-                return NLUResult(
-                    intent=base_intent,
-                    entities=entities,
-                    slots=slots,
-                    constraints={},
-                    relations=[],
-                    ambiguity=base_intent.missing_context or [],
-                    alternative_intents=[],
-                    confidence=base_intent.confidence,
-                    raw_response=user_input,
-                )
+                if response.source != "fallback_rule_based":
+                    # Parse structured LLM response
+                    nlu_data = self._parse_structured_nlu(response.text)
+                    if nlu_data is not None:
+                        domain = self._infer_domain(nlu_data["intent"], nlu_data.get("entities", {}))
+                        # Create Intent from parsed data with all required fields
+                        intent = Intent(
+                            intent_id=f"intent-{hash(user_input) % 10000:04d}",
+                            intent_type=IntentType(nlu_data["intent"]),
+                            domain=domain,
+                            confidence=float(nlu_data["confidence"]),
+                            extracted_entities=nlu_data.get("entities", {}),
+                        )
+                        
+                        # Convert alternative intents
+                        alternatives = []
+                        for alt in nlu_data.get("alternative_intents", []):
+                            if isinstance(alt, dict) and "intent" in alt and "confidence" in alt:
+                                alternatives.append({
+                                    "intent": alt["intent"],
+                                    "confidence": float(alt["confidence"]),
+                                })
+                        
+                        return NLUResult(
+                            intent=intent,
+                            entities=nlu_data.get("entities", {}),
+                            slots=nlu_data.get("slots", {}),
+                            constraints=nlu_data.get("constraints", {}),
+                            relations=nlu_data.get("relations", []),
+                            ambiguity=nlu_data.get("ambiguity", []),
+                            alternative_intents=alternatives,
+                            confidence=float(nlu_data["confidence"]),
+                            raw_response=user_input,
+                        )
+            
+            # Fallback: extract slots/entities from base intent (IntentEngine)
+            entities = base_intent.extracted_entities or {}
+            slots = self._extract_slots_from_entities(base_intent.intent_type, entities, user_input)
+            
+            return NLUResult(
+                intent=base_intent,
+                entities=entities,
+                slots=slots,
+                constraints={},
+                relations=[],
+                ambiguity=base_intent.missing_context or [],
+                alternative_intents=[],
+                confidence=base_intent.confidence,
+                raw_response=user_input,
+            )
         except Exception as e:
             logger.error("NLU processing failed: %s", e)
             # Fallback to basic intent engine
@@ -423,33 +444,52 @@ Contoh output:
 }}"""
     
     def _parse_structured_nlu(self, llm_response: str) -> Dict[str, Any]:
-        """Parse structured NLU output from LLM response."""
+        """Parse and validate structured NLU output from LLM response."""
+        data = None
         # Try to extract JSON from response
         json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
         if json_match:
             try:
-                return json.loads(json_match.group())
+                data = json.loads(json_match.group())
             except json.JSONDecodeError as e:
                 logger.warning("Failed to parse NLU JSON: %s", e)
         
-        # Fallback: try to parse entire response as JSON
-        try:
-            return json.loads(llm_response)
-        except json.JSONDecodeError:
-            pass
+        if data is None:
+            # Fallback: try to parse entire response as JSON
+            try:
+                data = json.loads(llm_response)
+            except json.JSONDecodeError:
+                pass
         
-        # Ultimate fallback: return minimal structure
-        logger.warning("LLM did not return valid JSON, using fallback")
-        return {
-            "intent": "ASK_INFORMATION",
-            "confidence": 0.5,
-            "entities": {},
-            "slots": {},
-            "constraints": {},
-            "relations": [],
-            "ambiguity": ["LLM output not parseable"],
-            "alternative_intents": [],
-        }
+        # Schema and structure validation
+        if isinstance(data, dict):
+            valid_intents = {t.value for t in IntentType}
+            intent = str(data.get("intent", ""))
+            confidence = data.get("confidence")
+            
+            if intent in valid_intents and isinstance(confidence, (int, float)):
+                conf_val = float(confidence)
+                if 0.0 <= conf_val <= 1.0:
+                    entities = data.get("entities") if isinstance(data.get("entities"), dict) else {}
+                    slots = data.get("slots") if isinstance(data.get("slots"), dict) else {}
+                    constraints = data.get("constraints") if isinstance(data.get("constraints"), dict) else {}
+                    relations = data.get("relations") if isinstance(data.get("relations"), list) else []
+                    ambiguity = data.get("ambiguity") if isinstance(data.get("ambiguity"), list) else []
+                    alternative_intents = data.get("alternative_intents") if isinstance(data.get("alternative_intents"), list) else []
+                    
+                    return {
+                        "intent": intent,
+                        "confidence": conf_val,
+                        "entities": entities,
+                        "slots": slots,
+                        "constraints": constraints,
+                        "relations": relations,
+                        "ambiguity": ambiguity,
+                        "alternative_intents": alternative_intents,
+                    }
+        
+        logger.warning("LLM output failed schema validation or is non-JSON")
+        return None
     
     def _infer_domain(self, intent: str, entities: Dict[str, List[str]]) -> str:
         """Infer domain from intent and entities."""
@@ -556,13 +596,14 @@ def create_nlu_symbolic_bridge(
     if nlu_adapter is None:
         nlu_adapter = create_cognitive_adapter_from_env()
     
+    cap_registry = capability_registry or CapabilityRegistry()
+    
     if symbolic_reasoner is None:
         from JAYA_CORE.src.reasoning.symbolic_reasoner import SymbolicReasoner
         from JAYA_CORE.src.reasoning.logic_engine import LogicEngine
         from JAYA_CORE.src.reasoning.constraint_solver import ConstraintSolver
         from JAYA_CORE.src.cognitive.planner import GenericHierarchicalPlanner
         from JAYA_CORE.src.reasoning.symbolic_reasoner import ResourceProfile
-        from JAYA_CORE.src.capabilities.registry import CapabilityRegistry
         from JAYA_CORE.src.capabilities.manifest import CapabilityManifest
         
         resource_profile = ResourceProfile(
@@ -571,8 +612,6 @@ def create_nlu_symbolic_bridge(
             allow_network=True,
             allow_remote_offload=True,
         )
-        
-        cap_registry = capability_registry or CapabilityRegistry()
         
         # Register default capabilities if registry is empty
         if not cap_registry.list_capabilities():
@@ -680,5 +719,5 @@ def create_nlu_symbolic_bridge(
         nlu_adapter=nlu_adapter,
         symbolic_reasoner=symbolic_reasoner,
         confidence_threshold=confidence_threshold,
-        capability_registry=capability_registry,
+        capability_registry=cap_registry,
     )

@@ -113,6 +113,7 @@ class CognitiveModelAdapter:
         force_local: bool = False,
         network_available: bool = True,
         actor: str = "anonymous",
+        temperature: Optional[float] = None,
     ) -> CognitiveResponse:
         """
         Generate a cognitive response using the best available backend.
@@ -167,12 +168,11 @@ class CognitiveModelAdapter:
             force_local=force_local or is_sensitive,
         )
         
-        logger.debug("Routing decision: target=%s, model=%s, reason=%s",
-                     decision.target.value, decision.selected_model, decision.reason)
+        logger.debug("Routing decision", target=decision.target.value, model=decision.selected_model, reason=decision.reason)
 
         # Execute based on routing
         if decision.target == RoutingTarget.LOCAL_EDGE:
-            return self._generate_local(prompt, ctx, decision)
+            return self._generate_local(prompt, ctx, decision, temperature=temperature)
         
         elif decision.target == RoutingTarget.CLOUD_PROVIDER:
             # Try public API first for factual queries
@@ -183,19 +183,20 @@ class CognitiveModelAdapter:
             
             # Fallback to local if cloud executor not available
             if self._cloud_available:
-                return self._generate_cloud(prompt, ctx, decision)
+                return self._generate_cloud(prompt, ctx, decision, temperature=temperature)
             else:
                 logger.warning("Cloud requested but not available, falling back to local")
-                return self._generate_local(prompt, ctx, decision)
+                return self._generate_local(prompt, ctx, decision, temperature=temperature)
         
         else:
-            return self._generate_local(prompt, ctx, decision)
+            return self._generate_local(prompt, ctx, decision, temperature=temperature)
 
     def _generate_local(
         self, 
         prompt: str, 
         context: Dict[str, Any], 
-        decision
+        decision,
+        temperature: Optional[float] = None,
     ) -> CognitiveResponse:
         """Generate using local LLM (llama.cpp)."""
         model_name = os.path.basename(self.local_adapter.model_path) if self._local_available else "none"
@@ -206,7 +207,10 @@ class CognitiveModelAdapter:
                 if self._local_available:
                     # Enrich prompt with context if available
                     enriched_prompt = self._enrich_prompt(prompt, context)
-                    text = self.local_adapter.generate(enriched_prompt, context)
+                    gen_kwargs = {"context": context}
+                    if temperature is not None:
+                        gen_kwargs["temperature"] = temperature
+                    text = self.local_adapter.generate(enriched_prompt, **gen_kwargs)
                     
                     if text and len(text.strip()) > 3:
                         duration = time.perf_counter() - start_time
@@ -243,7 +247,8 @@ class CognitiveModelAdapter:
         self, 
         prompt: str, 
         context: Dict[str, Any], 
-        decision
+        decision,
+        temperature: Optional[float] = None,
     ) -> CognitiveResponse:
         """Generate using real cloud LLM provider."""
         if not self.cloud_adapter or not self.cloud_adapter.get_available_providers():
@@ -251,7 +256,7 @@ class CognitiveModelAdapter:
             public_resp = self._try_public_api(prompt, context)
             if public_resp:
                 return public_resp
-            return self._generate_local(prompt, context, decision)
+            return self._generate_local(prompt, context, decision, temperature=temperature)
 
         # Get provider info for metrics
         providers = self.cloud_adapter.get_available_providers()

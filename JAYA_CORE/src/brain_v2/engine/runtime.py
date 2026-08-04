@@ -819,6 +819,7 @@ class IronEngine:
                 nlu_adapter=nlu_adapter,
                 symbolic_reasoner=symbolic_reasoner,
                 confidence_threshold=0.7,
+                capability_registry=capability_registry,
             )
             logger.info("[Phase 2] NLUSymbolicBridge ready as primary cognitive path")
         except ImportError as exc:
@@ -1238,10 +1239,10 @@ class IronEngine:
                     "model_used": "symbolic_reasoner",
                     "confidence": result.nlu_result.confidence if hasattr(result, 'nlu_result') else 0.8,
                     "metadata": {
-                        "plan": result.plan,
-                        "goal": result.goal,
-                        "ir": result.ir,
-                        "nlu_result": result.nlu_result,
+                        "plan": result.plan.to_dict() if hasattr(result.plan, 'to_dict') else (asdict(result.plan) if hasattr(result.plan, '__dataclass_fields__') else str(result.plan)),
+                        "goal": result.goal.to_dict() if hasattr(result.goal, 'to_dict') else (asdict(result.goal) if hasattr(result.goal, '__dataclass_fields__') else str(result.goal)),
+                        "ir": result.ir.to_dict() if hasattr(result.ir, 'to_dict') else (asdict(result.ir) if hasattr(result.ir, '__dataclass_fields__') else str(result.ir)),
+                        "nlu_result": asdict(result.nlu_result) if hasattr(result, 'nlu_result') and hasattr(result.nlu_result, '__dataclass_fields__') else str(getattr(result, 'nlu_result', '')),
                     },
                     "intent": text,
                 }

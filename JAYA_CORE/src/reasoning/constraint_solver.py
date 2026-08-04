@@ -22,7 +22,13 @@ class ConstraintSolver:
     Real implementation - no mocks.
     """
     
-    def __init__(self):
+    def __init__(
+        self,
+        resource_profile: Optional[Any] = None,
+        capability_registry: Optional[Any] = None,
+    ):
+        self.resource_profile = resource_profile
+        self.capability_registry = capability_registry
         self.constraints: Dict[str, Constraint] = {}
         self._register_default_constraints()
     
