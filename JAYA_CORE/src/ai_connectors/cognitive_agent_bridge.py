@@ -436,11 +436,26 @@ class CognitiveAgentBridge:
             )
             
             is_success = execution.receipt.status == "SUCCEEDED" if execution.receipt else False
+            
+            # P0.4 Fix: Check process returncode - non-zero exit code means process failed
+            error_code = None
+            error_msg = None
+            if is_success and tool_name == "process.execute" and isinstance(execution.result, dict):
+                exit_code = execution.result.get("exit_code", 0)
+                if exit_code != 0:
+                    is_success = False
+                    error_code = "PROCESS_FAILED"
+                    error_msg = f"Process completed with non-zero exit code: {exit_code}"
+
+            receipt_dict = execution.receipt.to_dict() if hasattr(execution.receipt, "to_dict") else (execution.receipt.__dict__ if execution.receipt else None)
+
             return {
                 "status": "success" if is_success else "error",
                 "result": execution.result,
                 "tool": tool_name,
-                "receipt": execution.receipt.__dict__ if execution.receipt else None,
+                "receipt": receipt_dict,
+                "error": error_msg if not is_success else None,
+                "error_code": error_code if not is_success else None,
             }
         except Exception as e:
             logger.error(f"Tool execution failed: {e}")
@@ -613,21 +628,35 @@ def enhance_iron_engine_with_agent_bridge(engine) -> None:
         if not reason_result.get("ok"):
             return reason_result
         
-        # Then, execute through Agent/OS bridge
-        bridge_result = bridge.execute_cognitive_intent(
-            intent=text,
-            context=context,
-            user_id=user_id,
-        )
+        # Check if cognitive reasoning produced a plan with steps
+        plan = reason_result.get("plan") or reason_result.get("action_plan")
+        if plan and hasattr(plan, "steps") and plan.steps:
+            # P0.1 & P0.2 Fix: Execute structured plan directly via execute_cognitive_plan
+            bridge_result = bridge.execute_cognitive_plan(
+                plan=plan,
+                context=context,
+                user_id=user_id,
+            )
+        else:
+            # Fallback to intent analysis if no structured plan steps were generated
+            bridge_result = bridge.execute_cognitive_intent(
+                intent=text,
+                context=context,
+                user_id=user_id,
+            )
         
-        # Combine results
+        # Combine results - ok is True ONLY IF bridge execution succeeded
+        all_ok = reason_result.get("ok", False) and bridge_result.get("ok", False)
         return {
-            "ok": bridge_result.get("ok", False),
+            "ok": all_ok,
+            "domain_status": "EXECUTION_SUCCEEDED" if all_ok else ("EXECUTION_FAILED" if not bridge_result.get("ok") else "REPLAN_REQUIRED"),
             "cognitive_reasoning": reason_result,
             "agent_execution": bridge_result,
-            "combined_response": bridge_result.get("tool_result", {}).get("result", "") 
-                                or bridge_result.get("response", "")
+            "combined_response": bridge_result.get("response", "")
+                                or (bridge_result.get("tool_result", {}).get("result") if isinstance(bridge_result.get("tool_result"), dict) else "")
                                 or reason_result.get("text", ""),
+            "failed_step": bridge_result.get("failed_step"),
+            "error": bridge_result.get("error"),
         }
     
     # Bind to engine

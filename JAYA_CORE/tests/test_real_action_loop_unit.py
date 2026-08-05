@@ -160,6 +160,61 @@ def test_p0_missing_input_validation():
     assert res["error"] == "INVALID_ACTION_INPUT"
 
 
+def test_process_execution_nonzero_exit_failed():
+    """Test P0.4: Non-zero exit code from subprocess results in ok=False and PROCESS_FAILED status."""
+    import sys
+    bridge = CognitiveAgentBridge()
+    bridge.initialize()
+
+    # Command that exits with status code 1
+    fail_cmd = [sys.executable, "-c", "import sys; sys.exit(1)"]
+    res = bridge.execute_cognitive_intent(
+        intent="eksekusi perintah gagal",
+        context={"command": fail_cmd, "user_consent": "token_approved_123"},
+        user_id="test_user",
+    )
+    assert res["ok"] is False
+    assert res["tool_result"]["status"] == "error"
+    assert res["tool_result"]["error_code"] == "PROCESS_FAILED"
+
+
+def test_iron_engine_cognitive_reason_and_act_structured_execution():
+    """Test P0.1 & P0.2: IronEngine.cognitive_reason_and_act() executes structured plan and aggregates status."""
+    from JAYA_CORE.src.brain_v2.engine.runtime import IronEngine
+    from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import enhance_iron_engine_with_agent_bridge
+
+    class MockActionStep:
+        def __init__(self, action_type, inputs):
+            self.action_type = action_type
+            self.inputs = inputs
+
+    class MockActionPlan:
+        def __init__(self, steps):
+            self.steps = steps
+
+    engine = IronEngine(model_path="missing.jay", password="x", enable_twin=False)
+    enhance_iron_engine_with_agent_bridge(engine)
+
+    step1 = MockActionStep("file.write", {"path": "temp_engine_step.txt", "content": "engine test"})
+    step2 = MockActionStep("file.read", {"path": "temp_engine_step.txt"})
+    plan = MockActionPlan([step1, step2])
+
+    engine.cognitive_reason = lambda text, ctx=None, force=False: {"ok": True, "plan": plan, "text": "Plan created"}
+
+    res = engine.cognitive_reason_and_act(
+        text="eksekusi plan",
+        context={"user_consent": "token_approved_123"},
+        user_id="test_user",
+    )
+    assert res["ok"] is True
+    assert res["domain_status"] == "EXECUTION_SUCCEEDED"
+    assert res["agent_execution"]["steps_executed"] == 2
+
+    clean_path = Path("temp_engine_step.txt").resolve()
+    if clean_path.exists():
+        clean_path.unlink()
+
+
 def test_structured_cognitive_plan_execution():
     """Test P0.1 & P0.2: Structured ActionPlan execution with stop-on-failure."""
     class MockActionStep:

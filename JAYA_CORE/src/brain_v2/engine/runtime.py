@@ -256,6 +256,8 @@ class IronEngine:
         self._live_evolver:    Optional[Any] = None   # LiveEvolver for micro-evolution
         self._auto_research_patch: Optional[Any] = None
         self._indonesian_responder: Optional[Any] = None  # Pillar 21 — Indonesian NLG
+        self._nlu_symbolic_bridge: Optional[Any] = None
+        self._cognitive_agent_bridge: Optional[Any] = None
         self._agentic_source_policy: Dict[str, Dict[str, Any]] = {
             "local_rag": {
                 "require_trusted_source": False,
