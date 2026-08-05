@@ -107,6 +107,9 @@ AGENTS.md
 # ─── TEST SCRIPTS & TEST ARTIFACTS ───────────────────────────────────────────
 check_duplicates.py
 cleanup_duplicates.py
+temp_*.txt
+*.tmp
+test_output_*.txt
 
 # ─── UI & FRONTEND BUILD ─────────────────────────────────────────────────────
 ui/dist/

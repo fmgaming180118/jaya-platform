@@ -283,7 +283,7 @@ class Phase2VerificationGates:
         """Run integration tests end-to-end using dynamic path resolution."""
         start = time.time()
         from pathlib import Path
-        repo_root = Path(__file__).resolve().parent.parent.parent
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
         
         try:
             # Run pytest on integration tests with dynamic cwd
@@ -384,8 +384,24 @@ class Phase2VerificationGates:
             )
     
     def _scan_for_secrets(self) -> List[str]:
-        """Scan for hardcoded secrets in codebase."""
-        return []
+        """Scan for hardcoded secrets in python files."""
+        import re
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        secret_patterns = [
+            re.compile(r"api[_-]?key\s*=\s*['\"]sk-[a-zA-Z0-9]{20,}['\"]", re.IGNORECASE),
+            re.compile(r"password\s*=\s*['\"](?!test_password|password|test_pass)[a-zA-Z0-9]{12,}['\"]", re.IGNORECASE),
+        ]
+        issues = []
+        for py_file in repo_root.glob("JAYA_CORE/src/**/*.py"):
+            try:
+                content = py_file.read_text(encoding="utf-8", errors="ignore")
+                for pattern in secret_patterns:
+                    if pattern.search(content):
+                        issues.append(str(py_file.relative_to(repo_root)))
+            except Exception:
+                pass
+        return issues
     
     def _check_rate_limiting(self) -> bool:
         """Check if rate limiting is properly configured."""
@@ -411,8 +427,20 @@ class Phase2VerificationGates:
         return True
     
     def _scan_for_hardcoded_values(self) -> List[str]:
-        """Scan for hardcoded paths, URLs, credentials."""
-        return []
+        """Scan for hardcoded absolute developer paths in python source files."""
+        import re
+        from pathlib import Path
+        repo_root = Path(__file__).resolve().parent.parent.parent.parent
+        path_pattern = re.compile(r"['\"][D|C]:/[^'\"]+['\"]")
+        issues = []
+        for py_file in repo_root.glob("JAYA_CORE/src/**/*.py"):
+            try:
+                content = py_file.read_text(encoding="utf-8", errors="ignore")
+                if path_pattern.search(content):
+                    issues.append(str(py_file.relative_to(repo_root)))
+            except Exception:
+                pass
+        return issues
     
     # =========================================================================
     # Gate 6: Performance Benchmark

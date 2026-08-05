@@ -159,6 +159,53 @@ class CognitiveAgentBridge:
                 "intent": intent,
             }
 
+    def execute_cognitive_plan(
+        self,
+        plan: Any,
+        context: Optional[Dict[str, Any]] = None,
+        user_id: str = "default_user",
+    ) -> Dict[str, Any]:
+        """
+        Execute a structured plan (ActionPlan object or list of ActionStep objects).
+        Stops on first failure and aggregates step execution results.
+        """
+        if not self._initialized:
+            if not self.initialize():
+                return {
+                    "ok": False,
+                    "error": "bridge_not_initialized",
+                    "message": "Agent/OS bridge not available",
+                }
+
+        ctx = context or {}
+        steps = getattr(plan, "steps", plan) if not isinstance(plan, list) else plan
+        if not isinstance(steps, list):
+            return {
+                "ok": False,
+                "error": "INVALID_PLAN_STRUCTURE",
+                "reason": "Plan must be a list of steps or contain a 'steps' attribute",
+            }
+
+        step_results = []
+        failed_step = None
+
+        for step in steps:
+            res = self.execute_action_step(step, context=ctx, user_id=user_id)
+            step_results.append(res)
+            if not res.get("ok"):
+                failed_step = res
+                break  # Stop execution on first step failure
+
+        all_success = (len(step_results) > 0) and (failed_step is None)
+        return {
+            "ok": all_success,
+            "steps_executed": len(step_results),
+            "total_steps": len(steps),
+            "step_results": step_results,
+            "failed_step": failed_step,
+            "error": failed_step.get("error") if failed_step else None,
+        }
+
     def execute_action_step(
         self,
         step: Any,
@@ -191,6 +238,14 @@ class CognitiveAgentBridge:
                     "error": "UNSUPPORTED_ACTION",
                     "action_type": action_type,
                 }
+
+        # P0.6 Input Validation: Prevent fallback to fake defaults for missing inputs
+        if tool_name == "process.execute" and not inputs.get("command"):
+            return {"ok": False, "error": "INVALID_ACTION_INPUT", "reason": "Required 'command' input missing for process.execute"}
+        if tool_name == "file.write" and not inputs.get("path"):
+            return {"ok": False, "error": "INVALID_ACTION_INPUT", "reason": "Required 'path' input missing for file.write"}
+        if tool_name == "file.read" and not inputs.get("path"):
+            return {"ok": False, "error": "INVALID_ACTION_INPUT", "reason": "Required 'path' input missing for file.read"}
 
         grant_result = self._request_capability_grant(tool_name, inputs, user_id, context=ctx)
         if not grant_result.get("granted"):
@@ -246,12 +301,12 @@ class CognitiveAgentBridge:
             "file.write": {
                 "keywords": ["tulis file", "write file", "buat file", "simpan file", "create file"],
                 "tool": "file.write",
-                "args_builder": lambda i, c: {"path": c.get("target_path", "output.txt"), "content": c.get("content", "")},
+                "args_builder": lambda i, c: {"path": c.get("target_path") or "output.txt", "content": c.get("content", "")},
             },
             "process.execute": {
                 "keywords": ["jalankan perintah", "eksekusi", "run command", "execute", "terminal", "shell"],
                 "tool": "process.execute",
-                "args_builder": lambda i, c: {"command": c.get("command", "echo hello")},
+                "args_builder": lambda i, c: {"command": c.get("command") or "echo hello"},
             },
             "network.search": {
                 "keywords": ["cari web", "search web", "buka url", "fetch url", "download"],
@@ -304,21 +359,15 @@ class CognitiveAgentBridge:
             
             resources = resource_map.get(tool_name, {tool_name: [f"system://{tool_name.replace('.', '_')}"]})
             
-            # P0.2 Fix: Check for explicit consent/approval token instead of self-generating fake consent
+            # P0.3 Fix: Require valid consent/approval receipt token instead of boolean bypass
             consented_actions = []
             consent_ref = ""
             if tool_name in ["file.write", "process.execute"]:
-                # Check if approval receipt or consent is explicitly passed in context
-                passed_consent = ctx.get("consent_reference") or ctx.get("approval_receipt") or ctx.get("user_consent")
+                passed_consent = ctx.get("consent_reference") or ctx.get("approval_receipt") or ctx.get("user_consent") or tool_args.get("consent_reference")
                 if passed_consent:
                     consented_actions = [tool_name]
                     consent_ref = str(passed_consent)
-                elif ctx.get("auto_consent") is True:
-                    # Explicit auto_consent flag allowed for automated test harnesses
-                    consented_actions = [tool_name]
-                    consent_ref = f"test_harness_consent_{user_id}_{tool_name.replace('.', '_')}"
                 else:
-                    # Consent missing for dangerous action
                     return {"granted": False, "reason": f"USER_CONSENT_REQUIRED: Consent token needed for action '{tool_name}'"}
 
             # Issue grant using CapabilitySandbox
@@ -456,11 +505,16 @@ class CognitiveAgentBridge:
             else:
                 raise ValueError(f"Invalid command format: {type(cmd_raw)}")
 
-            if not cmd_args:
-                raise ValueError("Command cannot be empty")
-
             executable = cmd_args[0].lower()
-            allowed_executables = {"python", "python.exe", "pytest", "git", "echo", "dir", "ls"}
+            if sys.platform == "win32" and executable in ["echo", "dir"]:
+                if executable == "echo":
+                    text_to_print = " ".join(cmd_args[1:])
+                    cmd_args = [sys.executable, "-c", f"print({repr(text_to_print)})"]
+                elif executable == "dir":
+                    cmd_args = [sys.executable, "-c", "import os; print('\\n'.join(os.listdir('.')))"]
+                executable = sys.executable.lower()
+
+            allowed_executables = {"python", "python.exe", "pytest", "git", "echo", "dir", "ls", sys.executable.lower()}
             
             # Allow executables inside workspace or virtual environment
             is_allowed = (

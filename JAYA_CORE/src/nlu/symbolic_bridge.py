@@ -703,8 +703,17 @@ def create_nlu_symbolic_bridge(
                 ),
             ]
             
+            healthy_builtins = {
+                "text.reasoning.basic",
+                "system.file.read",
+                "system.file.write",
+                "memory.read",
+                "memory.write",
+                "code.execution",
+            }
             for cap in default_capabilities:
-                cap.health_status = "HEALTHY"
+                if cap.capability_id in healthy_builtins:
+                    cap.health_status = "HEALTHY"
                 cap_registry.register(cap)
         
         symbolic_reasoner = SymbolicReasoner(

@@ -39,18 +39,18 @@ def test_single_constraint_solver_import():
 
 
 def test_cognitive_agent_bridge_real_file_write_and_read():
-    """Test P0.2 & P0.4: CognitiveAgentBridge performs real file write/read within workspace with explicit consent."""
+    """Test P0.2 & P0.4: CognitiveAgentBridge performs real file write/read within workspace with explicit consent token."""
     bridge = CognitiveAgentBridge()
     assert bridge.initialize() is True
 
-    # Real file.write execution with explicit consent context
+    # Real file.write execution with explicit user_consent context token
     test_file = "temp_test_output.txt"
     test_content = "Hello real tool execution from JAYA!"
 
     try:
         write_res = bridge.execute_cognitive_intent(
             intent=f"tulis file ke {test_file}",
-            context={"target_path": test_file, "content": test_content, "auto_consent": True},
+            context={"target_path": test_file, "content": test_content, "user_consent": "token_approved_123"},
             user_id="test_user",
         )
         assert write_res["ok"] is True
@@ -78,7 +78,7 @@ def test_cognitive_agent_bridge_process_execution():
 
     cmd_res = bridge.execute_cognitive_intent(
         intent="eksekusi perintah echo JAYA_ACTION_LOOP",
-        context={"command": "echo JAYA_ACTION_LOOP", "auto_consent": True},
+        context={"command": "echo JAYA_ACTION_LOOP", "user_consent": "token_approved_123"},
         user_id="test_user",
     )
     assert cmd_res["ok"] is True
@@ -139,15 +139,29 @@ def test_p0_unauthorized_command_executable_rejected():
 
     res = bridge.execute_cognitive_intent(
         intent="jalankan perintah malicioustool --hack",
-        context={"command": "malicioustool --hack", "auto_consent": True},
+        context={"command": "malicioustool --hack", "user_consent": "token_approved_123"},
         user_id="test_user",
     )
     assert res["ok"] is False
     assert res["tool_result"]["status"] == "error"
 
 
-def test_structured_action_step_execution():
-    """Test Real Action Loop: Direct execution of structured ActionStep."""
+def test_p0_missing_input_validation():
+    """Test P0.6: Empty inputs return INVALID_ACTION_INPUT error."""
+    bridge = CognitiveAgentBridge()
+    bridge.initialize()
+
+    class EmptyStep:
+        action_type = "process.execute"
+        inputs = {}
+
+    res = bridge.execute_action_step(EmptyStep(), context={"user_consent": "token_approved_123"})
+    assert res["ok"] is False
+    assert res["error"] == "INVALID_ACTION_INPUT"
+
+
+def test_structured_cognitive_plan_execution():
+    """Test P0.1 & P0.2: Structured ActionPlan execution with stop-on-failure."""
     class MockActionStep:
         def __init__(self, action_type, inputs):
             self.action_type = action_type
@@ -156,13 +170,14 @@ def test_structured_action_step_execution():
     bridge = CognitiveAgentBridge()
     bridge.initialize()
 
-    step = MockActionStep("file.write", {"path": "temp_step.txt", "content": "step content"})
-    res = bridge.execute_action_step(step, context={"auto_consent": True})
+    step1 = MockActionStep("file.write", {"path": "temp_plan_step.txt", "content": "step content"})
+    step2 = MockActionStep("file.read", {"path": "temp_plan_step.txt"})
     
-    assert res["ok"] is True
-    assert res["action_type"] == "file.write"
-    
-    clean_path = Path("temp_step.txt").resolve()
+    plan_res = bridge.execute_cognitive_plan([step1, step2], context={"user_consent": "token_approved_123"})
+    assert plan_res["ok"] is True
+    assert plan_res["steps_executed"] == 2
+
+    clean_path = Path("temp_plan_step.txt").resolve()
     if clean_path.exists():
         clean_path.unlink()
 

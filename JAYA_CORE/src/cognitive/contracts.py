@@ -83,6 +83,11 @@ class Intent:
     clarification_required: bool = False
     schema_version: str = "1.0"
 
+    @property
+    def value(self) -> str:
+        """Alias for intent_type.value for backwards compatibility."""
+        return self.intent_type.value
+
     def to_dict(self) -> Dict[str, Any]:
         res = asdict(self)
         res["intent_type"] = self.intent_type.value
