@@ -17,7 +17,7 @@ class CapabilityManifest:
     min_memory_mb: int = 64
     permissions_required: List[str] = field(default_factory=list)
     offline_available: bool = True
-    health_status: str = "HEALTHY"  # "HEALTHY", "UNHEALTHY", "DEGRADED"
+    health_status: str = "REGISTERED_UNVERIFIED"  # "HEALTHY", "UNHEALTHY", "DEGRADED", "REGISTERED_UNVERIFIED"
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

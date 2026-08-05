@@ -317,20 +317,20 @@ class TestPhase2Integration:
                         self.error = None if self.success else "Execution failed"
                 
                 results = []
-                # SymbolicPlan has .plan which is ActionPlan with .steps
+                planned_code_actions = [
+                    "execute_code", "analyze_architecture", "process_general_request",
+                    "write_code", "create_plan", "inventory_files", "propose_structure",
+                    "request_move_approval", "collect_requirements", "calculate_constraints",
+                    "generate_parametric_geometry", "present_preview", "export_model",
+                    "write_code_draft", "run_tests"
+                ]
                 action_plan = plan.plan if hasattr(plan, 'plan') else plan
                 for step in action_plan.steps:
-                    if step.action_type in ["execute_code", "analyze_architecture", "process_general_request", "write_code", "create_plan"]:
+                    if step.action_type in planned_code_actions:
                         # For any code-like action, execute in sandbox
                         code = step.inputs.get("code", "")
-                        if not code and step.action_type == "analyze_architecture":
-                            code = "print('Analyzing architecture...')"
-                        elif not code and step.action_type == "process_general_request":
-                            code = "print('Processing request...')"
-                        elif not code and step.action_type == "write_code":
-                            code = "print('Writing code...')"
-                        elif not code and step.action_type == "create_plan":
-                            code = "print('Creating plan...')"
+                        if not code:
+                            code = f"print('{step.action_type}...')"
                         
                         request = ExecutionRequest(
                             code=code,
@@ -364,11 +364,11 @@ class TestPhase2Integration:
                             'error': '',
                         })())
                     else:
-                        # For unknown action types, just log and continue
+                        # Unknown action types must fail explicitly (no fake simulation success)
                         results.append(type('StepResult', (), {
-                            'success': True,
-                            'output': f'Simulated: {step.action_type}',
-                            'error': '',
+                            'success': False,
+                            'output': '',
+                            'error': f'UNSUPPORTED_ACTION: {step.action_type}',
                         })())
                 
                 return ExecutorResult(

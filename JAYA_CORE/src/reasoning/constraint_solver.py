@@ -114,50 +114,80 @@ class ConstraintSolver:
                         details={"capability": cap}
                     ))
         
-        # Check resource limits
-        if hasattr(ir, 'resource_budget'):
+        # Check resource limits from resource profile
+        max_mem = self.resource_profile.max_memory_mb if self.resource_profile else 512
+        max_dur = self.resource_profile.max_duration_seconds if self.resource_profile else 300
+        if hasattr(ir, 'resource_budget') and ir.resource_budget:
             budget = ir.resource_budget
-            if budget.max_memory_mb > 512:
+            if budget.max_memory_mb > max_mem:
                 violations.append(ConstraintViolation(
                     constraint_name="max_memory_mb",
-                    message=f"Memory budget exceeds limit: {budget.max_memory_mb}MB > 512MB",
+                    message=f"Memory budget exceeds limit: {budget.max_memory_mb}MB > {max_mem}MB",
                     severity="error",
-                    details={"requested": budget.max_memory_mb, "limit": 512}
+                    details={"requested": budget.max_memory_mb, "limit": max_mem}
                 ))
             
-            if budget.max_duration_seconds > 300:
+            if budget.max_duration_seconds > max_dur:
                 violations.append(ConstraintViolation(
                     constraint_name="max_duration_seconds",
-                    message=f"Duration budget exceeds limit: {budget.max_duration_seconds}s > 300s",
+                    message=f"Duration budget exceeds limit: {budget.max_duration_seconds}s > {max_dur}s",
                     severity="error",
-                    details={"requested": budget.max_duration_seconds, "limit": 300}
+                    details={"requested": budget.max_duration_seconds, "limit": max_dur}
                 ))
         
         # Check destructive actions require approval
         if hasattr(ir, 'steps'):
             for step in ir.steps:
-                if step.get('risk_class') == 'DESTRUCTIVE' and not step.get('approval_required'):
+                risk = step.risk_class.value if hasattr(step, 'risk_class') and hasattr(step.risk_class, 'value') else step.get('risk_class')
+                app_req = step.approval_required if hasattr(step, 'approval_required') else step.get('approval_required')
+                s_id = step.step_id if hasattr(step, 'step_id') else step.get('step_id')
+                if risk == 'DESTRUCTIVE' and not app_req:
                     violations.append(ConstraintViolation(
                         constraint_name="no_destructive_without_approval",
-                        message=f"Destructive step requires approval: {step.get('step_id')}",
+                        message=f"Destructive step requires approval: {s_id}",
                         severity="error",
-                        details={"step_id": step.get('step_id')}
+                        details={"step_id": s_id}
                     ))
         
         return violations
     
     def _is_capability_available(self, capability: str, context: Dict[str, Any]) -> bool:
-        """Check if a capability is available."""
-        # In real implementation, this would check capability registry
-        # For now, return True for known capabilities
-        known_capabilities = {
-            "text.reasoning.basic",
-            "cad.parametric_modeling",
-            "system.file.read",
-            "system.file.write",
-            "device.control",
-            "memory.read",
-            "memory.write",
-            "web.search",
-        }
-        return capability in known_capabilities
+        """Check if a capability is available via CapabilityRegistry."""
+        if self.capability_registry is None:
+            # Fallback for when no registry was passed
+            known_capabilities = {
+                "text.reasoning.basic",
+                "cad.parametric_modeling",
+                "system.file.read",
+                "system.file.write",
+                "device.control",
+                "memory.read",
+                "memory.write",
+                "code.execution",
+                "web.search",
+                "web.fetch",
+            }
+            return capability in known_capabilities
+
+        manifest = self.capability_registry.lookup(capability)
+        if manifest is None:
+            logger.warning("Capability not in registry: %s", capability)
+            return False
+        
+        if manifest.health_status not in ("HEALTHY", "REGISTERED_UNVERIFIED"):
+            logger.warning("Capability unhealthy: %s (status: %s)", capability, manifest.health_status)
+            return False
+        
+        max_mem = self.resource_profile.max_memory_mb if self.resource_profile else 512
+        memory_available = context.get("memory_available_mb", max_mem)
+        if manifest.min_memory_mb > memory_available:
+            logger.warning("Capability %s requires %dMB, only %dMB available", 
+                          capability, manifest.min_memory_mb, memory_available)
+            return False
+        
+        is_online = context.get("is_online", True)
+        if not is_online and not manifest.offline_available:
+            logger.warning("Capability %s not available offline", capability)
+            return False
+        
+        return True

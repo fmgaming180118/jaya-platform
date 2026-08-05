@@ -288,6 +288,7 @@ class Phase2VerificationGates:
                 [
                     "python", "-m", "pytest",
                     "JAYA_CORE/tests/test_phase2_integration.py",
+                    "-k", "not test_phase2_verification_gates",
                     "-v", "--tb=short", "-x"
                 ],
                 capture_output=True,

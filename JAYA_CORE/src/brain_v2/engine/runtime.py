@@ -1166,12 +1166,14 @@ class IronEngine:
         text: str,
         context: Optional[Dict[str, Any]] = None,
         force_local: bool = False,
+        auto_execute: bool = False,
     ) -> Dict[str, Any]:
         """
         Perform real cognitive reasoning using NLU-Symbolic Bridge as primary path.
         
         This is the MAIN entry point for JARVIS-like cognitive capabilities:
         - Primary: NLUSymbolicBridge (LLM NLU → Symbolic Reasoning → Plan)
+        - Action: CognitiveAgentBridge (Plan → Real Tool Execution when auto_execute=True)
         - Fallback: CognitiveModelAdapter (direct LLM inference)
         - Respects privacy policies (sensitive content → local only)
         - Falls back gracefully if models unavailable
@@ -1181,6 +1183,7 @@ class IronEngine:
             Dict with keys: ok, text, source, model_used, confidence, metadata, plan (if available)
         """
         ctx = context or {}
+        should_execute = auto_execute or ctx.get("auto_execute", False)
         
         # PRIMARY PATH: NLU-Symbolic Bridge
         if self._nlu_symbolic_bridge is not None:
@@ -1213,6 +1216,19 @@ class IronEngine:
                     }
                 
                 # Success - SymbolicPlan returned
+                execution_results = []
+                if should_execute and hasattr(result, 'plan') and hasattr(result.plan, 'steps'):
+                    try:
+                        from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import CognitiveAgentBridge
+                        bridge = CognitiveAgentBridge()
+                        if bridge.initialize():
+                            for step in result.plan.steps:
+                                step_intent = getattr(step, 'title', text)
+                                step_res = bridge.execute_cognitive_intent(step_intent, ctx)
+                                execution_results.append(step_res)
+                    except Exception as exc:
+                        logger.warning("Auto-execution of plan steps failed: %s", exc)
+
                 # Store in narrative memory
                 if self._narrative:
                     try:
@@ -1223,6 +1239,7 @@ class IronEngine:
                                 "plan": str(result.plan),
                                 "goal": str(result.goal),
                                 "ir": str(result.ir),
+                                "executions": len(execution_results),
                             },
                         )
                     except Exception as exc:
@@ -1232,18 +1249,22 @@ class IronEngine:
                 if self._intent:
                     self._intent.learn(text)
                 
+                metadata = {
+                    "plan": result.plan.to_dict() if hasattr(result.plan, 'to_dict') else (asdict(result.plan) if hasattr(result.plan, '__dataclass_fields__') else str(result.plan)),
+                    "goal": result.goal.to_dict() if hasattr(result.goal, 'to_dict') else (asdict(result.goal) if hasattr(result.goal, '__dataclass_fields__') else str(result.goal)),
+                    "ir": result.ir.to_dict() if hasattr(result.ir, 'to_dict') else (asdict(result.ir) if hasattr(result.ir, '__dataclass_fields__') else str(result.ir)),
+                    "nlu_result": asdict(result.nlu_result) if hasattr(result, 'nlu_result') and hasattr(result.nlu_result, '__dataclass_fields__') else str(getattr(result, 'nlu_result', '')),
+                }
+                if execution_results:
+                    metadata["execution_results"] = execution_results
+
                 return {
                     "ok": True,
                     "text": f"Rencana dibuat: {result.goal.title}" if hasattr(result.goal, 'title') else "Rencana dibuat",
                     "source": "nlu_symbolic_bridge",
                     "model_used": "symbolic_reasoner",
                     "confidence": result.nlu_result.confidence if hasattr(result, 'nlu_result') else 0.8,
-                    "metadata": {
-                        "plan": result.plan.to_dict() if hasattr(result.plan, 'to_dict') else (asdict(result.plan) if hasattr(result.plan, '__dataclass_fields__') else str(result.plan)),
-                        "goal": result.goal.to_dict() if hasattr(result.goal, 'to_dict') else (asdict(result.goal) if hasattr(result.goal, '__dataclass_fields__') else str(result.goal)),
-                        "ir": result.ir.to_dict() if hasattr(result.ir, 'to_dict') else (asdict(result.ir) if hasattr(result.ir, '__dataclass_fields__') else str(result.ir)),
-                        "nlu_result": asdict(result.nlu_result) if hasattr(result, 'nlu_result') and hasattr(result.nlu_result, '__dataclass_fields__') else str(getattr(result, 'nlu_result', '')),
-                    },
+                    "metadata": metadata,
                     "intent": text,
                 }
                 
