@@ -704,6 +704,7 @@ def create_nlu_symbolic_bridge(
             ]
             
             for cap in default_capabilities:
+                cap.health_status = "HEALTHY"
                 cap_registry.register(cap)
         
         symbolic_reasoner = SymbolicReasoner(

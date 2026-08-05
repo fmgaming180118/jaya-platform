@@ -166,6 +166,7 @@ class TestPhase2Integration:
         ]
         
         for cap in default_capabilities:
+            cap.health_status = "HEALTHY"
             capability_registry.register(cap)
         
         return create_symbolic_reasoner(

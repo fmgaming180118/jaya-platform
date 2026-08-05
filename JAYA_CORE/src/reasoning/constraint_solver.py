@@ -174,8 +174,8 @@ class ConstraintSolver:
             logger.warning("Capability not in registry: %s", capability)
             return False
         
-        if manifest.health_status not in ("HEALTHY", "REGISTERED_UNVERIFIED"):
-            logger.warning("Capability unhealthy: %s (status: %s)", capability, manifest.health_status)
+        if manifest.health_status != "HEALTHY":
+            logger.warning("Capability not HEALTHY: %s (status: %s)", capability, manifest.health_status)
             return False
         
         max_mem = self.resource_profile.max_memory_mb if self.resource_profile else 512

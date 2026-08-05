@@ -101,7 +101,7 @@ class CognitiveAgentBridge:
             if tool_needed and tool_name:
                 # Step 3: Request capability grant from OS
                 grant_result = self._request_capability_grant(
-                    tool_name, tool_args, user_id
+                    tool_name, tool_args, user_id, context=ctx
                 )
                 
                 if grant_result.get("granted"):
@@ -115,17 +115,21 @@ class CognitiveAgentBridge:
                         tool_name, tool_args, execution_result, user_id
                     )
                     
+                    # P0.5 Fix: ok is True ONLY IF execution_result status is success
+                    is_tool_success = execution_result.get("status") == "success"
+                    
                     return {
-                        "ok": True,
+                        "ok": is_tool_success,
                         "intent": intent,
                         "agent_reasoning": agent_result.get("thought", ""),
                         "tool_executed": tool_name,
                         "tool_result": execution_result,
                         "audit_receipt": audit_receipt,
                         "cognitive_feedback": {
-                            "success": execution_result.get("status") == "success",
+                            "success": is_tool_success,
                             "learned": True,
                         },
+                        "error": execution_result.get("error") if not is_tool_success else None,
                     }
                 else:
                     return {
@@ -147,7 +151,6 @@ class CognitiveAgentBridge:
                         "learned": True,
                     },
                 }
-                
         except Exception as e:
             logger.error(f"CognitiveAgentBridge execution failed: {e}")
             return {
@@ -155,6 +158,64 @@ class CognitiveAgentBridge:
                 "error": f"bridge_execution_failed: {e}",
                 "intent": intent,
             }
+
+    def execute_action_step(
+        self,
+        step: Any,
+        context: Optional[Dict[str, Any]] = None,
+        user_id: str = "default_user",
+    ) -> Dict[str, Any]:
+        """
+        Execute a structured ActionStep directly without string keyword matching.
+        """
+        ctx = context or {}
+        action_type = getattr(step, "action_type", "") or getattr(step, "required_capability", "")
+        inputs = getattr(step, "inputs", {}) or {}
+
+        # Resolve action_type to tool_name
+        tool_name = action_type
+        if tool_name not in ["file.read", "file.list", "file.write", "process.execute", "network.search", "system.status"]:
+            if "read" in action_type:
+                tool_name = "file.read"
+            elif "write" in action_type:
+                tool_name = "file.write"
+            elif "list" in action_type:
+                tool_name = "file.list"
+            elif "process" in action_type or "exec" in action_type or "run" in action_type:
+                tool_name = "process.execute"
+            elif "search" in action_type:
+                tool_name = "network.search"
+            else:
+                return {
+                    "ok": False,
+                    "error": "UNSUPPORTED_ACTION",
+                    "action_type": action_type,
+                }
+
+        grant_result = self._request_capability_grant(tool_name, inputs, user_id, context=ctx)
+        if not grant_result.get("granted"):
+            return {
+                "ok": False,
+                "error": "capability_denied",
+                "reason": grant_result.get("reason", "Unknown"),
+            }
+
+        execution_result = self._execute_tool(tool_name, inputs, grant_result["grant_token"])
+        is_success = execution_result.get("status") == "success"
+        audit_receipt = self._create_audit_receipt(tool_name, inputs, execution_result, user_id)
+
+        return {
+            "ok": is_success,
+            "action_type": action_type,
+            "tool_executed": tool_name,
+            "tool_result": execution_result,
+            "audit_receipt": audit_receipt,
+            "cognitive_feedback": {
+                "success": is_success,
+                "learned": True,
+            },
+            "error": execution_result.get("error") if not is_success else None,
+        }
 
     def _analyze_for_tool_execution(
         self,
@@ -218,17 +279,23 @@ class CognitiveAgentBridge:
         tool_name: str,
         tool_args: Dict[str, Any],
         user_id: str,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Request capability grant from JAYA_OS CapabilitySandbox using issue_grant."""
         try:
             from pathlib import Path
+            ctx = context or {}
             raw_path = tool_args.get("path", ".")
-            abs_path = str(Path(raw_path).resolve())
+            
+            # Resolve workspace boundary
+            workspace_root = repo_root.resolve()
+            target_path = (workspace_root / raw_path).resolve()
+            abs_path = str(target_path)
 
             # Map tool to valid resources for grant according to OS scope policy
             resource_map = {
-                "file.read": {"file.read": [f"{abs_path}/**" if Path(abs_path).is_dir() else abs_path]},
-                "file.list": {"file.list": [f"{abs_path}/**" if Path(abs_path).is_dir() else abs_path]},
+                "file.read": {"file.read": [f"{abs_path}/**" if target_path.is_dir() else abs_path]},
+                "file.list": {"file.list": [f"{abs_path}/**" if target_path.is_dir() else abs_path]},
                 "file.write": {"file.write": [abs_path]},
                 "process.execute": {"process.execute": ["process://default_process"]},
                 "network.search": {"network.search": ["https://api.duckduckgo.com/search"]},
@@ -237,6 +304,23 @@ class CognitiveAgentBridge:
             
             resources = resource_map.get(tool_name, {tool_name: [f"system://{tool_name.replace('.', '_')}"]})
             
+            # P0.2 Fix: Check for explicit consent/approval token instead of self-generating fake consent
+            consented_actions = []
+            consent_ref = ""
+            if tool_name in ["file.write", "process.execute"]:
+                # Check if approval receipt or consent is explicitly passed in context
+                passed_consent = ctx.get("consent_reference") or ctx.get("approval_receipt") or ctx.get("user_consent")
+                if passed_consent:
+                    consented_actions = [tool_name]
+                    consent_ref = str(passed_consent)
+                elif ctx.get("auto_consent") is True:
+                    # Explicit auto_consent flag allowed for automated test harnesses
+                    consented_actions = [tool_name]
+                    consent_ref = f"test_harness_consent_{user_id}_{tool_name.replace('.', '_')}"
+                else:
+                    # Consent missing for dangerous action
+                    return {"granted": False, "reason": f"USER_CONSENT_REQUIRED: Consent token needed for action '{tool_name}'"}
+
             # Issue grant using CapabilitySandbox
             grant_token = self._capability_sandbox.issue_grant(
                 subject=user_id,
@@ -244,8 +328,8 @@ class CognitiveAgentBridge:
                 resources=resources,
                 ttl_seconds=300.0,  # 5 minutes
                 max_uses=1,
-                consented_actions=[tool_name] if tool_name in ["file.write", "process.execute"] else [],
-                consent_reference=f"user_consent_{user_id}_{tool_name.replace('.', '_')}",
+                consented_actions=consented_actions,
+                consent_reference=consent_ref,
             )
             
             return {
@@ -274,7 +358,8 @@ class CognitiveAgentBridge:
             
             # Canonicalize resources for sandbox execution
             raw_path = tool_args.get("path", ".")
-            abs_path = str(Path(raw_path).resolve())
+            workspace_root = repo_root.resolve()
+            abs_path = str((workspace_root / raw_path).resolve())
             
             if tool_name in ["file.read", "file.write", "file.list"]:
                 resources_list = [abs_path]
@@ -324,47 +409,79 @@ class CognitiveAgentBridge:
     ) -> Any:
         """Execute real system tools (no fake simulation strings)."""
         import os
+        import shlex
         import subprocess
         from pathlib import Path
 
-        if tool_name == "file.read":
-            path_str = tool_args.get("path", ".")
-            path = Path(path_str)
-            if not path.exists():
-                raise FileNotFoundError(f"File not found: {path_str}")
-            if path.is_dir():
-                files = os.listdir(path)
-                return {"path": path_str, "is_directory": True, "files": files}
-            content = path.read_text(encoding="utf-8", errors="replace")
-            return {"path": path_str, "content": content[:10000], "size_bytes": len(content)}
+        workspace_root = repo_root.resolve()
 
-        elif tool_name == "file.list":
+        if tool_name in ["file.read", "file.list", "file.write"]:
             path_str = tool_args.get("path", ".")
-            path = Path(path_str)
-            if not path.exists():
-                raise FileNotFoundError(f"Directory not found: {path_str}")
-            entries = os.listdir(path)
-            return {"path": path_str, "entries": entries, "count": len(entries)}
+            target_path = (workspace_root / path_str).resolve()
+            
+            # P0.4 Containment Check: Ensure path does not escape workspace root
+            try:
+                target_path.relative_to(workspace_root)
+            except ValueError:
+                raise PermissionError(f"PATH_ESCAPE_DENIED: Target path '{path_str}' escapes workspace boundary '{workspace_root}'")
 
-        elif tool_name == "file.write":
-            path_str = tool_args.get("path", "output.txt")
-            content = tool_args.get("content", "")
-            path = Path(path_str)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(content, encoding="utf-8")
-            return {"path": path_str, "bytes_written": len(content.encode("utf-8")), "written": True}
+            if tool_name == "file.read":
+                if not target_path.exists():
+                    raise FileNotFoundError(f"File not found: {path_str}")
+                if target_path.is_dir():
+                    files = os.listdir(target_path)
+                    return {"path": str(target_path), "is_directory": True, "files": files}
+                content = target_path.read_text(encoding="utf-8", errors="replace")
+                return {"path": str(target_path), "content": content[:10000], "size_bytes": len(content)}
+
+            elif tool_name == "file.list":
+                if not target_path.exists():
+                    raise FileNotFoundError(f"Directory not found: {path_str}")
+                entries = os.listdir(target_path)
+                return {"path": str(target_path), "entries": entries, "count": len(entries)}
+
+            elif tool_name == "file.write":
+                content = tool_args.get("content", "")
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_text(content, encoding="utf-8")
+                return {"path": str(target_path), "bytes_written": len(content.encode("utf-8")), "written": True}
 
         elif tool_name == "process.execute":
-            cmd = tool_args.get("command", "echo hello")
+            # P0.1 Fix: Safe process execution without shell=True
+            cmd_raw = tool_args.get("command", "echo hello")
+            if isinstance(cmd_raw, str):
+                cmd_args = shlex.split(cmd_raw, posix=(sys.platform != "win32"))
+            elif isinstance(cmd_raw, list):
+                cmd_args = [str(a) for a in cmd_raw]
+            else:
+                raise ValueError(f"Invalid command format: {type(cmd_raw)}")
+
+            if not cmd_args:
+                raise ValueError("Command cannot be empty")
+
+            executable = cmd_args[0].lower()
+            allowed_executables = {"python", "python.exe", "pytest", "git", "echo", "dir", "ls"}
+            
+            # Allow executables inside workspace or virtual environment
+            is_allowed = (
+                executable in allowed_executables
+                or Path(executable).name.lower() in allowed_executables
+                or executable.startswith(str(workspace_root))
+            )
+            
+            if not is_allowed:
+                raise PermissionError(f"UNAUTHORIZED_EXECUTABLE: Process command '{executable}' is not in allowlist: {allowed_executables}")
+
             res = subprocess.run(
-                cmd,
-                shell=True,
+                cmd_args,
+                shell=False,  # P0.1 NO shell=True
                 capture_output=True,
                 text=True,
                 timeout=15,
+                cwd=str(workspace_root),  # P0.4 Bound execution to workspace
             )
             return {
-                "command": cmd,
+                "command": cmd_raw,
                 "exit_code": res.returncode,
                 "stdout": res.stdout[:5000],
                 "stderr": res.stderr[:5000],
@@ -380,8 +497,8 @@ class CognitiveAgentBridge:
             }
 
         elif tool_name == "network.search":
-            query = tool_args.get("query", "")
-            return {"query": query, "results": [f"Search request recorded for '{query}'"]}
+            # P0.6 Fix: Return CAPABILITY_UNAVAILABLE when no real network search provider exists
+            raise NotImplementedError("CAPABILITY_UNAVAILABLE: Real network search provider is not configured.")
 
         else:
             raise NotImplementedError(f"Unsupported tool action: {tool_name}")
