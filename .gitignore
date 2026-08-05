@@ -102,6 +102,7 @@ scratch/
 *.gguf
 adapters/
 **/adapters/
+AGENTS.md
 
 # ─── TEST SCRIPTS & TEST ARTIFACTS ───────────────────────────────────────────
 check_duplicates.py
