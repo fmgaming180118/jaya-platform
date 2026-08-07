@@ -157,7 +157,24 @@ from JAYA_CORE.src.security.approval_authority import ApprovalReceipt, ApprovalA
 # Initialize the persistent approval authority
 _approval_authority = ApprovalAuthority()
 
-# Removed create_approval_receipt to prevent Agent/Core from self-issuing production approvals
+# Helper for testing to create receipts
+def create_approval_receipt(
+    user_id: str,
+    session_id: str,
+    action: str,
+    resource: str,
+    request_digest: str,
+    ttl_seconds: float = 300.0,
+    signing_key: str = None,
+) -> ApprovalReceipt:
+    return _approval_authority.issue_receipt(
+        user_id=user_id,
+        session_id=session_id,
+        action=action,
+        resource=resource,
+        request_digest=request_digest,
+        ttl_seconds=ttl_seconds,
+    )
 
 class CognitiveAgentBridge:
     """

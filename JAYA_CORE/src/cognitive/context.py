@@ -7,10 +7,10 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List
 
-from src.identity.models import NodeClass, NodeIdentity
-from src.memory.events import MemoryEvent
-from src.resources.modes import ExecutionMode
-from src.resources.profiler import ResourceProfile
+from JAYA_CORE.src.identity.models import NodeClass, NodeIdentity
+from JAYA_CORE.src.memory.events import MemoryEvent
+from JAYA_CORE.src.resources.modes import ExecutionMode
+from JAYA_CORE.src.resources.profiler import ResourceProfile
 
 
 @dataclass
