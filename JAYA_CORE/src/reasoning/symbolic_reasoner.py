@@ -337,7 +337,7 @@ class SymbolicReasoner:
                     step_id=step_data.get('step_id', f'step-{i}'),
                     title=step_data.get('title', f'Step {i+1}'),
                     action_type=step_data.get('action_type', 'process_general_request'),
-                    required_capability=step_data.get('required_capability', 'text.reasoning.basic'),
+                    required_capability=step_data.get('required_capability', 'core.reason'),
                     risk_class=RiskClass(step_data.get('risk_class', 'READ_ONLY')),
                     execution_target=step_data.get('execution_target', 'local'),
                     approval_required=step_data.get('approval_required', False),

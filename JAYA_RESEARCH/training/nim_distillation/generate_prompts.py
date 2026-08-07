@@ -62,7 +62,7 @@ def extract_concepts_from_jaya_docs() -> List[str]:
     for doc_file in doc_files:
         if doc_file.exists():
             try:
-                content = doc_file.read_text(encoding="utf-8")
+                content = doc_fs.read_text(encoding="utf-8")
                 # Simple extraction: look for capitalized phrases and key terms
                 lines = content.split('\n')
                 for line in lines:

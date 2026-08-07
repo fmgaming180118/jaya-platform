@@ -255,8 +255,8 @@ class IndonesianTokenizer:
         meta_file: Path = TOKENIZER_FILE,
     ) -> None:
         vocab_file.parent.mkdir(parents=True, exist_ok=True)
-        vocab_file.write_text(json.dumps(self.token2id, ensure_ascii=False, indent=2), encoding="utf-8")
-        merges_file.write_text(json.dumps(self.merges, ensure_ascii=False), encoding="utf-8")
+        vocab_fs.write_text(json.dumps(self.token2id, ensure_ascii=False, indent=2), encoding="utf-8")
+        merges_fs.write_text(json.dumps(self.merges, ensure_ascii=False), encoding="utf-8")
         meta = {
             "vocab_size": self.vocab_size,
             "actual_vocab": len(self.token2id),
@@ -266,7 +266,7 @@ class IndonesianTokenizer:
             "version": "1.0",
             "model_target": "JAYA NanoModel Indonesian",
         }
-        meta_file.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
+        meta_fs.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info("[Tokenizer] Disimpan: %d token, %d merges → %s", len(self.token2id), len(self.merges), vocab_file.parent)
 
     @classmethod
@@ -280,8 +280,8 @@ class IndonesianTokenizer:
                 f"Vocab belum ada di {vocab_file}. "
                 "Jalankan: python indonesian_tokenizer.py --train"
             )
-        token2id = json.loads(vocab_file.read_text(encoding="utf-8"))
-        merges_raw = json.loads(merges_file.read_text(encoding="utf-8"))
+        token2id = json.loads(vocab_fs.read_text(encoding="utf-8"))
+        merges_raw = json.loads(merges_fs.read_text(encoding="utf-8"))
         merges = [tuple(m) for m in merges_raw]  # type: ignore[assignment]
         return cls(token2id=token2id, merges=merges, vocab_size=len(token2id))  # type: ignore[arg-type]
 

@@ -92,7 +92,7 @@ class GenericHierarchicalPlanner:
                     action_type="write_code_draft",
                     required_capability="fs.write",
                     risk_class=RiskClass.REVERSIBLE,
-                    inputs={"path": "draft.py"},
+                    inputs={"path": "draft.py", "content": "ref:step-1.analysis_result"},
                     approval_required=True,
                     dependencies=["step-1"],
                 ),

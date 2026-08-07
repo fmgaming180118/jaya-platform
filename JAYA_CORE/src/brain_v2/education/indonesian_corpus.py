@@ -272,7 +272,7 @@ class IndonesianCorpus:
                 seen.add(key)
                 unique.append(s)
 
-        self.out_file.write_text("\n".join(unique), encoding="utf-8")
+        self.out_fs.write_text("\n".join(unique), encoding="utf-8")
         logger.info("[Corpus] Selesai: %d kalimat unik → %s", len(unique), self.out_file)
         return len(unique)
 
@@ -281,12 +281,12 @@ class IndonesianCorpus:
         if not self.out_file.exists():
             logger.warning("[Corpus] %s belum ada. Jalankan build() terlebih dahulu.", self.out_file)
             return list(_SEED_SENTENCES)
-        lines = self.out_file.read_text(encoding="utf-8").splitlines()
+        lines = self.out_fs.read_text(encoding="utf-8").splitlines()
         return [l for l in lines if l.strip()]
 
     def status(self) -> dict:
         if self.out_file.exists():
-            count = len(self.out_file.read_text(encoding="utf-8").splitlines())
+            count = len(self.out_fs.read_text(encoding="utf-8").splitlines())
             size  = self.out_file.stat().st_size
             return {"exists": True, "sentences": count, "size_bytes": size, "path": str(self.out_file)}
         return {"exists": False, "sentences": len(_SEED_SENTENCES), "path": str(self.out_file)}

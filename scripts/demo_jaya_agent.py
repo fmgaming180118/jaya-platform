@@ -37,7 +37,7 @@ async def run_agent_demo():
     # Record User Consent
     consent = permission_mgr.record_consent(
         subject="agent_researcher_01",
-        action_set=["file.read"],
+        action_set=["fs.read"],
         reference="user-tapped-allow-2026",
         ttl_seconds=3600,
     )
@@ -49,7 +49,7 @@ async def run_agent_demo():
         request_id="req-dispatch-001",
         plan_id="plan-research-001",
         goal_title="Eksplorasi material superkonduktor",
-        steps=[{"step_id": "step-01", "action": "file.read", "target": sample_file_path}],
+        steps=[{"step_id": "step-01", "action": "fs.read", "target": sample_file_path}],
     )
 
     validator = ContractValidator()
@@ -59,8 +59,8 @@ async def run_agent_demo():
     # 3. Issue Grant dari JAYA OS ke Agent
     grant = permission_mgr.issue_grant(
         subject="agent_researcher_01",
-        actions=["file.read"],
-        resources={"file.read": (sample_file_path,)},
+        actions=["fs.read"],
+        resources={"fs.read": (sample_file_path,)},
         ttl_seconds=300,
     )
     print(f"   -> Grant Token Terdaftar OS  : {grant[:16]}...")
@@ -70,7 +70,7 @@ async def run_agent_demo():
     tool_req = AgentToolRequest(
         dispatch_id=dispatch.request_id,
         step_id="step-01",
-        action="file.read",
+        action="fs.read",
         resources=[sample_file_path],
         grant_token=grant,
         idempotency_key="idem-key-tool-001",
@@ -86,7 +86,7 @@ async def run_agent_demo():
     # Eksekusi Terisolasi Sandbox OS Nyata
     execution = await sandbox.execute(
         grant_token=grant,
-        action="file.read",
+        action="fs.read",
         resources=(sample_file_path,),
         idempotency_key="idem-key-tool-001",
         request_payload={"file_path": sample_file_path},

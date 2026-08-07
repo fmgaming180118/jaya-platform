@@ -169,7 +169,7 @@ class TestCapabilities:
         reg = CapabilityRegistry()
         reg.register(
             CapabilityManifest(
-                capability_id="text.reasoning.basic",
+                capability_id="core.reason",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -181,7 +181,7 @@ class TestCapabilities:
         budget = ResourceBudget(max_memory_mb=512, allow_network=True, allow_remote_offload=True)
 
         # Local match
-        neg_local = negotiator.negotiate("text.reasoning.basic", ExecutionMode.ONLINE_FULL, budget)
+        neg_local = negotiator.negotiate("core.reason", ExecutionMode.ONLINE_FULL, budget)
         assert neg_local.status == NegotiationResultStatus.EXECUTE_LOCAL
 
         # Remote match

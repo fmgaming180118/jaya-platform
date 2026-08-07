@@ -431,5 +431,5 @@ def test_provider_sources_do_not_disable_tls_verification() -> None:
     forbidden = ("verify=False", "CERT_NONE", "check_hostname = False")
 
     for source_file in source_files:
-        source = source_file.read_text(encoding="utf-8")
+        source = source_fs.read_text(encoding="utf-8")
         assert not any(marker in source for marker in forbidden), source_file

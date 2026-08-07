@@ -547,23 +547,23 @@ Contoh output:
         """Map intent type to required capabilities using CapabilityRegistry."""
         # Base capabilities by intent
         base_capabilities = {
-            IntentType.CREATE_3D_DESIGN: ["cad.parametric_modeling", "text.reasoning.basic"],
-            IntentType.WRITE_CODE: ["text.reasoning.basic", "system.file.read", "system.file.write"],
-            IntentType.CREATE_PLAN: ["text.reasoning.basic", "system.file.read"],
-            IntentType.ASK_INFORMATION: ["text.reasoning.basic", "web.search"],
-            IntentType.CONTROL_DEVICE: ["device.control", "system.file.read"],
+            IntentType.CREATE_3D_DESIGN: ["cad.parametric_modeling", "core.reason"],
+            IntentType.WRITE_CODE: ["core.reason", "fs.read", "fs.write"],
+            IntentType.CREATE_PLAN: ["core.reason", "fs.read"],
+            IntentType.ASK_INFORMATION: ["core.reason", "web.search"],
+            IntentType.CONTROL_DEVICE: ["device.control", "fs.read"],
             IntentType.MANAGE_MEMORY: ["memory.read", "memory.write"],
         }
         
-        caps = base_capabilities.get(intent_type, ["text.reasoning.basic"])
+        caps = base_capabilities.get(intent_type, ["core.reason"])
         
         # Add entity-specific capabilities
         if "CODE" in entities or "PROGRAMMING_LANGUAGE" in entities:
-            caps.append("code.execution")
+            caps.append("process.execute")
         if "FILE_PATH" in entities:
-            caps.append("system.file.read")
+            caps.append("fs.read")
         if "URL" in entities:
-            caps.append("web.fetch")
+            caps.append("fs.list")
         
         # Filter to only available capabilities in registry
         available = set()
@@ -573,7 +573,7 @@ Contoh output:
             else:
                 logger.warning("Capability not in registry: %s", cap)
         
-        return list(available) if available else ["text.reasoning.basic"]
+        return list(available) if available else ["core.reason"]
     
     def _create_goal(self, nlu_result: NLUResult, context: Dict[str, Any]) -> Goal:
         """Create Goal from NLU result."""
@@ -617,7 +617,7 @@ def create_nlu_symbolic_bridge(
         if not cap_registry.list_capabilities():
             default_capabilities = [
                 CapabilityManifest(
-                    capability_id="text.reasoning.basic",
+                    capability_id="core.reason",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -625,7 +625,7 @@ def create_nlu_symbolic_bridge(
                     offline_available=True,
                 ),
                 CapabilityManifest(
-                    capability_id="system.file.read",
+                    capability_id="fs.read",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -634,7 +634,7 @@ def create_nlu_symbolic_bridge(
                     offline_available=True,
                 ),
                 CapabilityManifest(
-                    capability_id="system.file.write",
+                    capability_id="fs.write",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -651,7 +651,7 @@ def create_nlu_symbolic_bridge(
                     offline_available=False,
                 ),
                 CapabilityManifest(
-                    capability_id="web.fetch",
+                    capability_id="fs.list",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -659,7 +659,7 @@ def create_nlu_symbolic_bridge(
                     offline_available=False,
                 ),
                 CapabilityManifest(
-                    capability_id="code.execution",
+                    capability_id="process.execute",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -704,12 +704,12 @@ def create_nlu_symbolic_bridge(
             ]
             
             healthy_builtins = {
-                "text.reasoning.basic",
-                "system.file.read",
-                "system.file.write",
+                "core.reason",
+                "fs.read",
+                "fs.write",
                 "memory.read",
                 "memory.write",
-                "code.execution",
+                "process.execute",
             }
             for cap in default_capabilities:
                 if cap.capability_id in healthy_builtins:

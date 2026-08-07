@@ -139,7 +139,7 @@ def main() -> int:
     report_sections: list[str] = []
     for report_file in report_files:
         print(f"Reading: {report_file.name}")
-        content = report_file.read_text(encoding="utf-8")
+        content = report_fs.read_text(encoding="utf-8")
         if "Analysis failed" in content and len(content) < 2000:
             print(f"Skipping incomplete report: {report_file.name}")
             continue

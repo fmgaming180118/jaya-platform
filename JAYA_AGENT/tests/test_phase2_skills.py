@@ -38,7 +38,7 @@ class TestPhase2Skills(unittest.TestCase):
         schemas = SkillRegistry.get_all_tool_schemas()
         tools = {schema["function"]["name"]: schema["function"] for schema in schemas}
         write_schema = tools["file_skill_write_file"]
-        self.assertEqual(write_schema["x-jaya-capability"], "file.write")
+        self.assertEqual(write_schema["x-jaya-capability"], "fs.write")
         self.assertTrue(write_schema["x-jaya-explicit-grant-required"])
         self.assertFalse(
             write_schema["parameters"]["additionalProperties"],
@@ -49,10 +49,10 @@ class TestPhase2Skills(unittest.TestCase):
             path = (Path(temporary_directory) / "result.txt").resolve()
             write_grant = self.sandbox.issue_grant(
                 subject="phase2-test",
-                actions=("file.write",),
-                resources={"file.write": (str(path),)},
+                actions=("fs.write",),
+                resources={"fs.write": (str(path),)},
                 ttl_seconds=30,
-                consented_actions=("file.write",),
+                consented_actions=("fs.write",),
                 consent_reference="test-consent-write-001",
             )
             written = asyncio.run(
@@ -69,8 +69,8 @@ class TestPhase2Skills(unittest.TestCase):
 
             read_grant = self.sandbox.issue_grant(
                 subject="phase2-test",
-                actions=("file.read",),
-                resources={"file.read": (str(path),)},
+                actions=("fs.read",),
+                resources={"fs.read": (str(path),)},
                 ttl_seconds=30,
             )
             read = asyncio.run(

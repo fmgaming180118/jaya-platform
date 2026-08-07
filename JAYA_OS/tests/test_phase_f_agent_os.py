@@ -121,7 +121,7 @@ class TestCoreAgentOsContract:
         request = AgentToolRequest(
             dispatch_id="disp-002",
             step_id="s1",
-            action="file.read",
+            action="fs.read",
             resources=["/tmp/file"],
             grant_token="",
             idempotency_key="idem-key-12345",
@@ -230,7 +230,7 @@ class TestConsentRecord:
         )
         assert record.is_active() is True
         assert record.covers("system.status") is True
-        assert record.covers("file.write") is False
+        assert record.covers("fs.write") is False
 
     def test_expired_consent_is_not_active(self):
         past = time.time() - 120.0

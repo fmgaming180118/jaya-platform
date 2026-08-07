@@ -68,10 +68,10 @@ def run_phase_g_mesh_e2e_drill() -> dict:
         authority=AuthorityLevel.MISSION_OPERATOR,
     )
 
-    registry.register_node(central_id, available_memory_mb=8192, capabilities=["reasoning.full", "text.reasoning.basic"])
-    registry.register_node(standard_id, available_memory_mb=4096, capabilities=["text.reasoning.basic"])
-    registry.register_node(edge_id, available_memory_mb=512, capabilities=["text.reasoning.basic"])
-    registry.register_node(mission_id, available_memory_mb=512, capabilities=["text.reasoning.basic"])
+    registry.register_node(central_id, available_memory_mb=8192, capabilities=["reasoning.full", "core.reason"])
+    registry.register_node(standard_id, available_memory_mb=4096, capabilities=["core.reason"])
+    registry.register_node(edge_id, available_memory_mb=512, capabilities=["core.reason"])
+    registry.register_node(mission_id, available_memory_mb=512, capabilities=["core.reason"])
 
     active_nodes = registry.list_active_nodes()
     drill1_pass = len(active_nodes) == 4

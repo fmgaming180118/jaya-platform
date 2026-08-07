@@ -63,13 +63,12 @@ class TestAcceptanceRealActionLoop:
         canonical_request = json.dumps(tool_args, sort_keys=True).encode()
         request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
         
-        repo_root = Path(__file__).resolve().parent.parent
-        abs_path = str((repo_root / f"temp_test_acceptance/{test_file.name}").resolve())
+        abs_path = str((Path.cwd() / f"temp_test_acceptance/{test_file.name}").resolve())
         
         approval_receipt = create_approval_receipt(
             user_id="acceptance_user",
             session_id="acceptance_session",
-            action="file.write",
+            action="fs.write",
             resource=abs_path,
             request_digest=request_digest,
         )
@@ -86,7 +85,7 @@ class TestAcceptanceRealActionLoop:
         )
         
         assert write_res["ok"] is True
-        assert write_res["tool_executed"] == "file.write"
+        assert write_res["tool_executed"] == "fs.write"
         assert write_res["tool_result"]["status"] == "success"
         
         # Read file back
@@ -97,7 +96,7 @@ class TestAcceptanceRealActionLoop:
         )
         
         assert read_res["ok"] is True
-        assert read_res["tool_executed"] == "file.read"
+        assert read_res["tool_executed"] == "fs.read"
         assert read_res["tool_result"]["status"] == "success"
         assert read_res["tool_result"]["result"]["content"] == test_content
     
@@ -138,7 +137,7 @@ class TestAcceptanceRealActionLoop:
         from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import create_approval_receipt
         
         class MockActionStep:
-            def __init__(self, action_type, inputs, required_capability="text.reasoning.basic", 
+            def __init__(self, action_type, inputs, required_capability="core.reason", 
                          risk_class="READ_ONLY", approval_required=False, step_id="step-1", title="Test step"):
                 self.action_type = action_type
                 self.inputs = inputs
@@ -156,30 +155,29 @@ class TestAcceptanceRealActionLoop:
         tool_args = {"path": f"temp_test_acceptance/{test_file.name}", "content": test_content}
         canonical_request = json.dumps(tool_args, sort_keys=True).encode()
         request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
-        repo_root = Path(__file__).resolve().parent.parent
-        abs_path = str((repo_root / f"temp_test_acceptance/{test_file.name}").resolve())
+        abs_path = str((Path.cwd() / f"temp_test_acceptance/{test_file.name}").resolve())
         
         approval_receipt = create_approval_receipt(
             user_id="acceptance_user",
             session_id="acceptance_session",
-            action="file.write",
+            action="fs.write",
             resource=abs_path,
             request_digest=request_digest,
         )
         
         step1 = MockActionStep(
-            "file.write", 
+            "fs.write", 
             {"path": f"temp_test_acceptance/{test_file.name}", "content": test_content},
-            required_capability="system.file.write",
+            required_capability="fs.write",
             risk_class=RiskClass.REVERSIBLE,
             approval_required=True,
             step_id="step-1",
             title="Write test file"
         )
         step2 = MockActionStep(
-            "file.read", 
+            "fs.read", 
             {"path": f"temp_test_acceptance/{test_file.name}"},
-            required_capability="system.file.read",
+            required_capability="fs.read",
             risk_class="READ_ONLY",
             approval_required=False,
             step_id="step-2",
@@ -219,9 +217,9 @@ class TestAcceptanceRealActionLoop:
         from JAYA_CORE.src.capabilities.manifest import CapabilityManifest
         
         caps = [
-            CapabilityManifest("text.reasoning.basic", "1.0", "built_in", "local", min_memory_mb=16),
-            CapabilityManifest("system.file.read", "1.0", "built_in", "local", min_memory_mb=16),
-            CapabilityManifest("system.file.write", "1.0", "built_in", "local", min_memory_mb=16),
+            CapabilityManifest("core.reason", "1.0", "built_in", "local", min_memory_mb=16),
+            CapabilityManifest("fs.read", "1.0", "built_in", "local", min_memory_mb=16),
+            CapabilityManifest("fs.write", "1.0", "built_in", "local", min_memory_mb=16),
             CapabilityManifest("process.execute", "1.0", "built_in", "local", min_memory_mb=64),
         ]
         
@@ -231,10 +229,10 @@ class TestAcceptanceRealActionLoop:
         # Probe all capabilities
         results = registry.probe_all_capabilities()
         
-        # At least text.reasoning.basic and file operations should be healthy
-        assert results.get("text.reasoning.basic") is True
-        assert results.get("system.file.read") is True
-        assert results.get("system.file.write") is True
+        # At least core.reason and file operations should be healthy
+        assert results.get("core.reason") is True
+        assert results.get("fs.read") is True
+        assert results.get("fs.write") is True
         
         # Check health status updated
         for cap_id, healthy in results.items():
@@ -251,7 +249,7 @@ class TestAcceptanceRealActionLoop:
         receipt = create_approval_receipt(
             user_id="test_user",
             session_id="test_session",
-            action="file.write",
+            action="fs.write",
             resource="/workspace/test.txt",
             request_digest=request_digest,
             ttl_seconds=300.0,
@@ -259,8 +257,11 @@ class TestAcceptanceRealActionLoop:
         
         assert isinstance(receipt, ApprovalReceipt)
         assert receipt.user_id == "test_user"
-        assert receipt.action == "file.write"
-        assert receipt.verify() is True
+        assert receipt.action == "fs.write"
+        from JAYA_CORE.src.security.approval_authority import ApprovalAuthority
+        authority = ApprovalAuthority()
+        is_valid, _ = authority.verify_and_consume(receipt, "test_session")
+        assert is_valid is True
         
         # Test expiry
         import time
@@ -268,7 +269,7 @@ class TestAcceptanceRealActionLoop:
             receipt_id="test",
             user_id="test_user",
             session_id="test_session",
-            action="file.write",
+            action="fs.write",
             resource="/workspace/test.txt",
             request_digest=request_digest,
             issued_at=time.time() - 1000,
@@ -276,7 +277,8 @@ class TestAcceptanceRealActionLoop:
             nonce="test",
             signature="test",
         )
-        assert expired_receipt.verify() is False
+        is_valid_expired, _ = authority.verify_and_consume(expired_receipt, "test_session")
+        assert is_valid_expired is False
     
     def test_process_profile_validation(self):
         """Test ProcessProfile argument validation."""
@@ -296,8 +298,8 @@ class TestAcceptanceRealActionLoop:
         class ValidStep:
             step_id = "step-1"
             title = "Valid step"
-            action_type = "file.write"
-            required_capability = "system.file.write"
+            action_type = "fs.write"
+            required_capability = "fs.write"
             risk_class = "REVERSIBLE"
             approval_required = True
             inputs = {"path": "test.txt", "content": "test"}
@@ -305,7 +307,7 @@ class TestAcceptanceRealActionLoop:
         class InvalidStepMissingField:
             step_id = "step-1"
             title = "Invalid step"
-            action_type = "file.write"
+            action_type = "fs.write"
             # missing required_capability
             risk_class = "REVERSIBLE"
             approval_required = True
@@ -314,8 +316,8 @@ class TestAcceptanceRealActionLoop:
         class InvalidStepRiskMismatch:
             step_id = "step-1"
             title = "Invalid step"
-            action_type = "file.write"
-            required_capability = "system.file.write"
+            action_type = "fs.write"
+            required_capability = "fs.write"
             risk_class = "READ_ONLY"  # Should not require approval
             approval_required = True  # But approval required
             inputs = {"path": "test.txt", "content": "test"}
@@ -336,12 +338,12 @@ class TestAcceptanceRealActionLoop:
     
     def test_no_default_fallbacks(self):
         """Test that no default fallbacks are used for missing inputs."""
-        # file.write without path should fail
+        # fs.write without path should fail
         class StepNoPath:
             step_id = "step-1"
             title = "No path"
-            action_type = "file.write"
-            required_capability = "system.file.write"
+            action_type = "fs.write"
+            required_capability = "fs.write"
             risk_class = "REVERSIBLE"
             approval_required = True
             inputs = {"content": "test"}  # missing path
@@ -372,7 +374,7 @@ class TestAcceptanceRealActionLoop:
         approval_receipt = create_approval_receipt(
             user_id="test_user",
             session_id="test_session",
-            action="file.read",
+            action="fs.read",
             resource="/etc/passwd",
             request_digest=request_digest,
         )

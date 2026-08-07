@@ -29,14 +29,14 @@ class FileOperationsSkill(Skill):
         "read_file",
         "Reads bounded UTF-8 text from an explicitly granted file",
         params={"filepath": "str"},
-        capability="file.read",
+        capability="fs.read",
         resource_param="filepath",
         timeout_seconds=5.0,
     )
     def read_file(self, filepath: str) -> str:
         path = Path(filepath)
         resolved = path.resolve(strict=True)
-        require_active_capability("file.read", (_ticket_resource(resolved),))
+        require_active_capability("fs.read", (_ticket_resource(resolved),))
         if not resolved.is_file() or resolved.is_symlink():
             raise ValueError("Granted resource must be a regular non-symlink file")
         if resolved.stat().st_size > _MAX_READ_BYTES:
@@ -48,14 +48,14 @@ class FileOperationsSkill(Skill):
         "write_file",
         "Atomically writes bounded UTF-8 text to an explicitly granted file",
         params={"filepath": "str", "content": "str"},
-        capability="file.write",
+        capability="fs.write",
         resource_param="filepath",
         timeout_seconds=5.0,
     )
     def write_file(self, filepath: str, content: str) -> str:
         path = Path(filepath)
         resolved = path.resolve(strict=False)
-        require_active_capability("file.write", (_ticket_resource(resolved),))
+        require_active_capability("fs.write", (_ticket_resource(resolved),))
         payload = content.encode("utf-8")
         if len(payload) > _MAX_WRITE_BYTES:
             raise ValueError("Write payload exceeds the configured size limit")
@@ -69,7 +69,7 @@ class FileOperationsSkill(Skill):
         if path.parent.is_symlink():
             raise ValueError("Writing through a symlink directory is not allowed")
         resolved = resolved.resolve(strict=False)
-        require_active_capability("file.write", (_ticket_resource(resolved),))
+        require_active_capability("fs.write", (_ticket_resource(resolved),))
         temporary_path: Path | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -94,13 +94,13 @@ class FileOperationsSkill(Skill):
         "list_directory",
         "Lists a bounded number of entries in an explicitly granted directory",
         params={"dirpath": "str"},
-        capability="file.list",
+        capability="fs.list",
         resource_param="dirpath",
         timeout_seconds=5.0,
     )
     def list_directory(self, dirpath: str) -> str:
         path = Path(dirpath).resolve(strict=True)
-        require_active_capability("file.list", (_ticket_resource(path),))
+        require_active_capability("fs.list", (_ticket_resource(path),))
         if not path.is_dir() or path.is_symlink():
             raise ValueError("Granted resource must be a non-symlink directory")
         items = sorted(item.name for item in path.iterdir())[:_MAX_LIST_ITEMS]

@@ -156,16 +156,16 @@ class ConstraintSolver:
         if self.capability_registry is None:
             # Fallback for when no registry was passed
             known_capabilities = {
-                "text.reasoning.basic",
+                "core.reason",
                 "cad.parametric_modeling",
-                "system.file.read",
-                "system.file.write",
+                "fs.read",
+                "fs.write",
                 "device.control",
                 "memory.read",
                 "memory.write",
-                "code.execution",
+                "process.execute",
                 "web.search",
-                "web.fetch",
+                "fs.list",
             }
             return capability in known_capabilities
 

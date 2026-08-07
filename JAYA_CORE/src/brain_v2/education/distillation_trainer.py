@@ -279,7 +279,7 @@ class DistillationTrainer:
                     out_file.stat().st_size / 1024)
 
     def save_log(self, log_file: Path = TRAIN_LOG_FILE) -> None:
-        log_file.write_text(json.dumps(self._loss_history, indent=2), encoding="utf-8")
+        log_fs.write_text(json.dumps(self._loss_history, indent=2), encoding="utf-8")
 
     @staticmethod
     def load_model_weights(model: Any, weight_file: Path = MODEL_OUT_FILE) -> bool:

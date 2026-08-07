@@ -84,13 +84,13 @@ def test_nlu_bridge_structured_json_with_mock_nlu():
 
     cap_registry = CapabilityRegistry()
     cap_registry.register(CapabilityManifest(
-        capability_id="text.reasoning.basic",
+        capability_id="core.reason",
         version="1.0",
         provider="built_in",
         execution_location="local",
     ))
     cap_registry.register(CapabilityManifest(
-        capability_id="system.file.read",
+        capability_id="fs.read",
         version="1.0",
         provider="built_in",
         execution_location="local",
@@ -127,9 +127,9 @@ def test_factory_returns_shared_capability_registry():
     """Test P0.5: Factory returns bridge with shared CapabilityRegistry populated."""
     bridge = create_nlu_symbolic_bridge()
     assert bridge.capability_registry is not None
-    assert bridge.capability_registry.has_capability("text.reasoning.basic")
-    assert bridge.capability_registry.has_capability("system.file.read")
-    assert bridge.capability_registry.has_capability("code.execution")
+    assert bridge.capability_registry.has_capability("core.reason")
+    assert bridge.capability_registry.has_capability("fs.read")
+    assert bridge.capability_registry.has_capability("process.execute")
 
 
 def test_schema_validation_rejects_invalid_json():

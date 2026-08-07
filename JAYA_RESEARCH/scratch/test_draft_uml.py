@@ -24,7 +24,7 @@ chapter = drafter.generate_system_design_chapter(topic, spec, ["usecase"])
 
 # Save to scratch folder first to protect data
 output_file = Path(__file__).parent / "sample_chapter_bab3.md"
-output_file.write_text(chapter, encoding="utf-8")
+output_fs.write_text(chapter, encoding="utf-8")
 print(f"\n[INTEGRATION TEST] Saved to: {output_file}")
 
 print("\n--- GENERATED DRAFT (Bab III) ---")

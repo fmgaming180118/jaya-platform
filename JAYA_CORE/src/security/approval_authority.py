@@ -169,18 +169,20 @@ class ApprovalAuthority:
             signature=signature,
         )
         
-    def verify_and_consume(self, receipt: ApprovalReceipt, current_session_id: str) -> tuple[bool, str]:
+    def verify_and_consume(
+        self, 
+        receipt: ApprovalReceipt, 
+        current_session_id: str,
+        expected_user_id: str,
+        expected_action: str,
+        expected_resource: str,
+        expected_request_digest: str
+    ) -> tuple[bool, str]:
         """
-        Verify the receipt signature, expiry, session binding, and nonce consumption.
+        Strictly verify the receipt signature, expiry, identity, operation bindings, and nonce.
         Returns (is_valid, reason).
         """
-        if time.time() > receipt.expires_at:
-            return False, "INVALID_APPROVAL_RECEIPT: Receipt has expired"
-            
-        if receipt.session_id != current_session_id:
-            return False, f"INVALID_APPROVAL_RECEIPT: Session ID mismatch (expected {current_session_id}, got {receipt.session_id})"
-            
-        # Verify signature
+        # 1. Verify signature first (prevents expensive operations on forged receipts)
         message = f"{receipt.receipt_id}|{receipt.user_id}|{receipt.session_id}|{receipt.action}|{receipt.resource}|{receipt.request_digest}|{receipt.issued_at}|{receipt.expires_at}|{receipt.nonce}"
         expected_signature = hmac.new(
             self.signing_key.encode(),
@@ -190,8 +192,37 @@ class ApprovalAuthority:
         
         if not hmac.compare_digest(receipt.signature, expected_signature):
             return False, "INVALID_APPROVAL_RECEIPT: Signature verification failed"
+
+        # 2. Verify expiry
+        if time.time() > receipt.expires_at:
+            return False, "INVALID_APPROVAL_RECEIPT: Receipt has expired"
             
-        # Replay protection: consume nonce
+        # 3. Verify user
+        if receipt.user_id != expected_user_id:
+            return False, f"INVALID_APPROVAL_RECEIPT: User ID mismatch (expected {expected_user_id}, got {receipt.user_id})"
+            
+        # 4. Verify session
+        if not current_session_id:
+            return False, "INVALID_APPROVAL_RECEIPT: SESSION_REQUIRED"
+            
+        if receipt.session_id != current_session_id:
+            return False, f"INVALID_APPROVAL_RECEIPT: Session ID mismatch (expected {current_session_id}, got {receipt.session_id})"
+            
+        # 5. Verify action
+        if receipt.action != expected_action:
+            return False, f"INVALID_APPROVAL_RECEIPT: Action mismatch (expected {expected_action}, got {receipt.action})"
+
+        # 6. Verify canonical resource
+        if receipt.resource != expected_resource:
+            return False, f"INVALID_APPROVAL_RECEIPT: Resource mismatch (expected {expected_resource}, got {receipt.resource})"
+
+        # 7. Verify request digest
+        if receipt.request_digest != expected_request_digest:
+            return False, "INVALID_APPROVAL_RECEIPT: Request digest mismatch"
+            
+        # 8. Verify not revoked (skipped / to be implemented if revocation list added)
+            
+        # 9. Verify nonce unused -> atomically consume nonce
         if not self.ledger.consume(receipt.nonce):
             return False, "INVALID_APPROVAL_RECEIPT: Nonce already consumed (replay detected)"
             

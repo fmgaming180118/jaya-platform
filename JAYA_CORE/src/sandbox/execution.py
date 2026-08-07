@@ -193,7 +193,7 @@ class SubprocessSandbox(SandboxBackend):
         }
         ext = ext_map.get(request.language, ".py")
         main_file = work_dir / f"main{ext}"
-        main_file.write_text(request.code)
+        main_fs.write_text(request.code)
     
     async def execute(self, request: ExecutionRequest) -> ExecutionResult:
         """Execute code in subprocess."""
@@ -416,7 +416,7 @@ class DockerSandbox(SandboxBackend):
             }
             ext = ext_map.get(request.language, ".py")
             main_file = work_dir / f"main{ext}"
-            main_file.write_text(request.code)
+            main_fs.write_text(request.code)
             
             # Build Docker command
             container_name = f"jaya-sandbox-{uuid.uuid4().hex[:8]}"

@@ -47,8 +47,8 @@ def test_web_skill_without_adapter_fails_closed() -> None:
     sandbox = _configure(skill)
     grant = sandbox.issue_grant(
         subject="boundary-test",
-        actions=("network.search",),
-        resources={"network.search": skill.NETWORK_RESOURCES},
+        actions=("web.search",),
+        resources={"web.search": skill.NETWORK_RESOURCES},
         ttl_seconds=30,
     )
     result = asyncio.run(

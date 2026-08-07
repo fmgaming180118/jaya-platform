@@ -138,14 +138,16 @@ class CapabilityRegistry:
                 # Returning False prevents executor false positives
                 return False
             
-            elif cap_id == "web.search" or cap_id == "web.fetch":
+            elif cap_id == "web.search":
                 # Probe: verify search provider adapter is actually available
-                # Network check is insufficient; we need the actual implementation
                 try:
-                    from JAYA_CORE.src.ai_connectors.search_adapter import SearchAdapter
+                    from JAYA_CORE.src.ai_connectors.public_api_client import PublicAPIClient
                     return True
                 except ImportError:
                     return False
+            
+            elif cap_id == "process.execute":
+                return True
             
             else:
                 logger.warning("No probe for built-in capability: %s", cap_id)

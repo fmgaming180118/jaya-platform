@@ -3,25 +3,24 @@ executor.py — Executes cognitive and reasoning actions natively.
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
+from JAYA_CORE.src.cognitive.contracts import CognitiveStepResult
+from JAYA_CORE.src.ai_connectors.cognitive_model_adapter import CognitiveModelAdapter
 
 logger = logging.getLogger(__name__)
 
 class CognitiveActionExecutor:
     """
     Executes internal cognitive steps like planning, constraints calculation, 
-    and architectural analysis.
+    and architectural analysis using a real cognitive provider.
     """
     
-    def __init__(self):
-        # Could initialize connection to local LLM adapter here
-        pass
+    def __init__(self, model_adapter: Optional[CognitiveModelAdapter] = None):
+        self.model_adapter = model_adapter
         
-    def execute_reasoning(self, step: Any, context: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_reasoning(self, step: Any, context: Dict[str, Any]) -> CognitiveStepResult:
         """
-        Execute a reasoning step.
-        In a full implementation, this routes the prompt/context to the LLM adapter.
-        For now, it produces a structured analytical output instead of a fake success.
+        Execute a reasoning step using the connected cognitive model.
         """
         step_title = getattr(step, "title", "Unknown Reasoning Step")
         action_type = getattr(step, "action_type", "unknown")
@@ -29,24 +28,45 @@ class CognitiveActionExecutor:
         
         logger.info("Executing cognitive step: %s (%s)", step_title, action_type)
         
-        # In a real implementation, this would call LLM:
-        # response = self.llm_adapter.generate(prompt=f"Perform analysis for {action_type}...", context=context)
-        
-        # Structured mock reasoning for different action types
-        if action_type == "analyze_architecture":
-            output = "Analyzed architecture. Recommended pattern: modular layers with DI."
-        elif action_type == "calculate_constraints":
-            output = "Calculated physical constraints. Max dimensions: 10x10x10."
-        elif action_type == "propose_structure":
-            output = "Proposed new folder structure based on domain boundaries."
-        else:
-            output = f"Completed cognitive processing for: {step_title}."
+        if not self.model_adapter:
+            return CognitiveStepResult(
+                ok=False,
+                error="COGNITIVE_PROVIDER_UNAVAILABLE",
+            )
             
-        return {
-            "ok": True,
-            "output": output,
-            "metadata": {
-                "model_used": "local_policy_router",
-                "tokens_consumed": 0,
-            }
-        }
+        # Construct prompt based on action type and inputs
+        prompt_lines = [
+            f"Please perform cognitive reasoning for action: {action_type}",
+            f"Step Title: {step_title}",
+            "Inputs:",
+        ]
+        for k, v in inputs.items():
+            prompt_lines.append(f" - {k}: {v}")
+            
+        if "previous_failure_reason" in context:
+            prompt_lines.append(f"Note: Previous attempt failed because: {context['previous_failure_reason']}")
+            
+        prompt = "\n".join(prompt_lines)
+        
+        try:
+            response = self.model_adapter.generate(
+                prompt=prompt,
+                privacy_level="INTERNAL",
+            )
+            
+            # The response is a CognitiveResponse object
+            return CognitiveStepResult(
+                ok=True,
+                output_text=response.text,
+                artifacts={"analysis_result": response.text},
+                derived_inputs={},
+                confidence=response.confidence,
+                provider=response.source,
+                model=response.model_used,
+            )
+        except Exception as e:
+            logger.error("Cognitive reasoning failed: %s", e)
+            return CognitiveStepResult(
+                ok=False,
+                error=f"REASONING_ERROR: {str(e)}"
+            )

@@ -42,7 +42,7 @@ class ProductionBackupManager:
         if not self.index_file.exists():
             return []
         try:
-            raw = json.loads(self.index_file.read_text(encoding="utf-8"))
+            raw = json.loads(self.index_fs.read_text(encoding="utf-8"))
             return [BackupSnapshot(**item) for item in raw]
         except Exception as err:
             logger.warning("Failed to load backup index: %s", err)
@@ -50,7 +50,7 @@ class ProductionBackupManager:
 
     def _save_index(self) -> None:
         raw = [asdict(snap) for snap in self._snapshots]
-        self.index_file.write_text(json.dumps(raw, indent=2), encoding="utf-8")
+        self.index_fs.write_text(json.dumps(raw, indent=2), encoding="utf-8")
 
     def _compute_hash(self, path: Path) -> str:
         digest = hashlib.sha256()

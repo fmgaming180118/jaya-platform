@@ -26,13 +26,13 @@ class WebResearchSkill(Skill):
         "web_search",
         "Searches allowlisted HTTPS providers for information",
         params={"query": "str"},
-        capability="network.search",
+        capability="web.search",
         fixed_resources=NETWORK_RESOURCES,
         timeout_seconds=15.0,
     )
     def web_search(self, query: str) -> str:
         require_active_capability(
-            "network.search",
+            "web.search",
             self.NETWORK_RESOURCES,
         )
         clean_query = query.strip()

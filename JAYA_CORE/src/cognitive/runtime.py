@@ -114,7 +114,7 @@ class JayaCoreRuntime:
         """Register default built-in capabilities."""
         self.capability_registry.register(
             CapabilityManifest(
-                capability_id="text.reasoning.basic",
+                capability_id="core.reason",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -124,7 +124,7 @@ class JayaCoreRuntime:
         )
         self.capability_registry.register(
             CapabilityManifest(
-                capability_id="system.file.read",
+                capability_id="fs.read",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",

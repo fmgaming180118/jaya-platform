@@ -66,8 +66,8 @@ def test_web_tool_requires_exact_provider_scope_and_blocks_direct_call() -> None
     resources = skill.NETWORK_RESOURCES
     grant = sandbox.issue_grant(
         subject="agent-test",
-        actions=("network.search",),
-        resources={"network.search": resources},
+        actions=("web.search",),
+        resources={"web.search": resources},
         ttl_seconds=30,
         max_uses=2,
     )
@@ -84,8 +84,8 @@ def test_web_tool_requires_exact_provider_scope_and_blocks_direct_call() -> None
 
     evil_grant = sandbox.issue_grant(
         subject="agent-test",
-        actions=("network.search",),
-        resources={"network.search": ("https://evil.example",)},
+        actions=("web.search",),
+        resources={"web.search": ("https://evil.example",)},
         ttl_seconds=30,
     )
     denied = asyncio.run(
@@ -110,11 +110,11 @@ def test_file_scope_and_idempotency_block_repeat_side_effect(
     outside = (tmp_path.parent / "outside.txt").resolve()
     grant = sandbox.issue_grant(
         subject="agent-test",
-        actions=("file.write",),
-        resources={"file.write": (str(target),)},
+        actions=("fs.write",),
+        resources={"fs.write": (str(target),)},
         ttl_seconds=30,
         max_uses=2,
-        consented_actions=("file.write",),
+        consented_actions=("fs.write",),
         consent_reference="user-approved-target",
     )
 

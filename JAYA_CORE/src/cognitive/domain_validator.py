@@ -68,7 +68,7 @@ class DomainBoundaryValidator:
                 continue
 
             scanned_count += 1
-            content = py_file.read_text(encoding="utf-8", errors="replace")
+            content = py_fs.read_text(encoding="utf-8", errors="replace")
             lines = content.splitlines()
 
             for i, line in enumerate(lines, start=1):

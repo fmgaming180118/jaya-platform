@@ -30,10 +30,10 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 ALLOWED_OS_ACTIONS: frozenset[str] = frozenset(
     {
-        "file.read",
-        "file.list",
-        "file.write",
-        "network.search",
+        "fs.read",
+        "fs.list",
+        "fs.write",
+        "web.search",
         "process.execute",
         "system.status",
         "device.audio.output",

@@ -34,7 +34,7 @@ class NodeRegistry:
         capabilities: Optional[List[str]] = None,
     ) -> NodeState:
         now = time.time()
-        caps = capabilities or ["text.reasoning.basic"]
+        caps = capabilities or ["core.reason"]
         state = NodeState(
             identity=identity,
             last_heartbeat_timestamp=now,

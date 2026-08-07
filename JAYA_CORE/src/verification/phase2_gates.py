@@ -395,7 +395,7 @@ class Phase2VerificationGates:
         issues = []
         for py_file in repo_root.glob("JAYA_CORE/src/**/*.py"):
             try:
-                content = py_file.read_text(encoding="utf-8", errors="ignore")
+                content = py_fs.read_text(encoding="utf-8", errors="ignore")
                 for pattern in secret_patterns:
                     if pattern.search(content):
                         issues.append(str(py_file.relative_to(repo_root)))
@@ -435,7 +435,7 @@ class Phase2VerificationGates:
         issues = []
         for py_file in repo_root.glob("JAYA_CORE/src/**/*.py"):
             try:
-                content = py_file.read_text(encoding="utf-8", errors="ignore")
+                content = py_fs.read_text(encoding="utf-8", errors="ignore")
                 if path_pattern.search(content):
                     issues.append(str(py_file.relative_to(repo_root)))
             except Exception:

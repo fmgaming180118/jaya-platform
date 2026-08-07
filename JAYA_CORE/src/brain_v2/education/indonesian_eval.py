@@ -258,7 +258,7 @@ class IndonesianEvaluator:
 
     def save(self, out_file: Path = EVAL_RESULT_FILE) -> None:
         out_file.parent.mkdir(parents=True, exist_ok=True)
-        out_file.write_text(
+        out_fs.write_text(
             json.dumps(self._results, indent=2, ensure_ascii=False, default=str),
             encoding="utf-8"
         )

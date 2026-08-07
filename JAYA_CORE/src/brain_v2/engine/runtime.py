@@ -251,6 +251,7 @@ class IronEngine:
             ModelReadinessState.UNAVAILABLE,
             ModelFailureCode.NOT_LOADED,
         )
+        self._cognitive_model: Optional[Any] = None   # Initialized in _init_cognitive_model
         self._meta_cognitive:  Optional[Any] = None   # Pillar 38 MetaCognitivePlanner
         self._self_bootstrap:  Optional[Any] = None   # Pillar 28 SelfBootstrap
         self._live_evolver:    Optional[Any] = None   # LiveEvolver for micro-evolution
@@ -723,7 +724,7 @@ class IronEngine:
             # Register default capabilities
             default_capabilities = [
                 CapabilityManifest(
-                    capability_id="text.reasoning.basic",
+                    capability_id="core.reason",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -731,7 +732,7 @@ class IronEngine:
                     offline_available=True,
                 ),
                 CapabilityManifest(
-                    capability_id="system.file.read",
+                    capability_id="fs.read",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -740,7 +741,7 @@ class IronEngine:
                     offline_available=True,
                 ),
                 CapabilityManifest(
-                    capability_id="system.file.write",
+                    capability_id="fs.write",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -757,15 +758,24 @@ class IronEngine:
                     offline_available=False,
                 ),
                 CapabilityManifest(
-                    capability_id="web.fetch",
+                    capability_id="fs.list",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
-                    min_memory_mb=32,
-                    offline_available=False,
+                    min_memory_mb=16,
+                    permissions_required=["file_read"],
+                    offline_available=True,
                 ),
                 CapabilityManifest(
-                    capability_id="code.execution",
+                    capability_id="system.status",
+                    version="1.0",
+                    provider="built_in",
+                    execution_location="local",
+                    min_memory_mb=16,
+                    offline_available=True,
+                ),
+                CapabilityManifest(
+                    capability_id="process.execute",
                     version="1.0",
                     provider="built_in",
                     execution_location="local",
@@ -831,6 +841,10 @@ class IronEngine:
             from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import create_cognitive_agent_bridge
             self._cognitive_agent_bridge = create_cognitive_agent_bridge()
             logger.info("[Phase 2] CognitiveAgentBridge initialized")
+            
+            from JAYA_CORE.src.cognitive.evaluator import GoalEvaluator
+            self._goal_evaluator = GoalEvaluator()
+            logger.info("[Phase 2] GoalEvaluator initialized")
             
 
         except ImportError as exc:
@@ -1257,7 +1271,7 @@ class IronEngine:
                             },
                         )
                     except Exception as exc:
-                        logger.debug("NarrativeContinuity NLU-Symbolic trace failed: %s", exc)
+                        logger.error("NarrativeContinuity NLU-Symbolic trace failed: %s", exc, exc_info=True)
                 
                 # Teach IntentEngine
                 if self._intent:
@@ -1432,9 +1446,48 @@ class IronEngine:
             )
         
         all_ok = reason_result.get("ok", False) and bridge_result.get("ok", False)
+        
+        # Evaluate goal and replan if needed
+        domain_status = "EXECUTION_SUCCEEDED" if all_ok else ("EXECUTION_FAILED" if not bridge_result.get("ok") else "REPLAN_REQUIRED")
+        
+        if hasattr(self, "_goal_evaluator") and self._goal_evaluator:
+            # Inject model adapter if available
+            if hasattr(self, "_cognitive_model") and self._cognitive_model:
+                self._goal_evaluator.model_adapter = self._cognitive_model
+                
+            from JAYA_CORE.src.cognitive.evaluator import EvaluationStatus
+            observations = bridge_result.get("execution_results", bridge_result.get("step_results", []))
+            # Fallback observation if single step
+            if not observations and bridge_result.get("ok") is not None:
+                observations = [{"ok": bridge_result.get("ok", False), "action_type": bridge_result.get("tool_result", {}).get("capability", "unknown")}]
+            
+            eval_result = self._goal_evaluator.evaluate_goal_progress(
+                goal=reason_result.get("intent", reason_result.get("goal", {"title": text})),
+                observations=observations,
+                plan=plan
+            )
+            
+            if eval_result.status == EvaluationStatus.FAILED:
+                domain_status = "REPLAN_REQUIRED"
+                logger.info("GoalEvaluator marked execution as FAILED. Triggering replanning...")
+                # Basic replanning hook: If we haven't already replanned in this context
+                replan_count = context.get("replan_count", 0) if context else 0
+                if replan_count < 1:  # Max 1 replan to avoid infinite loop
+                    replan_context = context.copy() if context else {}
+                    replan_context["replan_count"] = replan_count + 1
+                    replan_context["previous_failure_reason"] = eval_result.reasoning
+                    replan_text = f"The previous attempt to '{text}' failed because: {eval_result.reasoning}. Please try a different approach."
+                    
+                    return self.cognitive_reason_and_act(
+                        text=replan_text,
+                        context=replan_context,
+                        force_local=force_local,
+                        user_id=user_id
+                    )
+
         return {
             "ok": all_ok,
-            "domain_status": "EXECUTION_SUCCEEDED" if all_ok else ("EXECUTION_FAILED" if not bridge_result.get("ok") else "REPLAN_REQUIRED"),
+            "domain_status": domain_status,
             "cognitive_reasoning": reason_result,
             "agent_execution": bridge_result,
             "combined_response": bridge_result.get("response", "")

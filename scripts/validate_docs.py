@@ -131,7 +131,7 @@ def validate_local_links() -> list[str]:
             continue
 
         try:
-            content = source_file.read_text(encoding="utf-8")
+            content = source_fs.read_text(encoding="utf-8")
         except OSError as exc:
             errors.append(f"Cannot read file {rel_path}: {exc}")
             continue

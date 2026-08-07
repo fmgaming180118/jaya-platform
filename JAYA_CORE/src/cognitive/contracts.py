@@ -42,6 +42,21 @@ class ActionStatus(str, Enum):
 
 
 @dataclass
+class CognitiveStepResult:
+    ok: bool
+    output_text: str = ""
+    artifacts: Dict[str, Any] = field(default_factory=dict)
+    derived_inputs: Dict[str, Any] = field(default_factory=dict)
+    confidence: float = 0.0
+    provider: str = ""
+    model: str = ""
+    error: Optional[str] = None
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ConstraintViolation:
     """Represents a constraint violation."""
     constraint_name: str

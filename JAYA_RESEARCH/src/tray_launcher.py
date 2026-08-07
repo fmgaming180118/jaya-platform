@@ -98,7 +98,7 @@ class TrayController:
                 shell=False,
             )
         except Exception as exc:
-            logfile.write(f"Failed to start: {exc}\n")
+            logfs.write(f"Failed to start: {exc}\n")
             logfile.flush()
             logfile.close()
             raise

@@ -455,8 +455,8 @@ class CognitiveModelAdapter:
             "local_llm": {
                 "available": self._local_available,
                 "model_path": self.local_adapter.model_path if self._local_available else None,
-                "n_ctx": self.local_adapter.n_ctx,
-                "n_threads": self.local_adapter.n_threads,
+                "n_ctx": self.local_adapter.config.n_ctx if hasattr(self.local_adapter, 'config') else 2048,
+                "n_threads": self.local_adapter.config.n_threads if hasattr(self.local_adapter, 'config') else 4,
             },
             "public_api": {
                 "available": self.public_api is not None,

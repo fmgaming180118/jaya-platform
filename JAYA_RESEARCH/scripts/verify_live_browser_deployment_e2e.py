@@ -50,19 +50,19 @@ class LocalTestAPIHandler(BaseHTTPRequestHandler):
 
         if self.path == "/health":
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "UP", "auth": bool(auth_header)}).encode("utf-8"))
+            self.wfs.write(json.dumps({"status": "UP", "auth": bool(auth_header)}).encode("utf-8"))
         elif self.path == "/api/research/artifact":
             if not auth_header.startswith("Bearer "):
                 self.send_response(401)
                 self.end_headers()
-                self.wfile.write(json.dumps({"error": "UNAUTHORIZED"}).encode("utf-8"))
+                self.wfs.write(json.dumps({"error": "UNAUTHORIZED"}).encode("utf-8"))
                 return
             self.end_headers()
-            self.wfile.write(json.dumps({"artifact": "summary.json", "idempotency": idempotency_key}).encode("utf-8"))
+            self.wfs.write(json.dumps({"artifact": "summary.json", "idempotency": idempotency_key}).encode("utf-8"))
         else:
             self.send_response(404)
             self.end_headers()
-            self.wfile.write(json.dumps({"error": "RESOURCE_NOT_FOUND", "fallback_ui": "NotFoundFallback"}).encode("utf-8"))
+            self.wfs.write(json.dumps({"error": "RESOURCE_NOT_FOUND", "fallback_ui": "NotFoundFallback"}).encode("utf-8"))
 
 
 def find_free_port() -> int:

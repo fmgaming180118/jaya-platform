@@ -79,7 +79,7 @@ class TestPhase2Integration:
         # Register default capabilities
         default_capabilities = [
             CapabilityManifest(
-                capability_id="text.reasoning.basic",
+                capability_id="core.reason",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -87,7 +87,7 @@ class TestPhase2Integration:
                 offline_available=True,
             ),
             CapabilityManifest(
-                capability_id="system.file.read",
+                capability_id="fs.read",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -96,7 +96,7 @@ class TestPhase2Integration:
                 offline_available=True,
             ),
             CapabilityManifest(
-                capability_id="system.file.write",
+                capability_id="fs.write",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -113,7 +113,7 @@ class TestPhase2Integration:
                 offline_available=False,
             ),
             CapabilityManifest(
-                capability_id="web.fetch",
+                capability_id="fs.list",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -121,7 +121,7 @@ class TestPhase2Integration:
                 offline_available=False,
             ),
             CapabilityManifest(
-                capability_id="code.execution",
+                capability_id="process.execute",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -185,7 +185,7 @@ class TestPhase2Integration:
         # Register default capabilities
         default_capabilities = [
             CapabilityManifest(
-                capability_id="text.reasoning.basic",
+                capability_id="core.reason",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -193,7 +193,7 @@ class TestPhase2Integration:
                 offline_available=True,
             ),
             CapabilityManifest(
-                capability_id="system.file.read",
+                capability_id="fs.read",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -202,7 +202,7 @@ class TestPhase2Integration:
                 offline_available=True,
             ),
             CapabilityManifest(
-                capability_id="system.file.write",
+                capability_id="fs.write",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -219,7 +219,7 @@ class TestPhase2Integration:
                 offline_available=False,
             ),
             CapabilityManifest(
-                capability_id="web.fetch",
+                capability_id="fs.list",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -227,7 +227,7 @@ class TestPhase2Integration:
                 offline_available=False,
             ),
             CapabilityManifest(
-                capability_id="code.execution",
+                capability_id="process.execute",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -407,7 +407,7 @@ class TestPhase2Integration:
         # Register default capabilities
         default_capabilities = [
             CapabilityManifest(
-                capability_id="text.reasoning.basic",
+                capability_id="core.reason",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -415,7 +415,7 @@ class TestPhase2Integration:
                 offline_available=True,
             ),
             CapabilityManifest(
-                capability_id="system.file.read",
+                capability_id="fs.read",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -424,7 +424,7 @@ class TestPhase2Integration:
                 offline_available=True,
             ),
             CapabilityManifest(
-                capability_id="system.file.write",
+                capability_id="fs.write",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -441,7 +441,7 @@ class TestPhase2Integration:
                 offline_available=False,
             ),
             CapabilityManifest(
-                capability_id="web.fetch",
+                capability_id="fs.list",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -449,7 +449,7 @@ class TestPhase2Integration:
                 offline_available=False,
             ),
             CapabilityManifest(
-                capability_id="code.execution",
+                capability_id="process.execute",
                 version="1.0",
                 provider="built_in",
                 execution_location="local",
@@ -567,7 +567,7 @@ class TestPhase2Integration:
                 'risk_class': 'DESTRUCTIVE',
                 'approval_required': False,  # Missing approval!
             }],
-            'required_capabilities': ['system.file.write'],
+            'required_capabilities': ['fs.write'],
             'resource_budget': type('Budget', (), {
                 'max_memory_mb': 100,
                 'max_duration_seconds': 60,
@@ -594,7 +594,7 @@ class TestPhase2Integration:
                     step_id="step-1",
                     title="Divide by zero",
                     action_type="execute_code",
-                    required_capability="text.reasoning.basic",
+                    required_capability="core.reason",
                     risk_class=RiskClass.READ_ONLY,
                     inputs={"code": "1/0"},
                 )
@@ -881,7 +881,7 @@ class TestPhase2Integration:
                     step_id="step-1",
                     title="Step 1",
                     action_type="process_general_request",
-                    required_capability="text.reasoning.basic",
+                    required_capability="core.reason",
                     risk_class=RiskClass.READ_ONLY,
                     dependencies=["step-2"],
                 ),
@@ -889,7 +889,7 @@ class TestPhase2Integration:
                     step_id="step-2",
                     title="Step 2",
                     action_type="process_general_request",
-                    required_capability="text.reasoning.basic",
+                    required_capability="core.reason",
                     risk_class=RiskClass.READ_ONLY,
                     dependencies=["step-1"],
                 ),

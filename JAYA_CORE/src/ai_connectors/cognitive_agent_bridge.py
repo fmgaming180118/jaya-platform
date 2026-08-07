@@ -157,26 +157,7 @@ from JAYA_CORE.src.security.approval_authority import ApprovalReceipt, ApprovalA
 # Initialize the persistent approval authority
 _approval_authority = ApprovalAuthority()
 
-def create_approval_receipt(
-    user_id: str,
-    session_id: str,
-    action: str,
-    resource: str,
-    request_digest: str,
-    ttl_seconds: float = 300.0,
-    signing_key: str = None,
-) -> ApprovalReceipt:
-    """Helper for testing to create receipts."""
-    # In tests, we still use the central authority, signing_key override is ignored
-    return _approval_authority.issue_receipt(
-        user_id=user_id,
-        session_id=session_id,
-        action=action,
-        resource=resource,
-        request_digest=request_digest,
-        ttl_seconds=ttl_seconds,
-    )
-
+# Removed create_approval_receipt to prevent Agent/Core from self-issuing production approvals
 
 class CognitiveAgentBridge:
     """
@@ -408,6 +389,16 @@ class CognitiveAgentBridge:
                 }
 
         ctx = context or {}
+        
+        execution_state = ctx.get("execution_state")
+        if not execution_state:
+            from JAYA_CORE.src.cognitive.execution_state import PlanExecutionState
+            execution_state = PlanExecutionState(
+                plan_id=getattr(plan, "plan_id", "unknown"),
+                goal_id=getattr(plan, "goal_id", "unknown")
+            )
+            ctx["execution_state"] = execution_state
+
         steps = getattr(plan, "steps", plan) if not isinstance(plan, list) else plan
         if not isinstance(steps, list):
             return {
@@ -425,9 +416,13 @@ class CognitiveAgentBridge:
             ctx["completed_steps"] = completed_steps
             res = self.execute_action_step(step, context=ctx, user_id=user_id)
             step_results.append(res)
+            
             if not res.get("ok"):
+                execution_state.record_step_failure(step_id, res.get("error", "Unknown error"), res)
                 failed_step = res
                 break  # Stop execution on first step failure
+                
+            execution_state.record_step_success(step_id, res)
             completed_steps.add(step_id)
 
         all_success = (len(step_results) > 0) and (failed_step is None)
@@ -465,6 +460,19 @@ class CognitiveAgentBridge:
         
         action_type = getattr(step, "action_type", "") or getattr(step, "required_capability", "")
         inputs = getattr(step, "inputs", {}) or {}
+        
+        # Resolve references if a PlanExecutionState is provided in context
+        execution_state = ctx.get("execution_state")
+        if execution_state:
+            try:
+                inputs = execution_state.resolve_references(inputs)
+            except ValueError as e:
+                return {
+                    "ok": False,
+                    "error": "UNRESOLVED_ACTION_INPUT",
+                    "reason": str(e)
+                }
+                
         required_capability = getattr(step, "required_capability", "")
         risk_class = getattr(step, "risk_class", "")
         approval_required = getattr(step, "approval_required", False)
@@ -532,7 +540,9 @@ class CognitiveAgentBridge:
 
         execution_result = self._execute_tool(tool_name, inputs, grant_result["grant_token"])
         is_success = execution_result.get("status") == "success"
-        audit_receipt = self._create_audit_receipt(tool_name, inputs, execution_result, user_id)
+        
+        # P0.5 Fix: Use actual JAYA OS Audit Receipt
+        audit_receipt = execution_result.get("receipt")
 
         return {
             "ok": is_success,
@@ -574,11 +584,11 @@ class CognitiveAgentBridge:
         """Resolve action_type/capability to exact tool name (no fuzzy matching)."""
         # Exact mapping from action_type to tool_name
         action_to_tool = {
-            "file.read": "fs.read",
-            "file.list": "fs.list", 
-            "file.write": "fs.write",
+            "fs.read": "fs.read",
+            "fs.list": "fs.list", 
+            "fs.write": "fs.write",
             "process.execute": "process.execute",
-            "network.search": "web.search",
+            "web.search": "web.search",
             "system.status": "system.status",
             "collect_requirements": "fs.read",
             "calculate_constraints": "core.reason",
@@ -774,22 +784,19 @@ class CognitiveAgentBridge:
                     else:
                         expected_resource = abs_path
                         
-                    # P0.7, P0.8, P0.9: Verify via ApprovalAuthority
+                    # P0.7, P0.8, P0.9: Verify via ApprovalAuthority with strict bindings
                     current_session_id = ctx.get("session_id", getattr(approval_receipt, "session_id", None))
-                    is_valid, reason = _approval_authority.verify_and_consume(approval_receipt, current_session_id)
+                    is_valid, reason = _approval_authority.verify_and_consume(
+                        receipt=approval_receipt, 
+                        current_session_id=current_session_id,
+                        expected_user_id=user_id,
+                        expected_action=tool_name,
+                        expected_resource=expected_resource,
+                        expected_request_digest=expected_digest
+                    )
                     
                     if not is_valid:
                         return {"granted": False, "reason": reason}
-                        
-                    # Additional Context validation
-                    if approval_receipt.user_id != user_id:
-                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: User ID mismatch (expected {user_id}, got {approval_receipt.user_id})"}
-                    if approval_receipt.action != tool_name:
-                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Action mismatch (expected {tool_name}, got {approval_receipt.action})"}
-                    if approval_receipt.resource != expected_resource:
-                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Resource mismatch (expected {expected_resource}, got {approval_receipt.resource})"}
-                    if approval_receipt.request_digest != expected_digest:
-                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Digest mismatch"}
                         
                     consented_actions = [tool_name]
                     consent_ref = approval_receipt.receipt_id
@@ -844,7 +851,7 @@ class CognitiveAgentBridge:
                 resources_list = [f"process://{profile_id}"]
             elif tool_name == "system.status":
                 resources_list = ["system://status"]
-            elif tool_name == "network.search":
+            elif tool_name == "web.search":
                 resources_list = ["https://api.duckduckgo.com/search"]
             else:
                 resources_list = [str(v) for v in tool_args.values()]
@@ -959,38 +966,14 @@ class CognitiveAgentBridge:
                 "status": "HEALTHY",
             }
 
-        elif tool_name == "network.search":
+        elif tool_name == "web.search":
             # P0.6 Fix: Return CAPABILITY_UNAVAILABLE when no real network search provider exists
             raise NotImplementedError("CAPABILITY_UNAVAILABLE: Real network search provider is not configured.")
 
         else:
             raise NotImplementedError(f"Unsupported tool action: {tool_name}")
 
-    def _create_audit_receipt(
-        self,
-        tool_name: str,
-        tool_args: Dict[str, Any],
-        execution_result: Dict[str, Any],
-        user_id: str,
-    ) -> Dict[str, Any]:
-        """Create audit receipt for tool execution."""
-        import hashlib
-        import time
-        
-        receipt_id = f"audit-{int(time.time() * 1000)}"
-        request_digest = hashlib.sha256(str(tool_args).encode()).hexdigest()[:16]
-        result_digest = hashlib.sha256(str(execution_result).encode()).hexdigest()[:16]
-        
-        return {
-            "receipt_id": receipt_id,
-            "user_id": user_id,
-            "action": tool_name,
-            "request_digest": request_digest,
-            "result_digest": result_digest,
-            "status": execution_result.get("status", "unknown"),
-            "timestamp": time.time(),
-            "signature": f"sig-{hashlib.sha256(f'{receipt_id}{user_id}'.encode()).hexdigest()[:16]}",
-        }
+
 
 
 def create_cognitive_agent_bridge() -> CognitiveAgentBridge:

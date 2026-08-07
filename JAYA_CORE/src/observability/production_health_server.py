@@ -44,7 +44,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        self.wfs.write(body)
 
     def do_GET(self) -> None:
         global _REQUEST_COUNT, _ERROR_COUNT

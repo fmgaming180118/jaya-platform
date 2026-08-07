@@ -66,8 +66,8 @@ def run_scientific_external_drill() -> dict:
     if not dataset_file.is_file():
         raise FileNotFoundError(f"[DataError] RAG dataset missing at '{dataset_file}'")
 
-    app_data = json.loads(approval_file.read_text(encoding="utf-8"))
-    ds_data = json.loads(dataset_file.read_text(encoding="utf-8"))
+    app_data = json.loads(approval_fs.read_text(encoding="utf-8"))
+    ds_data = json.loads(dataset_fs.read_text(encoding="utf-8"))
 
     sf_data = ds_data.get("sampling_frame", {})
     samp_frame = SamplingFrameSpec(
@@ -115,7 +115,7 @@ def run_scientific_external_drill() -> dict:
     if not reviewer_file.is_file():
         raise FileNotFoundError(f"[DataError] Domain reviewer receipt missing at '{reviewer_file}'")
 
-    rev_data = json.loads(reviewer_file.read_text(encoding="utf-8"))
+    rev_data = json.loads(reviewer_fs.read_text(encoding="utf-8"))
     rev_record = DomainReviewerRecord(
         reviewer_id=rev_data.get("reviewer_id", ""),
         domain_expertise=rev_data.get("domain_expertise", ""),
@@ -158,7 +158,7 @@ def run_scientific_external_drill() -> dict:
     if not ethics_file.is_file():
         raise FileNotFoundError(f"[DataError] Ethics clearance receipt missing at '{ethics_file}'")
 
-    eth_data = json.loads(ethics_file.read_text(encoding="utf-8"))
+    eth_data = json.loads(ethics_fs.read_text(encoding="utf-8"))
     clearance = EthicalLegalClearanceRecord(
         clearance_id=eth_data.get("clearance_id", ""),
         ethics_board_approval=eth_data.get("ethics_board_approval", ""),
@@ -185,7 +185,7 @@ def run_scientific_external_drill() -> dict:
     if not entailment_file.is_file():
         raise FileNotFoundError(f"[DataError] Human entailment audit receipt missing at '{entailment_file}'")
 
-    ent_data = json.loads(entailment_file.read_text(encoding="utf-8"))
+    ent_data = json.loads(entailment_fs.read_text(encoding="utf-8"))
     entailment_auditor = HumanEntailmentCitationAuditor()
     entailment_report = entailment_auditor.audit_citation_entailment(
         audit_id=ent_data.get("audit_id", ""),
@@ -212,7 +212,7 @@ def run_scientific_external_drill() -> dict:
         "entailment_audit": entailment_report.to_dict(),
         "all_passed": all("PASS" in v for v in results.values()),
     }
-    summary_file.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
+    summary_fs.write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
     results["drill_7_export_ci_artifact"] = "SUCCESS" if summary_file.is_file() else "FAILED"
 
     return results

@@ -124,7 +124,7 @@ class TestNoveltyGapHumanReviewGate:
 class TestGoldPDFCorpusLoaderAndOCR:
     def test_loader_and_ocr_extraction(self, tmp_path):
         sample_file = tmp_path / "paper.txt"
-        sample_file.write_text(
+        sample_fs.write_text(
             "Title: Plasma Physics\nFigure 1: Tokamak layout\n| Parameter | Value |\n|---|---|\n| Current | 5MA |\n",
             encoding="utf-8",
         )
@@ -138,7 +138,7 @@ class TestGoldPDFCorpusLoaderAndOCR:
 
     def test_loader_raises_error_on_empty_file(self, tmp_path):
         empty_file = tmp_path / "empty.txt"
-        empty_file.write_text("", encoding="utf-8")
+        empty_fs.write_text("", encoding="utf-8")
         loader = GoldPDFCorpusLoader(tmp_path)
 
         with pytest.raises(OCRProviderError) as exc_info:

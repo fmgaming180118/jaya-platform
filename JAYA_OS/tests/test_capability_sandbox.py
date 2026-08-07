@@ -37,8 +37,8 @@ def _read_grant(
 ) -> str:
     return sandbox.issue_grant(
         subject="security-test",
-        actions=("file.read",),
-        resources={"file.read": (str(path),)},
+        actions=("fs.read",),
+        resources={"fs.read": (str(path),)},
         ttl_seconds=ttl_seconds,
         max_uses=max_uses,
     )
@@ -46,7 +46,7 @@ def _read_grant(
 
 async def _read_operation(path: Path, counter: list[int] | None = None) -> str:
     canonical = f"path:{os.path.normcase(str(path.resolve()))}"
-    require_active_capability("file.read", (canonical,))
+    require_active_capability("fs.read", (canonical,))
     if counter is not None:
         counter[0] += 1
     return path.read_text(encoding="utf-8")
@@ -63,7 +63,7 @@ def test_scoped_grant_executes_and_receipt_contains_only_digests(
     execution = _run(
         sandbox.execute(
             grant_token=grant,
-            action="file.read",
+            action="fs.read",
             resources=(str(path),),
             idempotency_key="read-document-0001",
             request_payload={"path": str(path), "token": "super-secret"},
@@ -93,7 +93,7 @@ def test_missing_tampered_and_expired_grants_are_denied(tmp_path: Path) -> None:
         _run(
             sandbox.execute(
                 grant_token=None,
-                action="file.read",
+                action="fs.read",
                 resources=(str(path),),
                 idempotency_key="missing-grant-001",
                 request_payload={},
@@ -106,7 +106,7 @@ def test_missing_tampered_and_expired_grants_are_denied(tmp_path: Path) -> None:
         _run(
             sandbox.execute(
                 grant_token=tampered,
-                action="file.read",
+                action="fs.read",
                 resources=(str(path),),
                 idempotency_key="tampered-grant-1",
                 request_payload={},
@@ -117,7 +117,7 @@ def test_missing_tampered_and_expired_grants_are_denied(tmp_path: Path) -> None:
     active = _run(
         sandbox.execute(
             grant_token=grant,
-            action="file.read",
+            action="fs.read",
             resources=(str(path),),
             idempotency_key="fake-clock-active-1",
             request_payload={"state": "active"},
@@ -131,7 +131,7 @@ def test_missing_tampered_and_expired_grants_are_denied(tmp_path: Path) -> None:
         _run(
             sandbox.execute(
                 grant_token=grant,
-                action="file.read",
+                action="fs.read",
                 resources=(str(path),),
                 idempotency_key="expired-grant-01",
                 request_payload={},
@@ -148,8 +148,8 @@ def test_path_traversal_and_relative_path_are_denied(tmp_path: Path) -> None:
     sandbox = CapabilitySandbox(signing_key=SIGNING_KEY)
     grant = sandbox.issue_grant(
         subject="security-test",
-        actions=("file.read",),
-        resources={"file.read": (f"{allowed}/**",)},
+        actions=("fs.read",),
+        resources={"fs.read": (f"{allowed}/**",)},
         ttl_seconds=30,
         max_uses=2,
     )
@@ -162,7 +162,7 @@ def test_path_traversal_and_relative_path_are_denied(tmp_path: Path) -> None:
             _run(
                 sandbox.execute(
                     grant_token=grant,
-                    action="file.read",
+                    action="fs.read",
                     resources=(str(resource),),
                     idempotency_key=key,
                     request_payload={"resource": str(resource)},
@@ -176,8 +176,8 @@ def test_write_and_process_grants_require_signed_consent(tmp_path: Path) -> None
     with pytest.raises(ValueError, match="Explicit consent"):
         sandbox.issue_grant(
             subject="security-test",
-            actions=("file.write",),
-            resources={"file.write": (str(tmp_path / "output.txt"),)},
+            actions=("fs.write",),
+            resources={"fs.write": (str(tmp_path / "output.txt"),)},
             ttl_seconds=30,
         )
     with pytest.raises(ValueError, match="consent reference"):
@@ -202,7 +202,7 @@ def test_idempotent_replay_does_not_execute_twice_and_conflict_is_denied(
     async def invoke(payload: dict[str, object]):
         return await sandbox.execute(
             grant_token=grant,
-            action="file.read",
+            action="fs.read",
             resources=(str(path),),
             idempotency_key="idempotent-read-01",
             request_payload=payload,
@@ -236,7 +236,7 @@ def test_timeout_is_bounded_and_audited(tmp_path: Path) -> None:
         _run(
             sandbox.execute(
                 grant_token=grant,
-                action="file.read",
+                action="fs.read",
                 resources=(str(path),),
                 idempotency_key="timeout-test-0001",
                 request_payload={},
@@ -342,14 +342,14 @@ def test_failed_action_receipt_redacts_secret_and_path(tmp_path: Path) -> None:
 
     async def failing_operation() -> str:
         canonical = f"path:{os.path.normcase(str(path.resolve()))}"
-        require_active_capability("file.read", (canonical,))
+        require_active_capability("fs.read", (canonical,))
         raise RuntimeError(f"token=do-not-log path={path}")
 
     with pytest.raises(CapabilityDenied) as captured:
         _run(
             sandbox.execute(
                 grant_token=grant,
-                action="file.read",
+                action="fs.read",
                 resources=(str(path),),
                 idempotency_key="redacted-failure-01",
                 request_payload={
@@ -375,21 +375,21 @@ def test_network_scope_requires_https_and_exact_host() -> None:
     with pytest.raises(ValueError, match="HTTPS"):
         sandbox.issue_grant(
             subject="security-test",
-            actions=("network.search",),
-            resources={"network.search": ("http://example.com",)},
+            actions=("web.search",),
+            resources={"web.search": ("http://example.com",)},
             ttl_seconds=30,
         )
 
     grant = sandbox.issue_grant(
         subject="security-test",
-        actions=("network.search",),
-        resources={"network.search": ("https://api.duckduckgo.com",)},
+        actions=("web.search",),
+        resources={"web.search": ("https://api.duckduckgo.com",)},
         ttl_seconds=30,
     )
 
     async def operation() -> str:
         require_active_capability(
-            "network.search",
+            "web.search",
             ("https://evil.example",),
         )
         return "unexpected"
@@ -398,7 +398,7 @@ def test_network_scope_requires_https_and_exact_host() -> None:
         _run(
             sandbox.execute(
                 grant_token=grant,
-                action="network.search",
+                action="web.search",
                 resources=("https://evil.example",),
                 idempotency_key="network-scope-001",
                 request_payload={},
