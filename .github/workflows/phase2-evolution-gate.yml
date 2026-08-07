@@ -61,6 +61,15 @@ jobs:
             tests/test_core_evolution_sandbox.py \
             -q -p no:cacheprovider
 
+      - name: Run Phase 2 action loop integration
+        env:
+          PYTHONPATH: .
+        run: |
+          python -m pytest \
+            tests/test_real_action_loop_unit.py \
+            tests/test_acceptance_real_action_loop.py \
+            -q -p no:cacheprovider
+
       - name: Run Phase 1 regression contracts
         env:
           PYTHONPATH: .

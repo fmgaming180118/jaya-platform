@@ -812,6 +812,9 @@ class IronEngine:
             for cap in default_capabilities:
                 capability_registry.register(cap)
             
+            # P0.5 Fix: Probe capabilities to update health status from REGISTERED_UNVERIFIED to HEALTHY
+            capability_registry.probe_all_capabilities()
+            
             symbolic_reasoner = create_symbolic_reasoner(
                 resource_profile=resource_profile,
                 capability_registry=capability_registry,
@@ -824,6 +827,12 @@ class IronEngine:
                 capability_registry=capability_registry,
             )
             logger.info("[Phase 2] NLUSymbolicBridge ready as primary cognitive path")
+            
+            from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import create_cognitive_agent_bridge
+            self._cognitive_agent_bridge = create_cognitive_agent_bridge()
+            logger.info("[Phase 2] CognitiveAgentBridge initialized")
+            
+
         except ImportError as exc:
             logger.warning("NLUSymbolicBridge unavailable: %s", exc)
             self._nlu_symbolic_bridge = None
@@ -1224,10 +1233,13 @@ class IronEngine:
                         from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import CognitiveAgentBridge
                         bridge = CognitiveAgentBridge()
                         if bridge.initialize():
-                            for step in result.plan.steps:
-                                step_intent = getattr(step, 'title', text)
-                                step_res = bridge.execute_cognitive_intent(step_intent, ctx)
-                                execution_results.append(step_res)
+                            # P0.3 Fix: Use structured plan execution instead of keyword fallback
+                            bridge_result = bridge.execute_cognitive_plan(
+                                plan=result.plan,
+                                context=ctx,
+                                user_id=ctx.get("user_id", "default_user"),
+                            )
+                            execution_results = bridge_result.get("step_results", [])
                     except Exception as exc:
                         logger.warning("Auto-execution of plan steps failed: %s", exc)
 
@@ -1260,6 +1272,8 @@ class IronEngine:
                 if execution_results:
                     metadata["execution_results"] = execution_results
 
+                # Include plan at top level for cognitive_reason_and_act() to find
+                # P0.1 Fix: Return the raw ActionPlan object directly so `.steps` is available
                 return {
                     "ok": True,
                     "text": f"Rencana dibuat: {result.goal.title}" if hasattr(result.goal, 'title') else "Rencana dibuat",
@@ -1268,6 +1282,8 @@ class IronEngine:
                     "confidence": result.nlu_result.confidence if hasattr(result, 'nlu_result') else 0.8,
                     "metadata": metadata,
                     "intent": text,
+                    "plan": result.plan,  # P0.1 Fix: Use raw object for structured execution
+                    "action_plan": result.plan,
                 }
                 
             except Exception as exc:
@@ -1377,6 +1393,56 @@ class IronEngine:
                 "text": "Maaf, chat kognitif gagal.",
                 "source": "error",
             }
+
+    def cognitive_reason_and_act(
+        self,
+        text: str,
+        context: Optional[Dict[str, Any]] = None,
+        force_local: bool = False,
+        user_id: str = "default_user",
+    ) -> Dict[str, Any]:
+        """Cognitive reasoning + tool execution in one call."""
+        # First, do cognitive reasoning
+        reason_result = self.cognitive_reason(text, context, force_local)
+        
+        if not reason_result.get("ok"):
+            return reason_result
+        
+        # Check if cognitive reasoning produced a plan with steps
+        plan = reason_result.get("plan") or reason_result.get("action_plan")
+        if plan and hasattr(plan, "steps") and plan.steps:
+            if not self._cognitive_agent_bridge:
+                return {"ok": False, "error": "bridge_not_initialized", "domain_status": "EXECUTION_FAILED"}
+            
+            # Execute structured plan directly
+            bridge_result = self._cognitive_agent_bridge.execute_cognitive_plan(
+                plan=plan,
+                context=context,
+                user_id=user_id,
+            )
+        else:
+            if not self._cognitive_agent_bridge:
+                return {"ok": False, "error": "bridge_not_initialized", "domain_status": "EXECUTION_FAILED"}
+                
+            # Fallback to intent analysis
+            bridge_result = self._cognitive_agent_bridge.execute_cognitive_intent(
+                intent=text,
+                context=context,
+                user_id=user_id,
+            )
+        
+        all_ok = reason_result.get("ok", False) and bridge_result.get("ok", False)
+        return {
+            "ok": all_ok,
+            "domain_status": "EXECUTION_SUCCEEDED" if all_ok else ("EXECUTION_FAILED" if not bridge_result.get("ok") else "REPLAN_REQUIRED"),
+            "cognitive_reasoning": reason_result,
+            "agent_execution": bridge_result,
+            "combined_response": bridge_result.get("response", "")
+                                or (bridge_result.get("tool_result", {}).get("result") if isinstance(bridge_result.get("tool_result"), dict) else "")
+                                or reason_result.get("text", ""),
+            "failed_step": bridge_result.get("failed_step"),
+            "error": bridge_result.get("error"),
+        }
 
     def get_cognitive_status(self) -> Dict[str, Any]:
         """Get status of cognitive model adapter for health checks."""

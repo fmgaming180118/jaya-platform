@@ -1,7 +1,7 @@
 import sys
 sys.path.insert(0, '.')
 
-from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import enhance_iron_engine_with_agent_bridge
+
 from JAYA_CORE.src.brain_v2.engine.runtime import IronEngine
 import tempfile
 from pathlib import Path
@@ -19,8 +19,7 @@ def test_enhance_iron_engine_with_agent_bridge():
         )
         engine.ignite()
         
-        # Enhance with agent bridge
-        enhance_iron_engine_with_agent_bridge(engine)
+        # The bridge is now native to IronEngine and auto-attached during ignite()
         
         # Test cognitive_reason_and_act
         result = engine.cognitive_reason_and_act('Halo, apa kabar?', {'user_name': 'test'})
