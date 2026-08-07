@@ -12,7 +12,7 @@ import time
 
 import sqlite3
 
-from JAYA_CORE.src.library.ast_parser import parse_python_file, CodeSymbol
+from JAYA_CORE.src.library.ast_parser import parse_python_file, parse_python_repo, CodeSymbol
 from JAYA_CORE.src.rag.enhanced import get_rag_pipeline, Document
 
 class LibraryManager:
@@ -21,6 +21,25 @@ class LibraryManager:
         self.db_path = db_path
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         self._init_db()
+        self._load_from_db()
+        
+    def _load_from_db(self):
+        """Loads existing documents from SQLite into the BM25 catalog to ensure persistence across restarts."""
+        with sqlite3.connect(self.db_path) as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute("SELECT doc_id, content, metadata_json FROM documents")
+                rows = cur.fetchall()
+                for row in rows:
+                    doc_id, content, metadata_json = row
+                    metadata = json.loads(metadata_json) if metadata_json else {}
+                    
+                    # Check if already in catalog to avoid duplicates
+                    if doc_id not in self.catalog.search_engine.bm25_index.documents:
+                        doc = Document(id=doc_id, content=content, metadata=metadata)
+                        self.catalog.add_document(doc)
+            except sqlite3.OperationalError:
+                pass # Tables might not exist yet
         
     def _init_db(self):
         with sqlite3.connect(self.db_path) as conn:
@@ -39,6 +58,24 @@ class LibraryManager:
                     source_id TEXT,
                     content TEXT,
                     metadata_json TEXT
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS code_symbols (
+                    symbol_id TEXT PRIMARY KEY,
+                    source_id TEXT,
+                    file_path TEXT,
+                    symbol_name TEXT,
+                    symbol_type TEXT,
+                    content TEXT
+                )
+            ''')
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS code_edges (
+                    edge_id TEXT PRIMARY KEY,
+                    source_symbol_id TEXT,
+                    target_symbol_id TEXT,
+                    relation_type TEXT
                 )
             ''')
             
@@ -76,24 +113,49 @@ class LibraryManager:
         
     def add_python_code(self, source_id: str, file_path: str, source_code: str, version: str = "v1"):
         """Adds source code, semantically parsed into the Library."""
-        symbols = parse_python_file(source_id, file_path, source_code)
+        symbols = parse_python_file(source_id, file_path, source_code, version)
+        self._store_symbols(source_id, version, symbols)
+
+    def add_python_repo(self, source_id: str, repo_path: str, version: str = "v1"):
+        """Adds a whole repository with cross-file graph resolution."""
+        symbols = parse_python_repo(source_id, repo_path, version)
+        self._store_symbols(source_id, version, symbols)
         
-        for sym in symbols:
-            doc = Document(
-                id=f"{source_id}:{file_path}#{sym.symbol_name}",
-                content=sym.to_document_text(),
-                metadata={
-                    "source_id": source_id,
-                    "version": version,
-                    "file_path": file_path,
-                    "symbol_name": sym.symbol_name,
-                    "symbol_type": sym.symbol_type,
-                    "type": "code_symbol"
-                }
-            )
-            self.catalog.add_document(doc)
-            
-            self._save_document(doc.id, source_id, doc.content, doc.metadata)
+    def _store_symbols(self, source_id: str, version: str, symbols: List[CodeSymbol]):
+        with sqlite3.connect(self.db_path) as conn:
+            for sym in symbols:
+                doc = Document(
+                    id=sym.canonical_id,
+                    content=sym.to_document_text(),
+                    metadata={
+                        "source_id": source_id,
+                        "version": version,
+                        "file_path": sym.file_path,
+                        "symbol_name": sym.symbol_name,
+                        "symbol_type": sym.symbol_type,
+                        "type": "code_symbol"
+                    }
+                )
+                self.catalog.add_document(doc)
+                
+                # documents table
+                conn.execute("INSERT OR REPLACE INTO documents (doc_id, source_id, content, metadata_json) VALUES (?, ?, ?, ?)",
+                             (doc.id, source_id, doc.content, json.dumps(doc.metadata)))
+                             
+                # code_symbols table
+                conn.execute("INSERT OR REPLACE INTO code_symbols (symbol_id, source_id, file_path, symbol_name, symbol_type, content) VALUES (?, ?, ?, ?, ?, ?)",
+                             (sym.canonical_id, source_id, sym.file_path, sym.symbol_name, sym.symbol_type, sym.to_document_text()))
+                             
+                # code_edges table
+                for target_id in sym.calls:
+                    edge_id = f"{sym.canonical_id}->{target_id}:CALLS"
+                    conn.execute("INSERT OR REPLACE INTO code_edges (edge_id, source_symbol_id, target_symbol_id, relation_type) VALUES (?, ?, ?, ?)",
+                                 (edge_id, sym.canonical_id, target_id, "CALLS"))
+                                 
+                for test_id in sym.tests:
+                    edge_id = f"{test_id}->{sym.canonical_id}:TESTS"
+                    conn.execute("INSERT OR REPLACE INTO code_edges (edge_id, source_symbol_id, target_symbol_id, relation_type) VALUES (?, ?, ?, ?)",
+                                 (edge_id, test_id, sym.canonical_id, "TESTS"))
             
         self._update_source_count(source_id, "code_repository", version, len(symbols))
         

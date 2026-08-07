@@ -9,8 +9,13 @@ import json
 from pathlib import Path
 import random
 
-def generate_curriculum_item(prompt_text: str, json_completion: dict) -> dict:
+def generate_curriculum_item(prompt_text: str, json_completion: dict, category: str, difficulty: str) -> dict:
     return {
+        "metadata": {
+            "category": category,
+            "difficulty": difficulty,
+            "source": "jaya_core_curriculum_v4"
+        },
         "prompt": f"""You are JAYA Librarian Core, an expert assistant that reasons step-by-step and strictly outputs JSON.
 You do NOT hallucinate facts. If the information is not in the EVIDENCE LIBRARY and you don't know it, you set retrieval_required to true.
 If there are no context blocks, you must request retrieval by generating retrieval_queries.
@@ -33,10 +38,10 @@ Respond in the following JSON format ONLY:
         "completion": json.dumps(json_completion, indent=2)
     }
 
-def generate_librarian_dataset(output_path: Path, num_samples: int = 100):
+def generate_librarian_dataset(output_dir: Path, num_samples: int = 100):
     dataset = []
     
-    # 1. Retrieval Need Detection
+    # 1. Retrieval Need Detection (query_refinement)
     for _ in range(num_samples // 4):
         dataset.append(generate_curriculum_item(
             "USER QUERY: What does PaymentProcessor.process() do?",
@@ -50,7 +55,9 @@ def generate_librarian_dataset(output_path: Path, num_samples: int = 100):
                 "confidence": 0.0,
                 "unknowns": ["What PaymentProcessor.process does"],
                 "jaya_ir": None
-            }
+            },
+            category="query_refinement",
+            difficulty="easy"
         ))
         
     # 2. Single-Source Synthesis
@@ -67,10 +74,12 @@ def generate_librarian_dataset(output_path: Path, num_samples: int = 100):
                 "confidence": 1.0,
                 "unknowns": [],
                 "jaya_ir": None
-            }
+            },
+            category="single_source_synthesis",
+            difficulty="easy"
         ))
 
-    # 3. Caller/Callee Reasoning
+    # 3. Caller/Callee Reasoning (multi_hop_retrieval / test_to_symbol)
     for _ in range(num_samples // 4):
         dataset.append(generate_curriculum_item(
             "EVIDENCE LIBRARY:\n---\n[Source: core@v1:src/pay.py#process]\nCalls: stripe.Charge.create\nCalled By: run_checkout\n\nUSER QUERY: What calls process?",
@@ -84,7 +93,9 @@ def generate_librarian_dataset(output_path: Path, num_samples: int = 100):
                 "confidence": 1.0,
                 "unknowns": [],
                 "jaya_ir": None
-            }
+            },
+            category="multi_hop_retrieval",
+            difficulty="medium"
         ))
         
     # 4. Conflicting Sources / Version Mismatch
@@ -101,17 +112,55 @@ def generate_librarian_dataset(output_path: Path, num_samples: int = 100):
                 "confidence": 0.95,
                 "unknowns": [],
                 "jaya_ir": None
-            }
+            },
+            category="conflicting_sources",
+            difficulty="hard"
+        ))
+        
+    # 5. Insufficient Evidence Reject
+    for _ in range(50):
+        dataset.append(generate_curriculum_item(
+            "EVIDENCE LIBRARY:\n---\n[Source: random.txt]\nHello World\n\nUSER QUERY: What is the Stripe API key?",
+            {
+                "intent": "Find API key",
+                "information_needs": ["Stripe API key"],
+                "retrieval_required": False,
+                "retrieval_queries": [],
+                "answer": "I do not have enough evidence to answer this query.",
+                "evidence_refs": [],
+                "confidence": 0.0,
+                "unknowns": ["Stripe API key"],
+                "jaya_ir": None
+            },
+            category="insufficient_evidence",
+            difficulty="hard"
         ))
 
     random.shuffle(dataset)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        for item in dataset:
-            f.write(json.dumps(item) + "\n")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Splits: 80% train, 10% val, 10% acceptance
+    n_train = int(0.8 * len(dataset))
+    n_val = int(0.1 * len(dataset))
+    
+    train_data = dataset[:n_train]
+    val_data = dataset[n_train:n_train+n_val]
+    acc_data = dataset[n_train+n_val:]
+    
+    def write_jsonl(data, filename):
+        with open(output_dir / filename, "w", encoding="utf-8") as f:
+            for item in data:
+                f.write(json.dumps(item) + "\n")
+                
+    write_jsonl(train_data, "librarian_train.jsonl")
+    write_jsonl(val_data, "librarian_val.jsonl")
+    write_jsonl(acc_data, "librarian_acceptance.jsonl")
+    
+    # Also overwrite the default dataset for backward compatibility in the smoke test
+    write_jsonl(dataset, "librarian_dataset.jsonl")
             
-    print(f"Generated {len(dataset)} Librarian training samples at {output_path}")
+    print(f"Generated {len(dataset)} Librarian training samples at {output_dir}")
 
 if __name__ == "__main__":
-    out_path = Path(__file__).parent.parent.parent.parent / "data" / "librarian_dataset.jsonl"
-    generate_librarian_dataset(out_path, num_samples=500)
+    out_dir = Path(__file__).parent.parent.parent.parent / "data"
+    generate_librarian_dataset(out_dir, num_samples=500)

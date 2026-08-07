@@ -21,6 +21,11 @@ class CodeSymbol:
     called_by: List[str] = field(default_factory=list)
     tests: List[str] = field(default_factory=list)
     imports: List[str] = field(default_factory=list)
+    version: str = "v1"
+    
+    @property
+    def canonical_id(self) -> str:
+        return f"{self.source_id}@{self.version}:{self.file_path}::{self.symbol_name}"
     
     def to_document_text(self) -> str:
         """Converts symbol to text representation for semantic embedding."""
@@ -121,7 +126,7 @@ class ASTSymbolVisitor(ast.NodeVisitor):
         self.symbols.append(sym)
         self.generic_visit(node)
 
-def parse_python_file(source_id: str, file_path: str, source_code: str) -> List[CodeSymbol]:
+def parse_python_file(source_id: str, file_path: str, source_code: str, version: str = "v1") -> List[CodeSymbol]:
     """Parses a Python file and extracts semantic CodeSymbols."""
     try:
         tree = ast.parse(source_code, filename=file_path)
@@ -132,22 +137,59 @@ def parse_python_file(source_id: str, file_path: str, source_code: str) -> List[
     visitor.visit(tree)
     
     symbols = visitor.symbols
-    
-    # Pass 2: Establish 'called_by' and 'tests' relationships within the file
-    symbol_dict = {sym.symbol_name.split('.')[-1]: sym for sym in symbols}
-    
     for sym in symbols:
+        sym.version = version
+    return symbols
+
+def parse_python_repo(source_id: str, repo_path: str, version: str = "v1") -> List[CodeSymbol]:
+    """
+    3-Stage Repository Parsing:
+    1. Parse all files.
+    2. Build symbol table.
+    3. Resolve cross-file relations (calls, called_by, tests).
+    """
+    import os
+    from pathlib import Path
+    
+    # Stage 1: Parse all files
+    all_symbols = []
+    repo_dir = Path(repo_path)
+    for py_file in repo_dir.rglob("*.py"):
+        try:
+            rel_path = str(py_file.relative_to(repo_dir)).replace("\\", "/")
+            with open(py_file, "r", encoding="utf-8") as f:
+                source_code = f.read()
+            symbols = parse_python_file(source_id, rel_path, source_code, version)
+            all_symbols.extend(symbols)
+        except Exception:
+            pass
+            
+    # Stage 2: Build symbol table mapping unqualified names to their canonical IDs
+    symbol_table: Dict[str, List[CodeSymbol]] = {}
+    for sym in all_symbols:
+        unqualified_name = sym.symbol_name.split('.')[-1]
+        if unqualified_name not in symbol_table:
+            symbol_table[unqualified_name] = []
+        symbol_table[unqualified_name].append(sym)
+        
+    # Stage 3: Resolve cross-file relations
+    for sym in all_symbols:
+        new_calls = set()
         for call in sym.calls:
-            if call in symbol_dict:
-                target = symbol_dict[call]
-                target.called_by.append(sym.symbol_name)
-                # Heuristic: if sym is a test, it tests the target
-                if sym.symbol_name.startswith("test_") or "test" in sym.file_path.lower():
-                    target.tests.append(sym.symbol_name)
-                    
+            if call in symbol_table:
+                possible_targets = symbol_table[call]
+                for target in possible_targets:
+                    # Simple heuristic: if name matches, we consider it a call edge
+                    # (in a real system, we'd check imports or scopes to handle collisions perfectly)
+                    new_calls.add(target.canonical_id)
+                    target.called_by.append(sym.canonical_id)
+                    if sym.symbol_name.startswith("test_") or "test" in sym.file_path.lower():
+                        target.tests.append(sym.canonical_id)
+        sym.calls = list(new_calls)
+        
     # Deduplicate
-    for sym in symbols:
+    for sym in all_symbols:
         sym.called_by = list(set(sym.called_by))
         sym.tests = list(set(sym.tests))
         
-    return symbols
+    return all_symbols

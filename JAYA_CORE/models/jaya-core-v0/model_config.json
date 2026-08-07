@@ -1,0 +1,7 @@
+{
+  "architecture": "jaya_librarian_native_v0",
+  "vocab_size": 49152,
+  "d_model": 128,
+  "n_layers": 4,
+  "n_heads": 4
+}

@@ -8,18 +8,21 @@ import pytest
 
 try:
     from JAYA_CORE.src.runtime.librarian_loop import LibrarianLoop
-    from JAYA_CORE.src.model.architecture import HAS_TRANSFORMERS
+    import torch
+    import safetensors
+    from transformers import AutoTokenizer
     import sentence_transformers
-    HAS_DEPS = HAS_TRANSFORMERS
+    HAS_DEPS = True
 except ImportError:
     HAS_DEPS = False
 
 @pytest.fixture
-def code_library_loop():
+def code_library_loop(tmp_path):
     if not HAS_DEPS:
-        pytest.skip("BLOCKED_EXTERNAL: transformers/sentence-transformers dependency broken.")
+        pytest.skip("BLOCKED_EXTERNAL: torch/safetensors/transformers dependency broken.")
         
     loop = LibrarianLoop()
+    loop.library.db_path = str(tmp_path / "test_library.db")
     
     # Add unseen source code
     source_code = '''
@@ -60,7 +63,7 @@ def test_unseen_code_symbol_retrieval(code_library_loop):
     Ensures the loop extracts the symbol graph and can answer callers.
     """
     if not HAS_DEPS or not getattr(code_library_loop.model, "_is_loaded", False):
-        pytest.skip("BLOCKED_EXTERNAL: transformers/torchvision dependency broken. Cannot run inference.")
+        pytest.skip("BLOCKED_EXTERNAL: Native dependencies or checkpoint unavailable.")
         
     hash_before = _get_model_hash()
     result = code_library_loop.run("What function calls process() on the PaymentProcessor?")
@@ -68,7 +71,7 @@ def test_unseen_code_symbol_retrieval(code_library_loop):
     
     assert hash_before == hash_after, "Model weights changed! Retraining detected, violation of Librarian philosophy."
     
-    assert result["status"] == "SUCCESS"
+    assert result["status"] == "LIBRARY_GROUNDED"
     assert "run_checkout" in result["answer"].lower()
     
     # Must cite the semantic file path

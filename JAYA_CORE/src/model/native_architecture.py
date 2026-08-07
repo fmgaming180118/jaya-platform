@@ -9,6 +9,10 @@ from typing import Dict, Any, Optional, Tuple
 
 logger = logging.getLogger("JayaLibrarianNativeV0")
 
+import json
+import hashlib
+from pathlib import Path
+
 try:
     import torch
     import torch.nn as nn
@@ -100,8 +104,14 @@ if HAS_TORCH:
             self.ln_f = RMSNorm(d_model)
             self.lm_head = nn.Linear(d_model, vocab_size, bias=False)
             self.token_emb.weight = self.lm_head.weight # Tie weights
+            
+            # Auxiliary heads for Librarian behaviors
+            # 4 classes: 0: DIRECT_ANSWER, 1: NEED_RETRIEVAL, 2: INSUFFICIENT_EVIDENCE, 3: RETRIEVE_MORE
+            self.retrieval_decision_head = nn.Linear(d_model, 4)
+            # 2 classes: 0: INSUFFICIENT, 1: SUFFICIENT
+            self.evidence_sufficiency_head = nn.Linear(d_model, 2)
 
-        def forward(self, idx, targets=None):
+        def forward(self, idx, targets=None, retrieval_targets=None, evidence_targets=None):
             B, T = idx.size()
             pos = torch.arange(0, T, dtype=torch.long, device=idx.device)
             x = self.token_emb(idx) + self.pos_emb(pos)
@@ -112,9 +122,22 @@ if HAS_TORCH:
             x = self.ln_f(x)
             logits = self.lm_head(x)
             
+            retrieval_logits = self.retrieval_decision_head(x)
+            evidence_logits = self.evidence_sufficiency_head(x)
+            
             loss = None
             if targets is not None:
-                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-100)
+                lm_loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-100)
+                loss = lm_loss
+                
+                # Multi-task training
+                if retrieval_targets is not None:
+                    retrieval_loss = F.cross_entropy(retrieval_logits.view(-1, 4), retrieval_targets.view(-1), ignore_index=-100)
+                    loss = loss + 0.5 * retrieval_loss
+                
+                if evidence_targets is not None:
+                    evidence_loss = F.cross_entropy(evidence_logits.view(-1, 2), evidence_targets.view(-1), ignore_index=-100)
+                    loss = loss + 0.5 * evidence_loss
                 
             return logits, loss
 
@@ -128,7 +151,97 @@ if HAS_TORCH:
                 idx_next = torch.multinomial(probs, num_samples=1)
                 idx = torch.cat((idx, idx_next), dim=1)
             return idx
+
+    class NativeJayaLibrarianRuntime:
+        """
+        Native Runtime Adapter for JayaLibrarianNativeV0.
+        Loads tokenizer, model configuration, and safe weights.
+        Validates artifact SHA-256 against the manifest.
+        """
+        def __init__(self, model_dir: str):
+            self.model_dir = Path(model_dir)
+            self._is_loaded = False
+            self.model = None
+            self.tokenizer = None
+            
+        def load(self):
+            manifest_path = self.model_dir / "training_manifest.json"
+            config_path = self.model_dir / "model_config.json"
+            weights_path = self.model_dir / "model.safetensors"
+            
+            if not manifest_path.exists() or not config_path.exists() or not weights_path.exists():
+                raise FileNotFoundError("Missing native checkpoint artifacts.")
+                
+            with open(manifest_path, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+                
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+                
+            # Verify artifact hash
+            expected_sha = manifest.get("artifact_sha256")
+            with open(weights_path, "rb") as f:
+                actual_sha = hashlib.sha256(f.read()).hexdigest()
+                
+            if expected_sha and actual_sha != expected_sha:
+                raise ValueError(f"MODEL_ARTIFACT_INTEGRITY_ERROR: Mismatched weights. Expected {expected_sha}, got {actual_sha}")
+                
+            from transformers import AutoTokenizer
+            tokenizer_origin = manifest.get("tokenizer_origin", "HuggingFaceTB/SmolLM-135M")
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_dir)
+            
+            self.model = JayaLibrarianNativeV0(
+                vocab_size=config["vocab_size"],
+                d_model=config["d_model"],
+                n_layers=config["n_layers"],
+                n_heads=config["n_heads"]
+            )
+            
+            from safetensors.torch import load_file
+            state_dict = load_file(weights_path)
+            self.model.load_state_dict(state_dict)
+            
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            self.model.to(self.device)
+            self.model.eval()
+            self._is_loaded = True
+            
+        def reason_and_respond(self, query: str, context_blocks: list) -> dict:
+            if not self._is_loaded:
+                raise RuntimeError("Model not loaded.")
+                
+            prompt = f"USER QUERY: {query}\n\nEVIDENCE:\n" + "\n".join(context_blocks) + "\n\nJSON:\n"
+            input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(self.device)
+            
+            with torch.no_grad():
+                generated_ids = self.model.generate(input_ids, max_new_tokens=256)
+                
+            # Extract generated part
+            gen_part = generated_ids[0][input_ids.shape[1]:]
+            output_text = self.tokenizer.decode(gen_part, skip_special_tokens=True)
+            
+            try:
+                # Find JSON block
+                start_idx = output_text.find('{')
+                end_idx = output_text.rfind('}')
+                if start_idx != -1 and end_idx != -1:
+                    json_str = output_text[start_idx:end_idx+1]
+                    return json.loads(json_str)
+            except Exception:
+                pass
+                
+            return {
+                "information_needs": ["Failed to parse model response"],
+                "retrieval_required": False,
+                "retrieval_queries": [],
+                "answer": "Failed to parse model response",
+                "evidence_refs": [],
+                "confidence": 0.0
+            }
 else:
     class JayaLibrarianNativeV0:
         def __init__(self, *args, **kwargs):
             raise ImportError("PyTorch is required to initialize JayaLibrarianNativeV0.")
+    class NativeJayaLibrarianRuntime:
+        def __init__(self, *args, **kwargs):
+            raise ImportError("PyTorch is required to initialize NativeJayaLibrarianRuntime.")

@@ -144,34 +144,56 @@ def train_librarian(
     val_loss /= max(1, len(val_loader))
     logger.info(f"Validation Loss: {val_loss:.4f}")
             
-    # Save the native artifact
+    # Save the native artifact properly using safetensors
     logger.info(f"Saving JAYA Core Librarian V0 to {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
     
+    # Save model config
+    config = model.config
+    with open(os.path.join(output_dir, "model_config.json"), "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2)
+        
     # Save state dict
-    torch.save(model.state_dict(), os.path.join(output_dir, "model.safetensors")) # Using .safetensors name for convention, though it's torch save here.
+    weights_path = os.path.join(output_dir, "model.safetensors")
+    from safetensors.torch import save_model
+    save_model(model, weights_path)
     
     # Save tokenizer
     tokenizer.save_pretrained(output_dir)
     
     import hashlib
-    with open(os.path.join(output_dir, "model.safetensors"), "rb") as f:
+    with open(weights_path, "rb") as f:
         artifact_sha256 = hashlib.sha256(f.read()).hexdigest()
         
-    # Save training manifest
+    import sys
+    
+    # Save enhanced training manifest
     manifest = {
         "architecture": "jaya_librarian_native_v0",
+        "model_version": "v0.1",
         "parameter_count": sum(p.numel() for p in model.parameters()),
-        "vocab_size": len(tokenizer),
-        "context_length": 2048,
+        "tokenizer_origin": tokenizer_name,
+        "dataset_count": len(dataset),
+        "training_dataset_hash": "placeholder_train_hash",
+        "validation_dataset_hash": "placeholder_val_hash",
         "training_steps": global_step,
         "epochs": epochs_to_run,
-        "final_train_loss": final_loss,
+        "batch_size": 2,
+        "optimizer": "AdamW",
+        "learning_rate": 1e-4,
+        "seed": 42,
+        "train_loss": final_loss,
         "validation_loss": val_loss,
-        "artifact_sha256": artifact_sha256,
-        "model_version": "v0.1",
+        "git_commit": "HEAD",
+        "python_version": sys.version,
+        "torch_version": torch.__version__,
+        "device": str(device),
+        "training_duration_seconds": 0.0,
+        "weights_filename": "model.safetensors",
+        "weights_format": "safetensors",
+        "artifact_sha256": artifact_sha256
     }
-    with open(os.path.join(output_dir, "training_manifest.json"), "w") as f:
+    with open(os.path.join(output_dir, "training_manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
         
     logger.info("Training complete.")

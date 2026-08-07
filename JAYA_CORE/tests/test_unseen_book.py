@@ -8,17 +8,22 @@ import pytest
 
 try:
     from JAYA_CORE.src.runtime.librarian_loop import LibrarianLoop
-    from JAYA_CORE.src.model.architecture import HAS_TRANSFORMERS
+    import torch
+    import safetensors
+    from transformers import AutoTokenizer
     import sentence_transformers
-    HAS_DEPS = HAS_TRANSFORMERS
+    HAS_DEPS = True
 except ImportError:
     HAS_DEPS = False
 
 @pytest.fixture
-def library_loop():
+def library_loop(tmp_path):
     if not HAS_DEPS:
-        pytest.skip("BLOCKED_EXTERNAL: transformers/sentence-transformers dependency broken.")
+        pytest.skip("BLOCKED_EXTERNAL: torch/safetensors/transformers dependency broken.")
+    # Use a real Native runtime if available, else skip inside test
     loop = LibrarianLoop()
+    # Inject temporary DB for persistence isolation
+    loop.library.db_path = str(tmp_path / "test_library.db")
     return loop
 
 import hashlib
@@ -36,7 +41,7 @@ def test_unseen_book_retrieval(library_loop):
     Mathematically proves the model weights did not change (no retraining).
     """
     if not HAS_DEPS or not getattr(library_loop.model, "_is_loaded", False):
-        pytest.skip("BLOCKED_EXTERNAL: transformers/torchvision dependency broken. Cannot run inference.")
+        pytest.skip("BLOCKED_EXTERNAL: Native dependencies or checkpoint unavailable.")
         
     hash_before = _get_model_hash()
     
@@ -50,7 +55,7 @@ def test_unseen_book_retrieval(library_loop):
     
     assert hash_before == hash_after, "Model weights changed! Retraining detected, violation of Librarian philosophy."
     
-    assert result["status"] == "SUCCESS", f"Expected SUCCESS, got {result['status']}"
+    assert result["status"] == "LIBRARY_GROUNDED", f"Expected LIBRARY_GROUNDED, got {result['status']}"
     assert "quantum secure communications" in result["answer"].lower()
     
     # Must cite the evidence
@@ -61,7 +66,7 @@ def test_unseen_book_no_hallucination(library_loop):
     Ensures the loop gracefully handles missing information (INSUFFICIENT_EVIDENCE).
     """
     if not HAS_DEPS or not getattr(library_loop.model, "_is_loaded", False):
-        pytest.skip("BLOCKED_EXTERNAL: transformers/torchvision dependency broken. Cannot run inference.")
+        pytest.skip("BLOCKED_EXTERNAL: Native dependencies or checkpoint unavailable.")
         
     # Add unseen book
     book_content = "The Secret Protocol X9 was developed in 2025 to enable quantum secure communications."
