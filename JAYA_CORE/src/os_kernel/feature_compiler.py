@@ -645,7 +645,7 @@ class JayaActions:
         # Generate feature module
         module_code = self.compile(scene, feature_name)
         module_file = output_path / f"{feature_name}.py"
-        module_fs.write_text(module_code, encoding="utf-8")
+        module_file.write_text(module_code, encoding="utf-8")
 
         # Save scene graph as JSON for reference
         scene_file = output_path / "scene.json"

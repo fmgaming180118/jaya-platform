@@ -58,7 +58,14 @@ def test_approval_receipt_creation_and_verification():
     assert receipt.action == "fs.write"
     from JAYA_CORE.src.security.approval_authority import ApprovalAuthority
     authority = ApprovalAuthority()
-    is_valid, _ = authority.verify_and_consume(receipt, "test_session")
+    is_valid, _ = authority.verify_and_consume(
+        receipt,
+        "test_session",
+        "test_user",
+        "fs.write",
+        "/workspace/test.txt",
+        request_digest
+    )
     assert is_valid is True
     
     # Test expiry
