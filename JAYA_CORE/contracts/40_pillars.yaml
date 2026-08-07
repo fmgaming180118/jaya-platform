@@ -32,7 +32,7 @@
   layer: BIOLOGICAL_SOUL
   architectural_owners:
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: IMPLEMENTED_LOCAL
   source_flag: JayaFlags.LOGICAL_HOMEOSTASIS
 - id: 6
   name: Stochastic Spontaneity
@@ -54,7 +54,7 @@
   architectural_owners:
   - MODEL
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: PROTOTYPE
   source_flag: JayaFlags.HOLOGRAPHIC_MEMORY
 - id: 9
   name: Neural Regeneration
@@ -71,12 +71,12 @@
   status: NOT_IMPLEMENTED
   source_flag: JayaFlags.AFFECTIVE_METABOLISM
 - id: 11
-  name: Dna Anchor
+  name: DNA Anchor
   layer: SOVEREIGN_ARMOR
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: PROTOTYPE
   source_flag: JayaFlags.DNA_ANCHOR
 - id: 12
   name: Immune System
@@ -100,7 +100,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: PROTOTYPE
   source_flag: JayaFlags.HARDWARE_LOCKED
 - id: 15
   name: Ethical Heart
@@ -168,7 +168,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: PROTOTYPE
   source_flag: JayaFlags.SANDBOXED_IMAGINATION
 - id: 24
   name: Morphic Kernel
@@ -197,7 +197,7 @@
   architectural_owners:
   - MODEL
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: PROTOTYPE
   source_flag: JayaFlags.TEMPORAL_WEIGHTING
 - id: 28
   name: Self Bootstrapping

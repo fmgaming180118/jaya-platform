@@ -19,7 +19,7 @@ except ImportError:
 
 logger = logging.getLogger("JayaLibrarianCore")
 
-class JayaLibrarianModel:
+class BootstrapLibrarianModel:
     def __init__(self, model_name_or_path: str = "HuggingFaceTB/SmolLM-135M", device: str = "cpu"):
         self.model_name_or_path = model_name_or_path
         self.device = device
@@ -52,7 +52,7 @@ class JayaLibrarianModel:
         self.model.to(self.device)
         self.model.eval()
         self._is_loaded = True
-        logger.info("JAYA Librarian Core Model loaded successfully.")
+        logger.info("Bootstrap Librarian Model loaded successfully.")
 
     def _generate_text(self, prompt: str, max_new_tokens: int = 512, temperature: float = 0.3) -> str:
         """Raw generation wrapper."""

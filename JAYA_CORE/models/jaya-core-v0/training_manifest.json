@@ -1,0 +1,12 @@
+{
+  "architecture": "jaya_librarian_native_v0",
+  "parameter_count": 7603328,
+  "vocab_size": 49152,
+  "context_length": 2048,
+  "training_steps": 140,
+  "epochs": 1,
+  "final_train_loss": 2.9193503856658936,
+  "validation_loss": 2.7526884147099087,
+  "artifact_sha256": "7fcade8da399c75d08e4ff7787fda604bc6eae391afdc198568b74ee44514554",
+  "model_version": "v0.1"
+}

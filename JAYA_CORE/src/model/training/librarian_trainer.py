@@ -13,10 +13,13 @@ import math
 try:
     import torch
     from torch.utils.data import DataLoader
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    # Use HF Tokenizer for text processing, but native model for architecture
+    from transformers import AutoTokenizer
     HAS_TRAIN = True
 except ImportError:
     HAS_TRAIN = False
+
+from JAYA_CORE.src.model.native_architecture import JayaLibrarianNativeV0, HAS_TORCH
 
 logger = logging.getLogger("LibrarianTrainer")
 
@@ -62,78 +65,111 @@ class LibrarianDataset(torch.utils.data.Dataset):
         }
 
 def train_librarian(
-    base_model: str = "HuggingFaceTB/SmolLM-135M", 
+    tokenizer_name: str = "HuggingFaceTB/SmolLM-135M", 
     dataset_path: str = "JAYA_CORE/data/librarian_dataset.jsonl",
     output_dir: str = "JAYA_CORE/models/jaya-core-v0",
     epochs: int = 1,
-    max_steps: int = 2,  
+    max_steps: int = 0,  # 0 means full epochs
+    smoke_test: bool = False
 ):
-    if not HAS_TRAIN:
+    if not HAS_TRAIN or not HAS_TORCH:
         logger.error("transformers or torch not installed. Cannot train.")
         return False
         
-    logger.info(f"Loading Base Model for Fine-Tuning: {base_model}")
-    tokenizer = AutoTokenizer.from_pretrained(base_model)
+    logger.info("Initializing Native JAYA Librarian Architecture...")
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
     if tokenizer.pad_token is None:
         if tokenizer.eos_token:
             tokenizer.pad_token = tokenizer.eos_token
         else:
             tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             
-    model = AutoModelForCausalLM.from_pretrained(base_model)
-    if len(tokenizer) > model.config.vocab_size:
-        model.resize_token_embeddings(len(tokenizer))
-        
+    # Initialize the NATIVE architecture
+    model = JayaLibrarianNativeV0(vocab_size=len(tokenizer))
+    
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     
-    dataset = LibrarianDataset(Path(dataset_path), tokenizer, max_length=512) # Shorten for speed
+    dataset = LibrarianDataset(Path(dataset_path), tokenizer, max_length=512)
     logger.info(f"Loaded dataset with {len(dataset)} examples.")
     
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=2e-5)
+    # Simple split
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = torch.utils.data.random_split(dataset, [train_size, val_size])
     
-    model.train()
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=2, shuffle=False)
+    
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    
     global_step = 0
     final_loss = 0.0
     
-    logger.info("Starting custom training loop...")
-    for epoch in range(epochs):
-        for batch in dataloader:
-            if global_step >= max_steps:
+    epochs_to_run = 1 if smoke_test else epochs
+    
+    logger.info(f"Starting Native training loop for {epochs_to_run} epochs...")
+    for epoch in range(epochs_to_run):
+        model.train()
+        for batch in train_loader:
+            if max_steps > 0 and global_step >= max_steps:
                 break
                 
             input_ids = batch["input_ids"].to(device)
-            attention_mask = batch["attention_mask"].to(device)
-            labels = batch["labels"].to(device)
+            targets = batch["labels"].to(device)
             
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
+            logits, loss = model(input_ids, targets=targets)
             
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
             
             final_loss = loss.item()
-            logger.info(f"Step {global_step} | Loss: {final_loss:.4f}")
+            if global_step % 10 == 0:
+                logger.info(f"Epoch {epoch} | Step {global_step} | Loss: {final_loss:.4f}")
             global_step += 1
             
-        if global_step >= max_steps:
+        if max_steps > 0 and global_step >= max_steps:
             break
             
-    # Save the artifact
+    # Validation loop
+    model.eval()
+    val_loss = 0.0
+    with torch.no_grad():
+        for batch in val_loader:
+            input_ids = batch["input_ids"].to(device)
+            targets = batch["labels"].to(device)
+            _, loss = model(input_ids, targets=targets)
+            val_loss += loss.item()
+    val_loss /= max(1, len(val_loader))
+    logger.info(f"Validation Loss: {val_loss:.4f}")
+            
+    # Save the native artifact
     logger.info(f"Saving JAYA Core Librarian V0 to {output_dir}")
     os.makedirs(output_dir, exist_ok=True)
-    model.save_pretrained(output_dir)
+    
+    # Save state dict
+    torch.save(model.state_dict(), os.path.join(output_dir, "model.safetensors")) # Using .safetensors name for convention, though it's torch save here.
+    
+    # Save tokenizer
     tokenizer.save_pretrained(output_dir)
     
+    import hashlib
+    with open(os.path.join(output_dir, "model.safetensors"), "rb") as f:
+        artifact_sha256 = hashlib.sha256(f.read()).hexdigest()
+        
     # Save training manifest
     manifest = {
-        "base_model": base_model,
-        "dataset_count": len(dataset),
-        "steps_trained": global_step,
-        "final_loss": final_loss,
-        "model_version": "v0",
+        "architecture": "jaya_librarian_native_v0",
+        "parameter_count": sum(p.numel() for p in model.parameters()),
+        "vocab_size": len(tokenizer),
+        "context_length": 2048,
+        "training_steps": global_step,
+        "epochs": epochs_to_run,
+        "final_train_loss": final_loss,
+        "validation_loss": val_loss,
+        "artifact_sha256": artifact_sha256,
+        "model_version": "v0.1",
     }
     with open(os.path.join(output_dir, "training_manifest.json"), "w") as f:
         json.dump(manifest, f, indent=2)
@@ -144,10 +180,12 @@ def train_librarian(
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="HuggingFaceTB/SmolLM-135M")
+    parser.add_argument("--tokenizer", default="HuggingFaceTB/SmolLM-135M")
     parser.add_argument("--data", default="JAYA_CORE/data/librarian_dataset.jsonl")
     parser.add_argument("--out", default="JAYA_CORE/models/jaya-core-v0")
-    parser.add_argument("--steps", type=int, default=2) 
+    parser.add_argument("--epochs", type=int, default=1)
+    parser.add_argument("--steps", type=int, default=0) 
+    parser.add_argument("--smoke-test", action="store_true")
     args = parser.parse_args()
     
-    train_librarian(args.base, args.data, args.out, max_steps=args.steps)
+    train_librarian(args.tokenizer, args.data, args.out, epochs=args.epochs, max_steps=args.steps, smoke_test=args.smoke_test)

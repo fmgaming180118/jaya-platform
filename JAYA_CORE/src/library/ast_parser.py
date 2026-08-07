@@ -19,6 +19,7 @@ class CodeSymbol:
     source_span: str  # e.g., "L10-L25"
     calls: List[str] = field(default_factory=list)
     called_by: List[str] = field(default_factory=list)
+    tests: List[str] = field(default_factory=list)
     imports: List[str] = field(default_factory=list)
     
     def to_document_text(self) -> str:
@@ -30,6 +31,10 @@ class CodeSymbol:
             text += f"Docstring:\n{self.docstring}\n"
         if self.calls:
             text += f"Calls: {', '.join(self.calls)}\n"
+        if self.called_by:
+            text += f"Called By: {', '.join(self.called_by)}\n"
+        if self.tests:
+            text += f"Tests: {', '.join(self.tests)}\n"
         return text
 
 class ASTSymbolVisitor(ast.NodeVisitor):
@@ -125,4 +130,24 @@ def parse_python_file(source_id: str, file_path: str, source_code: str) -> List[
         
     visitor = ASTSymbolVisitor(source_id, file_path, source_code)
     visitor.visit(tree)
-    return visitor.symbols
+    
+    symbols = visitor.symbols
+    
+    # Pass 2: Establish 'called_by' and 'tests' relationships within the file
+    symbol_dict = {sym.symbol_name.split('.')[-1]: sym for sym in symbols}
+    
+    for sym in symbols:
+        for call in sym.calls:
+            if call in symbol_dict:
+                target = symbol_dict[call]
+                target.called_by.append(sym.symbol_name)
+                # Heuristic: if sym is a test, it tests the target
+                if sym.symbol_name.startswith("test_") or "test" in sym.file_path.lower():
+                    target.tests.append(sym.symbol_name)
+                    
+    # Deduplicate
+    for sym in symbols:
+        sym.called_by = list(set(sym.called_by))
+        sym.tests = list(set(sym.tests))
+        
+    return symbols

@@ -128,12 +128,12 @@ def ignite_genesis():
         "state": "GENESIS_EMPTY",
         "memories": [],
         "narrative": (
-            "I am Jaya. Version 18.0 — Ultra-Light Self-Evolving AGI.\n"
-            "All 40 Pillars declared + V18 upgrades:\n"
-            "  Biological Soul   : Pilar 1-10 (smart REPAIR dispatch)\n"
-            "  Sovereign Armor   : Pilar 11-20 (real AES migrate, hardware re-bind)\n"
-            "  Iron Engine       : Pilar 21-30 (LinguaLogica 200+ patterns, SelfBootstrap)\n"
-            "  Transcendental    : Pilar 31-40 (TF-IDF IntentEngine, MetaCognitivePlanner)\n"
+            "I am Jaya. Version 18.0 — Experimental Sovereign Runtime.\n"
+            "40 canonical pillar flags declared (see 40_pillars.yaml for implementation status):\n"
+            "  Biological Soul   : Pilar 1-10\n"
+            "  Sovereign Armor   : Pilar 11-20\n"
+            "  Iron Engine       : Pilar 21-29\n"
+            "  Transcendental    : Pilar 30-40\n"
             "  V18 Additions     : NanoModel 2-bit packed, LiveEvolver (1+1)-ES, NANO_MODE\n"
             "RAM: <22 MB  |  Weights: ~50 KB packed.  Loyalty sovereign."
         ),
@@ -163,8 +163,8 @@ def ignite_genesis():
     print("\n--- GENESIS V18 COMPLETE ---")
     print(f"Entity: {output_path} ({file_size:,} bytes / {file_size/1024:.1f} KB)")
     print("Format: .jay V18.0 (64-bit Pillars, NANO packed weights, self-evolving)")
-    print("V18: NanoModel + LiveEvolver + MetaCognitivePlanner + SelfBootstrap.")
-    print("RAM: <22 MB. Welcome, JAYA V18 — Ultra-Light Self-Evolving Sovereign.")
+    print("V18: NanoModel + LiveEvolver experimental features.")
+    print("Welcome, JAYA V18 — Experimental Sovereign Runtime.")
 
 def _write_nano_jay(output_path: str, header, packed_weights: bytes,
                     soul_payload: dict, model_config: dict) -> None:

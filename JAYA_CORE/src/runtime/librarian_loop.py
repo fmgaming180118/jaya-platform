@@ -6,14 +6,14 @@ Implements iterative retrieval to ground model answers in Non-Parametric Knowled
 import logging
 from typing import Dict, Any, List
 
-from JAYA_CORE.src.model.architecture import JayaLibrarianModel, HAS_TRANSFORMERS
+from JAYA_CORE.src.model.architecture import BootstrapLibrarianModel, HAS_TRANSFORMERS
 from JAYA_CORE.src.library.library_manager import LibraryManager
 
 logger = logging.getLogger("LibrarianLoop")
 
 class LibrarianLoop:
     def __init__(self, model_path: str = "JAYA_CORE/models/jaya-core-v0"):
-        self.model = JayaLibrarianModel(model_name_or_path=model_path)
+        self.model = BootstrapLibrarianModel(model_name_or_path=model_path)
         self.library = LibraryManager()
         self.max_rounds = 3
         
@@ -46,13 +46,26 @@ class LibrarianLoop:
             response = self.model.reason_and_respond(query, context_blocks)
             
             if not response.get("retrieval_required", False):
+                # Ensure evidence refs are valid
+                valid_refs = [ref for ref in response.get("evidence_refs", []) if ref in retrieved_refs]
+                
+                # Check for invalid output
+                if "Failed to parse model response" in response.get("information_needs", []):
+                    return {
+                        "status": "MODEL_OUTPUT_INVALID",
+                        "rounds": round_idx + 1,
+                        "answer": response.get("answer", ""),
+                        "evidence_refs": [],
+                        "confidence": 0.0
+                    }
+                    
                 # The model is confident it has the answer or knows it doesn't need more info
                 logger.info("Model finalized answer.")
                 return {
                     "status": "SUCCESS",
                     "rounds": round_idx + 1,
                     "answer": response.get("answer", ""),
-                    "evidence_refs": response.get("evidence_refs", []),
+                    "evidence_refs": valid_refs,
                     "confidence": response.get("confidence", 0.0)
                 }
                 
@@ -85,10 +98,11 @@ class LibrarianLoop:
         # Max rounds reached
         logger.warning(f"Reached max retrieval rounds ({self.max_rounds}). Forcing termination.")
         response = self.model.reason_and_respond(query, context_blocks)
+        valid_refs = [ref for ref in response.get("evidence_refs", []) if ref in retrieved_refs]
         return {
-            "status": "SUCCESS_MAX_ROUNDS",
+            "status": "RETRIEVAL_BUDGET_EXHAUSTED",
             "rounds": self.max_rounds,
             "answer": response.get("answer", "Terminated before definitive answer."),
-            "evidence_refs": response.get("evidence_refs", []),
+            "evidence_refs": valid_refs,
             "confidence": response.get("confidence", 0.0)
         }

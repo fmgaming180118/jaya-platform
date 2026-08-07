@@ -46,14 +46,27 @@ def run_checkout():
     )
     return loop
 
+import hashlib
+import os
+
+def _get_model_hash(model_path: str = "JAYA_CORE/models/jaya-core-v0/model.safetensors") -> str:
+    if not os.path.exists(model_path):
+        return "NO_MODEL"
+    with open(model_path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
 def test_unseen_code_symbol_retrieval(code_library_loop):
     """
     Ensures the loop extracts the symbol graph and can answer callers.
     """
-    if not HAS_DEPS or not code_library_loop.model._is_loaded:
+    if not HAS_DEPS or not getattr(code_library_loop.model, "_is_loaded", False):
         pytest.skip("BLOCKED_EXTERNAL: transformers/torchvision dependency broken. Cannot run inference.")
         
+    hash_before = _get_model_hash()
     result = code_library_loop.run("What function calls process() on the PaymentProcessor?")
+    hash_after = _get_model_hash()
+    
+    assert hash_before == hash_after, "Model weights changed! Retraining detected, violation of Librarian philosophy."
     
     assert result["status"] == "SUCCESS"
     assert "run_checkout" in result["answer"].lower()
