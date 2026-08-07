@@ -5,12 +5,31 @@ test_real_action_loop_unit.py — Unit Tests for Real Action Loop and P0 Cogniti
 from __future__ import annotations
 
 import hashlib
-import os
+import json
 import tempfile
 from pathlib import Path
 import pytest
 
-from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import CognitiveAgentBridge, create_approval_receipt, ApprovalReceipt
+def create_approval_receipt(
+    user_id: str,
+    session_id: str,
+    action: str,
+    resource: str,
+    request_digest: str,
+    **kwargs
+) -> ApprovalReceipt:
+    authority = ApprovalAuthority()
+    return authority.issue_receipt(
+        user_id=user_id,
+        session_id=session_id,
+        action=action,
+        resource=resource,
+        request_digest=request_digest,
+        ttl_seconds=300.0,
+    )
+from JAYA_CORE.src.security.approval_authority import ApprovalAuthority, ApprovalReceipt
+
+from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import CognitiveAgentBridge
 from JAYA_CORE.src.cognitive.contracts import RiskClass
 from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import DEFAULT_PROCESS_PROFILES
 from JAYA_CORE.src.capabilities.manifest import CapabilityManifest
@@ -82,7 +101,14 @@ def test_approval_receipt_creation_and_verification():
         nonce="test",
         signature="test",
     )
-    is_valid_expired, _ = authority.verify_and_consume(expired_receipt, "test_session")
+    is_valid_expired, _ = authority.verify_and_consume(
+        expired_receipt, 
+        "test_session",
+        "test_user",
+        "fs.write",
+        "/workspace/test.txt",
+        request_digest
+    )
     assert is_valid_expired is False
 
 
@@ -117,6 +143,7 @@ def test_cognitive_agent_bridge_real_file_write_and_read():
             intent=f"tulis file ke {test_file}",
             context={"target_path": test_file, "content": test_content, "approval_receipt": approval_receipt},
             user_id="test_user",
+            session_id="test_session",
         )
         assert write_res["ok"] is True
         assert write_res["tool_executed"] == "fs.write"
@@ -126,6 +153,7 @@ def test_cognitive_agent_bridge_real_file_write_and_read():
             intent=f"baca file {test_file}",
             context={"target_path": test_file},
             user_id="test_user",
+            session_id="test_session",
         )
         assert read_res["ok"] is True
         assert read_res["tool_executed"] == "fs.read"
@@ -163,6 +191,7 @@ def test_cognitive_agent_bridge_process_execution():
             "approval_receipt": approval_receipt,
         },
         user_id="test_user",
+        session_id="test_session",
     )
     assert cmd_res["ok"] is True
     assert cmd_res["tool_executed"] == "process.execute"
@@ -179,6 +208,7 @@ def test_cognitive_agent_bridge_returns_error_on_nonexistent_file():
         intent=f"baca file {non_existent}",
         context={"target_path": non_existent},
         user_id="test_user",
+        session_id="test_session",
     )
     assert read_res["ok"] is False  # Tool failed, outer ok must be False
     assert read_res["tool_result"]["status"] == "error"
@@ -194,6 +224,7 @@ def test_p0_unauthorized_consent_rejected():
         intent="tulis file ke forbidden.txt",
         context={"target_path": "forbidden.txt", "content": "test"},
         user_id="test_user",
+        session_id="test_session",
     )
     assert res["ok"] is False
     assert res["error"] == "capability_denied"
@@ -218,6 +249,7 @@ def test_p0_workspace_path_escape_rejected():
         intent="baca file ../../../etc/passwd",
         context={"target_path": "../../../etc/passwd", "approval_receipt": approval_receipt},
         user_id="test_user",
+        session_id="test_session",
     )
     assert res["ok"] is False
     assert res["tool_result"]["status"] == "error"
@@ -246,6 +278,7 @@ def test_p0_unauthorized_process_profile_rejected():
             "approval_receipt": approval_receipt,
         },
         user_id="test_user",
+        session_id="test_session",
     )
     # The validation happens in _analyze_for_tool_execution, so tool_needed=False
     # and the error is returned directly without tool execution
@@ -302,6 +335,7 @@ def test_process_execution_nonzero_exit_failed():
             "approval_receipt": approval_receipt,
         },
         user_id="test_user",
+        session_id="test_session",
     )
     assert res["ok"] is False
     assert res["tool_result"]["status"] == "error"
@@ -360,6 +394,7 @@ def test_iron_engine_cognitive_reason_and_act_structured_execution():
         text="eksekusi plan",
         context={"approval_receipt": approval_receipt},
         user_id="test_user",
+        session_id="test_session",
     )
     assert res["ok"] is True
     assert res["domain_status"] == "EXECUTION_SUCCEEDED"
@@ -373,7 +408,6 @@ def test_iron_engine_cognitive_reason_and_act_structured_execution():
 def test_structured_cognitive_plan_execution():
     """Test P0.1 & P0.2: Structured ActionPlan execution with stop-on-failure."""
     import hashlib
-    from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import create_approval_receipt
 
     class MockActionStep:
         def __init__(self, action_type, inputs, required_capability="core.reason", risk_class="READ_ONLY", approval_required=False, step_id="step-1", title="Test step"):
@@ -411,7 +445,7 @@ def test_structured_cognitive_plan_execution():
     step1 = MockActionStep("fs.write", {"path": "temp_plan_step.txt", "content": "step content"}, required_capability="fs.write", risk_class=RiskClass.REVERSIBLE, approval_required=True, step_id="step-1", title="Write file")
     step2 = MockActionStep("fs.read", {"path": "temp_plan_step.txt"}, required_capability="fs.read", risk_class=RiskClass.READ_ONLY, approval_required=False, step_id="step-2", title="Read file")
     
-    plan_res = bridge.execute_cognitive_plan([step1, step2], context={"approval_receipt": approval_receipt}, user_id="test_user")
+    plan_res = bridge.execute_cognitive_plan([step1, step2], context={"approval_receipt": approval_receipt}, user_id="test_user", session_id="test_session")
     if not plan_res["ok"]:
         print(f"DEBUG plan_res: {plan_res}")
     assert plan_res["ok"] is True

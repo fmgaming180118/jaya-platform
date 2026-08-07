@@ -71,6 +71,14 @@ class NonceLedger:
                     )
                     """
                 )
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS revoked_receipts (
+                        receipt_id TEXT PRIMARY KEY,
+                        revoked_at REAL NOT NULL
+                    )
+                    """
+                )
                 conn.commit()
         except Exception as e:
             logger.error("Failed to initialize NonceLedger DB: %s", e)
@@ -101,6 +109,34 @@ class NonceLedger:
                     return False
         except Exception as e:
             logger.error("Failed to consume nonce: %s", e)
+            return False
+
+    def is_revoked(self, receipt_id: str) -> bool:
+        """Check if a receipt has been revoked."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.execute("SELECT 1 FROM revoked_receipts WHERE receipt_id = ?", (receipt_id,))
+                return cursor.fetchone() is not None
+        except Exception as e:
+            logger.error("Failed to query revocation: %s", e)
+            # Fail-safe: if DB is broken, assume revoked
+            return True
+            
+    def revoke(self, receipt_id: str) -> bool:
+        """Revoke a receipt. Returns True if successful."""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                try:
+                    conn.execute(
+                        "INSERT INTO revoked_receipts (receipt_id, revoked_at) VALUES (?, ?)",
+                        (receipt_id, time.time())
+                    )
+                    conn.commit()
+                    return True
+                except sqlite3.IntegrityError:
+                    return True # Already revoked
+        except Exception as e:
+            logger.error("Failed to revoke receipt: %s", e)
             return False
 
 
@@ -220,7 +256,9 @@ class ApprovalAuthority:
         if receipt.request_digest != expected_request_digest:
             return False, "INVALID_APPROVAL_RECEIPT: Request digest mismatch"
             
-        # 8. Verify not revoked (skipped / to be implemented if revocation list added)
+        # 8. Verify not revoked
+        if self.ledger.is_revoked(receipt.receipt_id):
+            return False, "INVALID_APPROVAL_RECEIPT: Receipt has been revoked"
             
         # 9. Verify nonce unused -> atomically consume nonce
         if not self.ledger.consume(receipt.nonce):

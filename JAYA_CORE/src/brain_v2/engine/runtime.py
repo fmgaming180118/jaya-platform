@@ -839,11 +839,14 @@ class IronEngine:
             logger.info("[Phase 2] NLUSymbolicBridge ready as primary cognitive path")
             
             from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import create_cognitive_agent_bridge
-            self._cognitive_agent_bridge = create_cognitive_agent_bridge()
+            from JAYA_CORE.src.cognitive.executor import CognitiveActionExecutor
+            self._cognitive_agent_bridge = create_cognitive_agent_bridge(
+                cognitive_executor=CognitiveActionExecutor(model_adapter=nlu_adapter)
+            )
             logger.info("[Phase 2] CognitiveAgentBridge initialized")
             
             from JAYA_CORE.src.cognitive.evaluator import GoalEvaluator
-            self._goal_evaluator = GoalEvaluator()
+            self._goal_evaluator = GoalEvaluator(model_adapter=nlu_adapter)
             logger.info("[Phase 2] GoalEvaluator initialized")
             
 
@@ -1414,6 +1417,7 @@ class IronEngine:
         context: Optional[Dict[str, Any]] = None,
         force_local: bool = False,
         user_id: str = "default_user",
+        session_id: str = "default_session",
     ) -> Dict[str, Any]:
         """Cognitive reasoning + tool execution in one call."""
         # First, do cognitive reasoning
@@ -1433,6 +1437,7 @@ class IronEngine:
                 plan=plan,
                 context=context,
                 user_id=user_id,
+                session_id=session_id,
             )
         else:
             if not self._cognitive_agent_bridge:
@@ -1443,6 +1448,7 @@ class IronEngine:
                 intent=text,
                 context=context,
                 user_id=user_id,
+                session_id=session_id,
             )
         
         all_ok = reason_result.get("ok", False) and bridge_result.get("ok", False)
@@ -1461,13 +1467,22 @@ class IronEngine:
             if not observations and bridge_result.get("ok") is not None:
                 observations = [{"ok": bridge_result.get("ok", False), "action_type": bridge_result.get("tool_result", {}).get("capability", "unknown")}]
             
+            goal = reason_result.get("goal")
+            if not goal:
+                from JAYA_CORE.src.cognitive.contracts import Goal, IntentType
+                goal = Goal(
+                    goal_id="fallback_goal",
+                    title=text,
+                    intent_type=IntentType.EXECUTE_TASK
+                )
+
             eval_result = self._goal_evaluator.evaluate_goal_progress(
-                goal=reason_result.get("intent", reason_result.get("goal", {"title": text})),
+                goal=goal,
                 observations=observations,
                 plan=plan
             )
             
-            if eval_result.status == EvaluationStatus.FAILED:
+            if eval_result.status == EvaluationStatus.FAILED.value:
                 domain_status = "REPLAN_REQUIRED"
                 logger.info("GoalEvaluator marked execution as FAILED. Triggering replanning...")
                 # Basic replanning hook: If we haven't already replanned in this context
@@ -1475,8 +1490,8 @@ class IronEngine:
                 if replan_count < 1:  # Max 1 replan to avoid infinite loop
                     replan_context = context.copy() if context else {}
                     replan_context["replan_count"] = replan_count + 1
-                    replan_context["previous_failure_reason"] = eval_result.reasoning
-                    replan_text = f"The previous attempt to '{text}' failed because: {eval_result.reasoning}. Please try a different approach."
+                    replan_context["previous_failure_reason"] = eval_result.evidence
+                    replan_text = f"The previous attempt to '{text}' failed because: {eval_result.evidence}. Please try a different approach."
                     
                     return self.cognitive_reason_and_act(
                         text=replan_text,

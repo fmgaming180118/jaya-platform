@@ -140,11 +140,8 @@ class CapabilityRegistry:
             
             elif cap_id == "web.search":
                 # Probe: verify search provider adapter is actually available
-                try:
-                    from JAYA_CORE.src.ai_connectors.public_api_client import PublicAPIClient
-                    return True
-                except ImportError:
-                    return False
+                # Currently marked unavailable as per P0.6 fix (no real executor)
+                return False
             
             elif cap_id == "process.execute":
                 return True

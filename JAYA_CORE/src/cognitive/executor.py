@@ -49,16 +49,26 @@ class CognitiveActionExecutor:
         prompt = "\n".join(prompt_lines)
         
         try:
-            response = self.model_adapter.generate(
-                prompt=prompt,
-                privacy_level="INTERNAL",
-            )
+            response = self.model_adapter.generate(prompt=prompt)
+            
+            artifacts = {"analysis_result": response.text}
+            if action_type == "write_code_draft":
+                from JAYA_CORE.src.cognitive.contracts import CodeChangeArtifact
+                artifacts["code_change"] = CodeChangeArtifact(
+                    target_path=inputs.get("target_path", "unknown.py"),
+                    original_digest="",
+                    replacement_content=response.text,
+                    explanation="Generated code draft",
+                    expected_effect="Implement requested functionality",
+                    generated_by=response.model_used,
+                    confidence=response.confidence
+                )
             
             # The response is a CognitiveResponse object
             return CognitiveStepResult(
                 ok=True,
                 output_text=response.text,
-                artifacts={"analysis_result": response.text},
+                artifacts=artifacts,
                 derived_inputs={},
                 confidence=response.confidence,
                 provider=response.source,

@@ -264,13 +264,60 @@ class ActionResult:
 
 
 @dataclass
-class EvaluationResult:
-    request_id: str
-    is_goal_achieved: bool
-    should_replan: bool
-    summary: str
+class GoalEvaluationResult:
+    status: str
+    confidence: float
+    evidence: str
+    passed_postconditions: List[str] = field(default_factory=list)
+    failed_postconditions: List[str] = field(default_factory=list)
+    unknown_postconditions: List[str] = field(default_factory=list)
+    remaining_work: List[str] = field(default_factory=list)
+    replan_reason: str = ""
+    request_id: str = ""
     next_step_id: Optional[str] = None
     schema_version: str = "1.0"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+@dataclass
+class ApprovalRequest:
+    request_id: str
+    user_id: str
+    session_id: str
+    action: str
+    resource: str
+    request_digest: str
+    risk_class: str
+    reason: str
+    created_at: float
+    expires_at: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+@dataclass
+class CodeChangeArtifact:
+    target_path: str
+    original_digest: str
+    replacement_content: str
+    explanation: str
+    expected_effect: str
+    generated_by: str
+    confidence: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+@dataclass
+class ReplanRequest:
+    original_goal: Goal
+    previous_plan: ActionPlan
+    execution_state: Any
+    failed_step: Any
+    observations: List[Dict[str, Any]]
+    failed_postconditions: List[str]
+    attempt: int
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

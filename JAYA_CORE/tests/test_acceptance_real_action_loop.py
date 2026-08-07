@@ -13,10 +13,27 @@ from pathlib import Path
 
 import pytest
 
+def create_approval_receipt(
+    user_id: str,
+    session_id: str,
+    action: str,
+    resource: str,
+    request_digest: str,
+    **kwargs
+) -> ApprovalReceipt:
+    authority = ApprovalAuthority()
+    return authority.issue_receipt(
+        user_id=user_id,
+        session_id=session_id,
+        action=action,
+        resource=resource,
+        request_digest=request_digest,
+        ttl_seconds=300.0,
+    )
+from JAYA_CORE.src.security.approval_authority import ApprovalAuthority, ApprovalReceipt
+
 from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import (
     CognitiveAgentBridge,
-    ApprovalReceipt,
-    create_approval_receipt,
     DEFAULT_PROCESS_PROFILES,
 )
 from JAYA_CORE.src.brain_v2.engine.runtime import IronEngine
@@ -82,6 +99,7 @@ class TestAcceptanceRealActionLoop:
                 "approval_receipt": approval_receipt,
             },
             user_id="acceptance_user",
+            session_id="acceptance_session",
         )
         
         assert write_res["ok"] is True
@@ -93,6 +111,7 @@ class TestAcceptanceRealActionLoop:
             intent=f"baca file {test_file.name}",
             context={"target_path": f"temp_test_acceptance/{test_file.name}"},
             user_id="acceptance_user",
+            session_id="acceptance_session",
         )
         
         assert read_res["ok"] is True
@@ -124,6 +143,7 @@ class TestAcceptanceRealActionLoop:
                 "approval_receipt": approval_receipt,
             },
             user_id="acceptance_user",
+            session_id="acceptance_session",
         )
         
         assert cmd_res["ok"] is True
@@ -134,7 +154,6 @@ class TestAcceptanceRealActionLoop:
     def test_structured_plan_execution(self):
         """Test structured ActionPlan execution with multiple steps."""
         import hashlib
-        from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import create_approval_receipt
         
         class MockActionStep:
             def __init__(self, action_type, inputs, required_capability="core.reason", 
@@ -187,7 +206,8 @@ class TestAcceptanceRealActionLoop:
         plan_res = self.bridge.execute_cognitive_plan(
             [step1, step2],
             context={"approval_receipt": approval_receipt},
-            user_id="acceptance_user"
+            user_id="acceptance_user",
+            session_id="acceptance_session",
         )
         
         assert plan_res["ok"] is True
@@ -196,7 +216,7 @@ class TestAcceptanceRealActionLoop:
         assert plan_res["failed_step"] is None
         
         # Verify file content
-        assert test_file.read_text() == test_content
+        assert Path("temp_test_acceptance/plan_test.txt").read_text() == test_content
     
     def test_iron_engine_integration(self):
         """Test IronEngine with auto-attached bridge."""
@@ -397,6 +417,7 @@ class TestAcceptanceRealActionLoop:
             intent="baca file ../../../etc/passwd",
             context={"target_path": "../../../etc/passwd", "approval_receipt": approval_receipt},
             user_id="test_user",
+            session_id="test_session",
         )
         
         assert res["ok"] is False
@@ -422,6 +443,7 @@ class TestAcceptanceRealActionLoop:
                 "approval_receipt": approval_receipt,
             },
             user_id="test_user",
+            session_id="test_session",
         )
         
         assert res["ok"] is False

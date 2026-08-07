@@ -157,25 +157,7 @@ from JAYA_CORE.src.security.approval_authority import ApprovalReceipt, ApprovalA
 # Initialize the persistent approval authority
 _approval_authority = ApprovalAuthority()
 
-# Helper for testing to create receipts
-def create_approval_receipt(
-    user_id: str,
-    session_id: str,
-    action: str,
-    resource: str,
-    request_digest: str,
-    ttl_seconds: float = 300.0,
-    signing_key: str = None,
-) -> ApprovalReceipt:
-    return _approval_authority.issue_receipt(
-        user_id=user_id,
-        session_id=session_id,
-        action=action,
-        resource=resource,
-        request_digest=request_digest,
-        ttl_seconds=ttl_seconds,
-    )
-
+# Helper for testing removed from production (use fixtures instead)
 class CognitiveAgentBridge:
     """
     Bridge that connects JAYA Core cognitive reasoning to JAYA Agent/OS tool execution.
@@ -188,7 +170,8 @@ class CognitiveAgentBridge:
     5. Result flows back to cognitive model for evaluation/learning
     """
 
-    def __init__(self):
+    def __init__(self, cognitive_executor: Optional[Any] = None):
+        self.cognitive_executor = cognitive_executor
         self._agent_loop = None
         self._capability_sandbox = None
         self._initialized = False
@@ -286,6 +269,7 @@ class CognitiveAgentBridge:
         intent: str,
         context: Optional[Dict[str, Any]] = None,
         user_id: str = "default_user",
+        session_id: str = "default_session",
     ) -> Dict[str, Any]:
         """
         Execute a cognitive intent through the full Agent/OS pipeline.
@@ -307,6 +291,8 @@ class CognitiveAgentBridge:
                 }
 
         ctx = context or {}
+        if "session_id" not in ctx:
+            ctx["session_id"] = session_id
         
         try:
             # Step 1: AgentLoop perceives and reasons
@@ -390,6 +376,7 @@ class CognitiveAgentBridge:
         plan: Any,
         context: Optional[Dict[str, Any]] = None,
         user_id: str = "default_user",
+        session_id: str = "default_session",
     ) -> Dict[str, Any]:
         """
         Execute a structured plan (ActionPlan object or list of ActionStep objects).
@@ -404,6 +391,8 @@ class CognitiveAgentBridge:
                 }
 
         ctx = context or {}
+        if "session_id" not in ctx:
+            ctx["session_id"] = session_id
         
         execution_state = ctx.get("execution_state")
         if not execution_state:
@@ -530,19 +519,26 @@ class CognitiveAgentBridge:
 
         # P0.4 Fix: Bypass Agent/OS effect execution for internal cognitive steps
         if required_capability == "core.reason":
-            from JAYA_CORE.src.cognitive.executor import CognitiveActionExecutor
+            if not self.cognitive_executor:
+                return {
+                    "ok": False,
+                    "error": "COGNITIVE_PROVIDER_UNAVAILABLE",
+                    "reason": "CognitiveActionExecutor not injected",
+                }
             
-            # Use actual cognitive executor instead of returning fake success
-            executor = CognitiveActionExecutor()
-            result = executor.execute_reasoning(step, ctx)
+            result = self.cognitive_executor.execute_reasoning(step, ctx)
+            
+            if execution_state:
+                execution_state.artifacts.update(result.artifacts)
+                execution_state.derived_inputs.update(result.derived_inputs)
             
             return {
-                "ok": result.get("ok", False),
+                "ok": result.ok,
                 "action_type": action_type,
                 "tool_executed": "core.reason",
-                "tool_result": {"status": "success" if result.get("ok", False) else "error", "result": result.get("output", "")},
-                "cognitive_feedback": {"success": result.get("ok", False), "learned": True},
-                "error": result.get("error") if not result.get("ok", False) else None,
+                "tool_result": {"status": "success" if result.ok else "error", "result": result.output_text},
+                "cognitive_feedback": {"success": result.ok, "learned": True},
+                "error": result.error,
             }
 
         grant_result = self._request_capability_grant(tool_name, inputs, user_id, context=ctx)
@@ -611,7 +607,7 @@ class CognitiveAgentBridge:
             "present_preview": "core.reason",
             "export_model": "cad.parametric_modeling",
             "analyze_architecture": "core.reason",
-            "write_code_draft": "fs.write",
+            "write_code_draft": "core.reason",
             "run_tests": "process.execute",
             "inventory_files": "fs.list",
             "propose_structure": "core.reason",
@@ -800,7 +796,10 @@ class CognitiveAgentBridge:
                         expected_resource = abs_path
                         
                     # P0.7, P0.8, P0.9: Verify via ApprovalAuthority with strict bindings
-                    current_session_id = ctx.get("session_id", getattr(approval_receipt, "session_id", None))
+                    current_session_id = ctx.get("session_id")
+                    if not current_session_id:
+                        return {"granted": False, "reason": "SESSION_REQUIRED"}
+                        
                     is_valid, reason = _approval_authority.verify_and_consume(
                         receipt=approval_receipt, 
                         current_session_id=current_session_id,
@@ -991,9 +990,9 @@ class CognitiveAgentBridge:
 
 
 
-def create_cognitive_agent_bridge() -> CognitiveAgentBridge:
+def create_cognitive_agent_bridge(cognitive_executor: Optional[Any] = None) -> CognitiveAgentBridge:
     """Factory function to create and initialize the bridge."""
-    bridge = CognitiveAgentBridge()
+    bridge = CognitiveAgentBridge(cognitive_executor=cognitive_executor)
     bridge.initialize()
     return bridge
 

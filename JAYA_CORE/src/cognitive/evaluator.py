@@ -15,26 +15,14 @@ class EvaluationStatus(Enum):
     FAILED = "FAILED"
     UNKNOWN = "UNKNOWN"
 
-class EvaluationResult:
-    def __init__(
-        self,
-        status: EvaluationStatus,
-        confidence: float,
-        reasoning: str,
-        remaining_tasks: Optional[List[str]] = None
-    ):
-        self.status = status
-        self.confidence = confidence
-        self.reasoning = reasoning
-        self.remaining_tasks = remaining_tasks or []
+from JAYA_CORE.src.cognitive.contracts import GoalEvaluationResult, Goal
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "status": self.status.value,
-            "confidence": self.confidence,
-            "reasoning": self.reasoning,
-            "remaining_tasks": self.remaining_tasks
-        }
+class EvaluationStatus(Enum):
+    ACHIEVED = "ACHIEVED"
+    PARTIAL = "PARTIAL"
+    FAILED = "FAILED"
+    UNKNOWN = "UNKNOWN"
+    UNVERIFIED = "UNVERIFIED"
 
 class GoalEvaluator:
     """Evaluates whether a goal has been achieved based on observations and postconditions."""
@@ -44,10 +32,10 @@ class GoalEvaluator:
         
     def evaluate_goal_progress(
         self, 
-        goal: Any, 
+        goal: Goal, 
         observations: List[Dict[str, Any]], 
         plan: Any
-    ) -> EvaluationResult:
+    ) -> GoalEvaluationResult:
         """
         Evaluate goal progress based on the execution history.
         Verifies explicit postconditions rather than just assuming success if steps passed.
@@ -60,28 +48,28 @@ class GoalEvaluator:
         
         if failed_steps:
             logger.info("Evaluation: FAILED (%d failed steps)", len(failed_steps))
-            return EvaluationResult(
-                status=EvaluationStatus.FAILED,
+            return GoalEvaluationResult(
+                status=EvaluationStatus.FAILED.value,
                 confidence=0.9,
-                reasoning=f"Failed steps detected: {', '.join([s.get('action_type', s.get('tool_executed', 'unknown')) for s in failed_steps])}",
-                remaining_tasks=[]
+                evidence=f"Failed steps detected: {', '.join([s.get('action_type', s.get('tool_executed', 'unknown')) for s in failed_steps])}",
+                remaining_work=[]
             )
             
-        if not self.model_adapter:
+        if not self.model_adapter or not self.model_adapter.has_reasoning_provider():
             # Fallback if no model adapter
             successful_steps = [obs for obs in observations if obs.get("ok", False) or obs.get("status") == "SUCCESS"]
             if successful_steps and len(successful_steps) >= len(getattr(plan, "steps", [])):
-                return EvaluationResult(
-                    status=EvaluationStatus.ACHIEVED,
-                    confidence=0.5,
-                    reasoning="Fallback: All planned steps reported SUCCESS, but model unavailable to verify postconditions.",
-                    remaining_tasks=[]
+                return GoalEvaluationResult(
+                    status=EvaluationStatus.UNVERIFIED.value,
+                    confidence=0.0,
+                    evidence="Fallback: All planned steps reported SUCCESS, but model unavailable to verify postconditions. Cannot confirm ACHIEVED.",
+                    remaining_work=[]
                 )
-            return EvaluationResult(
-                status=EvaluationStatus.PARTIAL,
+            return GoalEvaluationResult(
+                status=EvaluationStatus.PARTIAL.value,
                 confidence=0.5,
-                reasoning="Fallback: Plan partially executed.",
-                remaining_tasks=[]
+                evidence="Fallback: Plan partially executed.",
+                remaining_work=[]
             )
 
         # Call cognitive model to evaluate real postconditions
@@ -96,7 +84,7 @@ class GoalEvaluator:
         prompt += "\nRespond ONLY with a JSON object containing keys: 'status' (ACHIEVED, PARTIAL, or FAILED) and 'reasoning' (brief text)."
         
         try:
-            response = self.model_adapter.generate(prompt=prompt, privacy_level="INTERNAL")
+            response = self.model_adapter.generate(prompt=prompt)
             text = response.text.strip()
             
             # Simple parse
@@ -111,24 +99,24 @@ class GoalEvaluator:
                 except ValueError:
                     status = EvaluationStatus.UNKNOWN
                 
-                return EvaluationResult(
-                    status=status,
+                return GoalEvaluationResult(
+                    status=status.value,
                     confidence=response.confidence,
-                    reasoning=data.get("reasoning", "No reasoning provided"),
-                    remaining_tasks=[]
+                    evidence=data.get("reasoning", "No reasoning provided"),
+                    remaining_work=[]
                 )
             else:
-                return EvaluationResult(
-                    status=EvaluationStatus.UNKNOWN,
+                return GoalEvaluationResult(
+                    status=EvaluationStatus.UNKNOWN.value,
                     confidence=0.0,
-                    reasoning="Failed to parse LLM evaluation response.",
-                    remaining_tasks=[]
+                    evidence="Failed to parse LLM evaluation response.",
+                    remaining_work=[]
                 )
         except Exception as e:
             logger.error("Error evaluating goal progress: %s", e)
-            return EvaluationResult(
-                status=EvaluationStatus.UNKNOWN,
+            return GoalEvaluationResult(
+                status=EvaluationStatus.UNKNOWN.value,
                 confidence=0.0,
-                reasoning=f"Error evaluating goal progress: {str(e)}",
-                remaining_tasks=[]
+                evidence=f"Error evaluating goal progress: {str(e)}",
+                remaining_work=[]
             )

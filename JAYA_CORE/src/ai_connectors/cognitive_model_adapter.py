@@ -106,6 +106,19 @@ class CognitiveModelAdapter:
     def is_cloud_available(self) -> bool:
         return self._cloud_available
 
+    def has_local_reasoning_provider(self) -> bool:
+        return self._local_available
+
+    def has_cloud_reasoning_provider(self) -> bool:
+        return self.cloud_adapter is not None and bool(self.cloud_adapter.get_available_providers())
+
+    def has_reasoning_provider(self) -> bool:
+        """
+        Check if a real reasoning provider is available.
+        Public search (Wikipedia/DuckDuckGo) is NOT a reasoning provider.
+        """
+        return self.has_local_reasoning_provider() or self.has_cloud_reasoning_provider()
+
     def generate(
         self,
         prompt: str,

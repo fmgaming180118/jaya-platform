@@ -53,7 +53,7 @@ class PlanExecutionState:
 
     def resolve_references(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Resolve input references like `step-1.patch_artifact.content` from stored artifacts.
+        Resolve input references like `step-1.code_change.replacement_content` from stored artifacts.
         If a reference cannot be resolved, raises ValueError.
         """
         resolved = {}
@@ -63,18 +63,20 @@ class PlanExecutionState:
                 if ref_path in self.artifacts:
                     resolved[key] = self.artifacts[ref_path]
                 else:
-                    # Could also check nested dicts if needed
                     parts = ref_path.split('.')
                     if len(parts) >= 2:
                         base_ref = f"{parts[0]}.{parts[1]}"
-                        if base_ref in self.artifacts and isinstance(self.artifacts[base_ref], dict):
+                        if base_ref in self.artifacts:
                             nested_val = self.artifacts[base_ref]
                             try:
                                 for p in parts[2:]:
-                                    nested_val = nested_val[p]
+                                    if isinstance(nested_val, dict):
+                                        nested_val = nested_val[p]
+                                    else:
+                                        nested_val = getattr(nested_val, p)
                                 resolved[key] = nested_val
                                 continue
-                            except (KeyError, TypeError):
+                            except (KeyError, AttributeError, TypeError):
                                 pass
                     
                     raise ValueError(f"UNRESOLVED_ACTION_INPUT: Reference {ref_path} not found in artifacts.")
