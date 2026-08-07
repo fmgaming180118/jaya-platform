@@ -152,92 +152,30 @@ DEFAULT_PROCESS_PROFILES = {
     ),
 }
 
-_DYNAMIC_SIGNING_KEY = secrets.token_hex(32)
+from JAYA_CORE.src.security.approval_authority import ApprovalReceipt, ApprovalAuthority
 
-def _get_signing_key(override: str = None) -> str:
-    if override:
-        return override
-    return os.environ.get("JAYA_APPROVAL_SIGNING_KEY", _DYNAMIC_SIGNING_KEY)
+# Initialize the persistent approval authority
+_approval_authority = ApprovalAuthority()
 
-@dataclass
-class ApprovalReceipt:
-    """
-    Signed human approval receipt for sensitive operations.
-    
-    Binds: user_id, session_id, action, resource, request_digest, 
-           issued_at, expires_at, nonce, signature
-    """
-    receipt_id: str
-    user_id: str
-    session_id: str
-    action: str
-    resource: str
-    request_digest: str
-    issued_at: float
-    expires_at: float
-    nonce: str
-    signature: str
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return asdict(self)
-    
-    @classmethod
-    def create(
-        cls,
-        user_id: str,
-        session_id: str,
-        action: str,
-        resource: str,
-        request_digest: str,
-        ttl_seconds: float = 300.0,
-        signing_key: str = None,
-    ) -> "ApprovalReceipt":
-        """Create a new signed approval receipt."""
-        import hmac
-        
-        receipt_id = f"approval-{int(time.time() * 1000)}-{secrets.token_hex(4)}"
-        issued_at = time.time()
-        expires_at = issued_at + ttl_seconds
-        nonce = secrets.token_hex(16)
-        
-        # Create signature using HMAC
-        signing_key = _get_signing_key(signing_key)
-        message = f"{receipt_id}|{user_id}|{session_id}|{action}|{resource}|{request_digest}|{issued_at}|{expires_at}|{nonce}"
-        signature = hmac.new(
-            signing_key.encode(),
-            message.encode(),
-            hashlib.sha256
-        ).hexdigest()[:32]
-        
-        return cls(
-            receipt_id=receipt_id,
-            user_id=user_id,
-            session_id=session_id,
-            action=action,
-            resource=resource,
-            request_digest=request_digest,
-            issued_at=issued_at,
-            expires_at=expires_at,
-            nonce=nonce,
-            signature=signature,
-        )
-    
-    def verify(self, signing_key: str = None) -> bool:
-        """Verify the receipt signature and expiry."""
-        import hmac
-        
-        if time.time() > self.expires_at:
-            return False
-        
-        signing_key = _get_signing_key(signing_key)
-        message = f"{self.receipt_id}|{self.user_id}|{self.session_id}|{self.action}|{self.resource}|{self.request_digest}|{self.issued_at}|{self.expires_at}|{self.nonce}"
-        expected_signature = hmac.new(
-            signing_key.encode(),
-            message.encode(),
-            hashlib.sha256
-        ).hexdigest()[:32]
-        
-        return hmac.compare_digest(self.signature, expected_signature)
+def create_approval_receipt(
+    user_id: str,
+    session_id: str,
+    action: str,
+    resource: str,
+    request_digest: str,
+    ttl_seconds: float = 300.0,
+    signing_key: str = None,
+) -> ApprovalReceipt:
+    """Helper for testing to create receipts."""
+    # In tests, we still use the central authority, signing_key override is ignored
+    return _approval_authority.issue_receipt(
+        user_id=user_id,
+        session_id=session_id,
+        action=action,
+        resource=resource,
+        request_digest=request_digest,
+        ttl_seconds=ttl_seconds,
+    )
 
 
 class CognitiveAgentBridge:
@@ -568,14 +506,20 @@ class CognitiveAgentBridge:
             }
 
         # P0.4 Fix: Bypass Agent/OS effect execution for internal cognitive steps
-        if required_capability == "text.reasoning.basic":
+        if required_capability == "core.reason":
+            from JAYA_CORE.src.cognitive.executor import CognitiveActionExecutor
+            
+            # Use actual cognitive executor instead of returning fake success
+            executor = CognitiveActionExecutor()
+            result = executor.execute_reasoning(step, ctx)
+            
             return {
-                "ok": True,
+                "ok": result.get("ok", False),
                 "action_type": action_type,
-                "tool_executed": "internal_cognitive",
-                "tool_result": {"status": "success", "result": "Cognitive step processed internally"},
-                "cognitive_feedback": {"success": True, "learned": True},
-                "error": None,
+                "tool_executed": "core.reason",
+                "tool_result": {"status": "success" if result.get("ok", False) else "error", "result": result.get("output", "")},
+                "cognitive_feedback": {"success": result.get("ok", False), "learned": True},
+                "error": result.get("error") if not result.get("ok", False) else None,
             }
 
         grant_result = self._request_capability_grant(tool_name, inputs, user_id, context=ctx)
@@ -618,10 +562,10 @@ class CognitiveAgentBridge:
         if risk_class_val not in valid_risk_classes:
             return f"Invalid risk_class: {risk_class_val}. Must be one of {valid_risk_classes}"
             
-        if approval_required and risk_class == "READ_ONLY":
+        if approval_required and risk_class_val == "READ_ONLY":
             return "RISK_APPROVAL_MISMATCH: READ_ONLY actions should not require approval"
             
-        if risk_class == "DESTRUCTIVE" and not approval_required:
+        if risk_class_val == "DESTRUCTIVE" and not approval_required:
             return "DESTRUCTIVE_REQUIRES_APPROVAL: DESTRUCTIVE actions must have approval_required=True"
         
         return None
@@ -630,24 +574,24 @@ class CognitiveAgentBridge:
         """Resolve action_type/capability to exact tool name (no fuzzy matching)."""
         # Exact mapping from action_type to tool_name
         action_to_tool = {
-            "file.read": "file.read",
-            "file.list": "file.list", 
-            "file.write": "file.write",
+            "file.read": "fs.read",
+            "file.list": "fs.list", 
+            "file.write": "fs.write",
             "process.execute": "process.execute",
-            "network.search": "network.search",
+            "network.search": "web.search",
             "system.status": "system.status",
-            "collect_requirements": "file.read",
-            "calculate_constraints": "text.reasoning.basic",
+            "collect_requirements": "fs.read",
+            "calculate_constraints": "core.reason",
             "generate_parametric_geometry": "cad.parametric_modeling",
-            "present_preview": "text.reasoning.basic",
+            "present_preview": "core.reason",
             "export_model": "cad.parametric_modeling",
-            "analyze_architecture": "text.reasoning.basic",
-            "write_code_draft": "file.write",
+            "analyze_architecture": "core.reason",
+            "write_code_draft": "fs.write",
             "run_tests": "process.execute",
-            "inventory_files": "file.list",
-            "propose_structure": "text.reasoning.basic",
-            "request_move_approval": "text.reasoning.basic",
-            "process_general_request": "text.reasoning.basic",
+            "inventory_files": "fs.list",
+            "propose_structure": "core.reason",
+            "request_move_approval": "core.reason",
+            "process_general_request": "core.reason",
         }
         
         if action_type in action_to_tool:
@@ -655,13 +599,13 @@ class CognitiveAgentBridge:
         
         # Fallback: check capability mapping
         capability_to_tool = {
-            "system.file.read": "file.read",
-            "system.file.list": "file.list",
-            "system.file.write": "file.write",
+            "fs.read": "fs.read",
+            "fs.list": "fs.list",
+            "fs.write": "fs.write",
             "process.execute": "process.execute",
-            "network.search": "network.search",
+            "web.search": "web.search",
             "system.status": "system.status",
-            "text.reasoning.basic": "text.reasoning.basic",
+            "core.reason": "core.reason",
             "cad.parametric_modeling": "cad.parametric_modeling",
         }
         
@@ -682,35 +626,36 @@ class CognitiveAgentBridge:
             elif inputs.get("profile_id") not in DEFAULT_PROCESS_PROFILES:
                 return f"Unknown process profile: {inputs.get('profile_id')}"
         
-        elif tool_name == "file.write":
+        elif tool_name == "fs.write":
             if not inputs.get("path"):
-                return "Required 'path' input missing for file.write"
+                return "Required 'path' input missing for fs.write"
             if "content" not in inputs:
-                return "Required 'content' input missing for file.write"
+                return "Required 'content' input missing for fs.write"
         
-        elif tool_name == "file.read":
+        elif tool_name == "fs.read":
             if not inputs.get("path"):
-                return "Required 'path' input missing for file.read"
+                return "Required 'path' input missing for fs.read"
         
-        elif tool_name == "file.list":
+        elif tool_name == "fs.list":
             if not inputs.get("path"):
-                return "Required 'path' input missing for file.list"
+                return "Required 'path' input missing for fs.list"
         
-        elif tool_name == "network.search":
+        elif tool_name == "web.search":
             if not inputs.get("query"):
-                return "Required 'query' input missing for network.search"
+                return "Required 'query' input missing for web.search"
         
         return None
 
     def _capability_matches_action(self, capability: str, tool_name: str) -> bool:
         """Verify that capability matches the tool action."""
         capability_tool_map = {
-            "system.file.read": ["file.read", "file.list"],
-            "system.file.write": ["file.write"],
+            "fs.read": ["fs.read", "fs.list"],
+            "fs.write": ["fs.write"],
+            "fs.list": ["fs.list"],
             "process.execute": ["process.execute"],
-            "network.search": ["network.search"],
+            "web.search": ["web.search"],
             "system.status": ["system.status"],
-            "text.reasoning.basic": ["text.reasoning.basic"],
+            "core.reason": ["core.reason"],
             "cad.parametric_modeling": ["cad.parametric_modeling"],
         }
         
@@ -735,19 +680,19 @@ class CognitiveAgentBridge:
         
         # Map intents to capabilities (matching CapabilitySandbox actions)
         tool_mapping = {
-            "file.read": {
+            "fs.read": {
                 "keywords": ["baca file", "read file", "lihat file", "tampilkan file"],
-                "tool": "file.read",
+                "tool": "fs.read",
                 "args_builder": lambda i, c: {"path": c.get("target_path")},
             },
-            "file.list": {
+            "fs.list": {
                 "keywords": ["list file", "daftar file", "list directory", "daftar folder"],
-                "tool": "file.list",
+                "tool": "fs.list",
                 "args_builder": lambda i, c: {"path": c.get("target_path")},
             },
-            "file.write": {
+            "fs.write": {
                 "keywords": ["tulis file", "write file", "buat file", "simpan file", "create file"],
-                "tool": "file.write",
+                "tool": "fs.write",
                 "args_builder": lambda i, c: {"path": c.get("target_path"), "content": c.get("content")},
             },
             "process.execute": {
@@ -755,9 +700,9 @@ class CognitiveAgentBridge:
                 "tool": "process.execute",
                 "args_builder": lambda i, c: {"profile_id": c.get("profile_id"), "args": c.get("args", [])},
             },
-            "network.search": {
+            "web.search": {
                 "keywords": ["cari web", "search web", "buka url", "fetch url", "download"],
-                "tool": "network.search",
+                "tool": "web.search",
                 "args_builder": lambda i, c: {"query": c.get("query")},
             },
             "system.status": {
@@ -796,17 +741,17 @@ class CognitiveAgentBridge:
             raw_path = tool_args.get("path", ".")
             
             # Resolve workspace boundary
-            workspace_root = repo_root.resolve()
+            workspace_root = Path.cwd().resolve()
             target_path = (workspace_root / raw_path).resolve()
             abs_path = str(target_path)
 
             # Map tool to valid resources for grant according to OS scope policy
             resource_map = {
-                "file.read": {"file.read": [f"{abs_path}/**" if target_path.is_dir() else abs_path]},
-                "file.list": {"file.list": [f"{abs_path}/**" if target_path.is_dir() else abs_path]},
-                "file.write": {"file.write": [abs_path]},
+                "fs.read": {"fs.read": [f"{abs_path}/**" if target_path.is_dir() else abs_path]},
+                "fs.list": {"fs.list": [f"{abs_path}/**" if target_path.is_dir() else abs_path]},
+                "fs.write": {"fs.write": [abs_path]},
                 "process.execute": {"process.execute": [f"process://{tool_args.get('profile_id', 'default_process')}"]},
-                "network.search": {"network.search": ["https://api.duckduckgo.com/search"]},
+                "web.search": {"web.search": ["https://api.duckduckgo.com/search"]},
                 "system.status": {"system.status": ["system://status"]},
             }
             
@@ -815,7 +760,7 @@ class CognitiveAgentBridge:
             # P0.6, P0.7, P0.8 Fix: Require valid signed ApprovalReceipt with strict context validation
             consented_actions = []
             consent_ref = ""
-            if tool_name in ["file.write", "process.execute"]:
+            if tool_name in ["fs.write", "process.execute"]:
                 # Check for signed ApprovalReceipt in context
                 approval_receipt = ctx.get("approval_receipt") or tool_args.get("approval_receipt")
                 if approval_receipt and isinstance(approval_receipt, ApprovalReceipt):
@@ -823,18 +768,20 @@ class CognitiveAgentBridge:
                     import json
                     canonical_request = json.dumps({k: v for k, v in tool_args.items() if k != 'approval_receipt'}, sort_keys=True).encode()
                     expected_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
-                    print(f"BRIDGE CANONICAL: {canonical_request}")
-                    print(f"BRIDGE DIGEST: {expected_digest}")
                     
                     if tool_name == "process.execute":
                         expected_resource = f"process://{tool_args.get('profile_id', 'default_process')}"
                     else:
                         expected_resource = abs_path
                         
-                    if not approval_receipt.verify():
-                        return {"granted": False, "reason": "INVALID_APPROVAL_RECEIPT: Signature verification failed or receipt expired"}
+                    # P0.7, P0.8, P0.9: Verify via ApprovalAuthority
+                    current_session_id = ctx.get("session_id", getattr(approval_receipt, "session_id", None))
+                    is_valid, reason = _approval_authority.verify_and_consume(approval_receipt, current_session_id)
+                    
+                    if not is_valid:
+                        return {"granted": False, "reason": reason}
                         
-                    # P0.7: Context validation
+                    # Additional Context validation
                     if approval_receipt.user_id != user_id:
                         return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: User ID mismatch (expected {user_id}, got {approval_receipt.user_id})"}
                     if approval_receipt.action != tool_name:
@@ -844,17 +791,10 @@ class CognitiveAgentBridge:
                     if approval_receipt.request_digest != expected_digest:
                         return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Digest mismatch"}
                         
-                    # P0.8: Nonce tracking (replay protection)
-                    if not hasattr(self, "_consumed_nonces"):
-                        self._consumed_nonces = set()
-                    if approval_receipt.nonce in self._consumed_nonces:
-                        return {"granted": False, "reason": "INVALID_APPROVAL_RECEIPT: Nonce already consumed (replay detected)"}
-                    self._consumed_nonces.add(approval_receipt.nonce)
-                    
                     consented_actions = [tool_name]
                     consent_ref = approval_receipt.receipt_id
                 else:
-                    return {"granted": False, "reason": f"USER_CONSENT_REQUIRED: Signed ApprovalReceipt needed for action '{tool_name}'"}
+                    return {"granted": False, "reason": f"MISSING_APPROVAL_RECEIPT: Tool {tool_name} requires explicit consent"}
 
             # Issue grant using CapabilitySandbox
             grant_token = self._capability_sandbox.issue_grant(
@@ -893,10 +833,10 @@ class CognitiveAgentBridge:
             
             # Canonicalize resources for sandbox execution
             raw_path = tool_args.get("path", ".")
-            workspace_root = repo_root.resolve()
+            workspace_root = Path.cwd().resolve()
             abs_path = str((workspace_root / raw_path).resolve())
             
-            if tool_name in ["file.read", "file.write", "file.list"]:
+            if tool_name in ["fs.read", "fs.write", "fs.list"]:
                 resources_list = [abs_path]
             elif tool_name == "process.execute":
                 # Use the actual process profile ID as resource
@@ -978,9 +918,9 @@ class CognitiveAgentBridge:
         import subprocess
         from pathlib import Path
 
-        workspace_root = repo_root.resolve()
+        workspace_root = Path.cwd().resolve()
 
-        if tool_name in ["file.read", "file.list", "file.write"]:
+        if tool_name in ["fs.read", "fs.list", "fs.write"]:
             path_str = tool_args.get("path", ".")
             target_path = (workspace_root / path_str).resolve()
             
@@ -990,7 +930,7 @@ class CognitiveAgentBridge:
             except ValueError:
                 raise PermissionError(f"PATH_ESCAPE_DENIED: Target path '{path_str}' escapes workspace boundary '{workspace_root}'")
 
-            if tool_name == "file.read":
+            if tool_name == "fs.read":
                 if not target_path.exists():
                     raise FileNotFoundError(f"File not found: {path_str}")
                 if target_path.is_dir():
@@ -999,13 +939,13 @@ class CognitiveAgentBridge:
                 content = target_path.read_text(encoding="utf-8", errors="replace")
                 return {"path": str(target_path), "content": content[:10000], "size_bytes": len(content)}
 
-            elif tool_name == "file.list":
+            elif tool_name == "fs.list":
                 if not target_path.exists():
                     raise FileNotFoundError(f"Directory not found: {path_str}")
                 entries = os.listdir(target_path)
                 return {"path": str(target_path), "entries": entries, "count": len(entries)}
 
-            elif tool_name == "file.write":
+            elif tool_name == "fs.write":
                 content = tool_args.get("content", "")
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(content, encoding="utf-8")
@@ -1051,25 +991,6 @@ class CognitiveAgentBridge:
             "timestamp": time.time(),
             "signature": f"sig-{hashlib.sha256(f'{receipt_id}{user_id}'.encode()).hexdigest()[:16]}",
         }
-
-
-def create_approval_receipt(
-    user_id: str,
-    session_id: str,
-    action: str,
-    resource: str,
-    request_digest: str,
-    ttl_seconds: float = 300.0,
-) -> ApprovalReceipt:
-    """Helper to create a signed ApprovalReceipt for sensitive operations."""
-    return ApprovalReceipt.create(
-        user_id=user_id,
-        session_id=session_id,
-        action=action,
-        resource=resource,
-        request_digest=request_digest,
-        ttl_seconds=ttl_seconds,
-    )
 
 
 def create_cognitive_agent_bridge() -> CognitiveAgentBridge:

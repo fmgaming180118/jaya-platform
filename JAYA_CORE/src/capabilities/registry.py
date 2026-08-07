@@ -88,26 +88,31 @@ class CapabilityRegistry:
         cap_id = manifest.capability_id
         
         try:
-            if cap_id == "text.reasoning.basic":
+            if cap_id == "core.reason":
                 # Probe: check if cognitive model adapter is available
                 from JAYA_CORE.src.ai_connectors.cognitive_model_adapter import create_cognitive_adapter_from_env
                 adapter = create_cognitive_adapter_from_env()
                 return adapter.is_local_available() or adapter.is_cloud_available()
             
-            elif cap_id == "system.file.read":
+            elif cap_id == "fs.read":
                 # Probe: check if we can read from workspace
                 workspace = Path.cwd()
                 test_file = workspace / ".gitignore"
                 return test_file.exists() or workspace.exists()
             
-            elif cap_id == "system.file.write":
+            elif cap_id == "fs.list":
+                # Probe: check if we can list workspace directory
+                workspace = Path.cwd()
+                return workspace.exists() and workspace.is_dir()
+            
+            elif cap_id == "fs.write":
                 # Probe: check if we can write to workspace (temp file)
                 import tempfile
                 with tempfile.NamedTemporaryFile(dir=Path.cwd(), delete=True) as f:
                     f.write(b"probe")
                 return True
             
-            elif cap_id == "code.execution":
+            elif cap_id == "process.execute":
                 # Probe: check if python is available
                 result = subprocess.run([sys.executable, "--version"], capture_output=True, timeout=5)
                 return result.returncode == 0

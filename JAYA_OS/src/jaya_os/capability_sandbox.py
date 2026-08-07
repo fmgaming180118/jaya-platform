@@ -173,14 +173,14 @@ class ProcessProfile:
 
 
 DEFAULT_ACTION_POLICIES: dict[str, ActionPolicy] = {
-    "file.read": ActionPolicy("path", max_timeout_seconds=5.0),
-    "file.list": ActionPolicy("path", max_timeout_seconds=5.0),
-    "file.write": ActionPolicy(
+    "fs.read": ActionPolicy("path", max_timeout_seconds=5.0),
+    "fs.list": ActionPolicy("path", max_timeout_seconds=5.0),
+    "fs.write": ActionPolicy(
         "path",
         consent_required=True,
         max_timeout_seconds=5.0,
     ),
-    "network.search": ActionPolicy("network", max_timeout_seconds=15.0),
+    "web.search": ActionPolicy("network", max_timeout_seconds=15.0),
     "process.execute": ActionPolicy(
         "process",
         consent_required=True,
@@ -816,6 +816,7 @@ class CapabilitySandbox:
         if self._policies[action].resource_kind == "path":
             path = Path(str(raw_resource).strip())
             if not path.is_absolute():
+                print(f"DEBUG: raw_resource={raw_resource!r}, path={path!r}, is_absolute={path.is_absolute()}")
                 raise CapabilityDenied(
                     "ABSOLUTE_PATH_REQUIRED",
                     "File actions require an absolute path",
