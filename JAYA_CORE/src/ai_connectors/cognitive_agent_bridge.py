@@ -338,10 +338,8 @@ class CognitiveAgentBridge:
                         tool_name, tool_args, grant_result["grant_token"]
                     )
                     
-                    # Step 5: Create audit receipt
-                    audit_receipt = self._create_audit_receipt(
-                        tool_name, tool_args, execution_result, user_id
-                    )
+                    # Step 5: Extract audit receipt from execution_result
+                    audit_receipt = execution_result.get("audit_receipt")
                     
                     # P0.5 Fix: ok is True ONLY IF execution_result status is success
                     is_tool_success = execution_result.get("status") == "success"
