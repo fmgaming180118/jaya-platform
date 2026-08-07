@@ -90,16 +90,18 @@ class GenericHierarchicalPlanner:
                     step_id="step-2",
                     title="Tulis draft kode Python",
                     action_type="write_code_draft",
-                    required_capability="text.reasoning.basic",
+                    required_capability="system.file.write",
                     risk_class=RiskClass.READ_ONLY,
+                    inputs={"path": "draft.py", "content": "# Draft code output"},
                     dependencies=["step-1"],
                 ),
                 ActionStep(
                     step_id="step-3",
                     title="Jalankan unit test",
                     action_type="run_tests",
-                    required_capability="system.file.read",
+                    required_capability="process.execute",
                     risk_class=RiskClass.READ_ONLY,
+                    inputs={"profile_id": "pytest.workspace"},
                     dependencies=["step-2"],
                 ),
             ]
@@ -110,8 +112,9 @@ class GenericHierarchicalPlanner:
                     step_id="step-1",
                     title="Inventarisasi item dan kategori file proyek",
                     action_type="inventory_files",
-                    required_capability="system.file.read",
+                    required_capability="system.file.list",
                     risk_class=RiskClass.READ_ONLY,
+                    inputs={"path": "."}
                 ),
                 ActionStep(
                     step_id="step-2",

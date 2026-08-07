@@ -129,16 +129,17 @@ class CapabilityRegistry:
                     return False
             
             elif cap_id == "device.control":
-                # Probe: check if device control is available
-                return True  # Basic device control always available
+                # Probe: no actual device control provider is implemented yet
+                # Returning False prevents executor false positives
+                return False
             
             elif cap_id == "web.search" or cap_id == "web.fetch":
-                # Probe: check network connectivity
-                import urllib.request
+                # Probe: verify search provider adapter is actually available
+                # Network check is insufficient; we need the actual implementation
                 try:
-                    urllib.request.urlopen("http://www.google.com", timeout=3)
+                    from JAYA_CORE.src.ai_connectors.search_adapter import SearchAdapter
                     return True
-                except Exception:
+                except ImportError:
                     return False
             
             else:

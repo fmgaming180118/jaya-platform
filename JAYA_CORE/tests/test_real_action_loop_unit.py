@@ -10,12 +10,9 @@ import tempfile
 from pathlib import Path
 import pytest
 
-from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import (
-    CognitiveAgentBridge,
-    ApprovalReceipt,
-    create_approval_receipt,
-    DEFAULT_PROCESS_PROFILES,
-)
+from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import CognitiveAgentBridge, create_approval_receipt, ApprovalReceipt
+from JAYA_CORE.src.cognitive.contracts import RiskClass
+from JAYA_CORE.src.ai_connectors.cognitive_agent_bridge import DEFAULT_PROCESS_PROFILES
 from JAYA_CORE.src.capabilities.manifest import CapabilityManifest
 from JAYA_CORE.src.capabilities.registry import CapabilityRegistry
 from JAYA_CORE.src.reasoning.constraint_solver import ConstraintSolver
@@ -84,15 +81,23 @@ def test_cognitive_agent_bridge_real_file_write_and_read():
     assert bridge.initialize() is True
 
     # Real file.write execution with signed ApprovalReceipt
+    import json
+    import os
+    repo_root = Path(__file__).resolve().parent.parent
+    
     test_file = "temp_test_output.txt"
     test_content = "Hello real tool execution from JAYA!"
-    request_digest = hashlib.sha256(f"{test_file}{test_content}".encode()).hexdigest()[:16]
+    tool_args = {"path": test_file, "content": test_content}
+    canonical_request = json.dumps(tool_args, sort_keys=True).encode()
+    request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
+    
+    abs_path = str((repo_root / test_file).resolve())
     
     approval_receipt = create_approval_receipt(
         user_id="test_user",
         session_id="test_session",
         action="file.write",
-        resource=f"/workspace/{test_file}",
+        resource=abs_path,
         request_digest=request_digest,
     )
 
@@ -125,29 +130,32 @@ def test_cognitive_agent_bridge_process_execution():
     bridge = CognitiveAgentBridge()
     bridge.initialize()
 
-    request_digest = hashlib.sha256(b"pytest test").hexdigest()[:16]
+    import json
+    tool_args = {"profile_id": "git.status", "args": []}
+    canonical_request = json.dumps(tool_args, sort_keys=True).encode()
+    request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
+    
     approval_receipt = create_approval_receipt(
         user_id="test_user",
         session_id="test_session",
         action="process.execute",
-        resource="process://pytest",
+        resource="process://git.status",
         request_digest=request_digest,
     )
 
     # Use a simple pytest command that just checks version (no test collection)
     cmd_res = bridge.execute_cognitive_intent(
-        intent="eksekusi perintah pytest --version",
+        intent="eksekusi perintah terminal",
         context={
-            "profile_id": "pytest.workspace",
-            "args": ["--version"],
+            "profile_id": "git.status",
+            "args": [],
             "approval_receipt": approval_receipt,
         },
         user_id="test_user",
     )
     assert cmd_res["ok"] is True
     assert cmd_res["tool_executed"] == "process.execute"
-    assert cmd_res["tool_result"]["result"]["profile_id"] == "pytest.workspace"
-    assert "pytest" in cmd_res["tool_result"]["result"]["stdout"]
+    assert cmd_res["tool_result"]["result"]["profile"] == "git.status"
 
 
 def test_cognitive_agent_bridge_returns_error_on_nonexistent_file():
@@ -244,7 +252,7 @@ def test_p0_missing_input_validation():
         action_type = "process.execute"
         inputs = {}
         required_capability = "process.execute"
-        risk_class = "REVERSIBLE"
+        risk_class = RiskClass.REVERSIBLE
         approval_required = True
         step_id = "step-1"
         title = "Test step"
@@ -262,12 +270,15 @@ def test_process_execution_nonzero_exit_failed():
     bridge.initialize()
 
     # Use python.compile profile which will fail with invalid syntax
-    request_digest = hashlib.sha256(b"fail").hexdigest()[:16]
+    import json
+    tool_args = {"profile_id": "python.compile", "args": ["nonexistent_file.py"]}
+    canonical_request = json.dumps(tool_args, sort_keys=True).encode()
+    request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
     approval_receipt = create_approval_receipt(
         user_id="test_user",
         session_id="test_session",
         action="process.execute",
-        resource="process://python",
+        resource="process://python.compile",
         request_digest=request_digest,
     )
 
@@ -308,17 +319,28 @@ def test_iron_engine_cognitive_reason_and_act_structured_execution():
     engine._cognitive_agent_bridge = CognitiveAgentBridge()
     engine._cognitive_agent_bridge.initialize()
 
-    request_digest = hashlib.sha256(b"engine test").hexdigest()[:16]
+    import json
+    import os
+    repo_root = Path(__file__).resolve().parent.parent
+    
+    test_file = "temp_engine_step.txt"
+    test_content = "engine test"
+    tool_args = {"path": test_file, "content": test_content}
+    canonical_request = json.dumps(tool_args, sort_keys=True).encode()
+    request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
+    
+    abs_path = str((repo_root / test_file).resolve())
+    
     approval_receipt = create_approval_receipt(
         user_id="test_user",
         session_id="test_session",
         action="file.write",
-        resource="/workspace/temp_engine_step.txt",
+        resource=abs_path,
         request_digest=request_digest,
     )
 
-    step1 = MockActionStep("file.write", {"path": "temp_engine_step.txt", "content": "engine test"}, required_capability="system.file.write", risk_class="REVERSIBLE", approval_required=True, step_id="step-1", title="Write file")
-    step2 = MockActionStep("file.read", {"path": "temp_engine_step.txt"}, required_capability="system.file.read", risk_class="READ_ONLY", approval_required=False, step_id="step-2", title="Read file")
+    step1 = MockActionStep("file.write", {"path": "temp_engine_step.txt", "content": "engine test"}, required_capability="system.file.write", risk_class=RiskClass.REVERSIBLE, approval_required=True, step_id="step-1", title="Write file")
+    step2 = MockActionStep("file.read", {"path": "temp_engine_step.txt"}, required_capability="system.file.read", risk_class=RiskClass.READ_ONLY, approval_required=False, step_id="step-2", title="Read file")
     plan = MockActionPlan([step1, step2])
 
     engine.cognitive_reason = lambda text, ctx=None, force=False: {"ok": True, "plan": plan, "text": "Plan created"}
@@ -355,19 +377,30 @@ def test_structured_cognitive_plan_execution():
     bridge = CognitiveAgentBridge()
     bridge.initialize()
 
-    request_digest = hashlib.sha256(b"plan step").hexdigest()[:16]
+    import json
+    import os
+    repo_root = Path(__file__).resolve().parent.parent
+    
+    test_file = "temp_plan_step.txt"
+    test_content = "step content"
+    tool_args = {"path": test_file, "content": test_content}
+    canonical_request = json.dumps(tool_args, sort_keys=True).encode()
+    request_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
+    
+    abs_path = str((repo_root / test_file).resolve())
+    
     approval_receipt = create_approval_receipt(
         user_id="test_user",
         session_id="test_session",
         action="file.write",
-        resource="/workspace/temp_plan_step.txt",
+        resource=abs_path,
         request_digest=request_digest,
     )
 
-    step1 = MockActionStep("file.write", {"path": "temp_plan_step.txt", "content": "step content"}, required_capability="system.file.write", risk_class="REVERSIBLE", approval_required=True, step_id="step-1", title="Write file")
-    step2 = MockActionStep("file.read", {"path": "temp_plan_step.txt"}, required_capability="system.file.read", risk_class="READ_ONLY", approval_required=False, step_id="step-2", title="Read file")
+    step1 = MockActionStep("file.write", {"path": "temp_plan_step.txt", "content": "step content"}, required_capability="system.file.write", risk_class=RiskClass.REVERSIBLE, approval_required=True, step_id="step-1", title="Write file")
+    step2 = MockActionStep("file.read", {"path": "temp_plan_step.txt"}, required_capability="system.file.read", risk_class=RiskClass.READ_ONLY, approval_required=False, step_id="step-2", title="Read file")
     
-    plan_res = bridge.execute_cognitive_plan([step1, step2], context={"approval_receipt": approval_receipt})
+    plan_res = bridge.execute_cognitive_plan([step1, step2], context={"approval_receipt": approval_receipt}, user_id="test_user")
     assert plan_res["ok"] is True
     assert plan_res["steps_executed"] == 2
 

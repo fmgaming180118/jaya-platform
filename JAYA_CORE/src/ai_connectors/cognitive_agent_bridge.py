@@ -13,6 +13,7 @@ import logging
 import secrets
 import sys
 import time
+import os
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -151,6 +152,12 @@ DEFAULT_PROCESS_PROFILES = {
     ),
 }
 
+_DYNAMIC_SIGNING_KEY = secrets.token_hex(32)
+
+def _get_signing_key(override: str = None) -> str:
+    if override:
+        return override
+    return os.environ.get("JAYA_APPROVAL_SIGNING_KEY", _DYNAMIC_SIGNING_KEY)
 
 @dataclass
 class ApprovalReceipt:
@@ -194,7 +201,7 @@ class ApprovalReceipt:
         nonce = secrets.token_hex(16)
         
         # Create signature using HMAC
-        signing_key = signing_key or "JAYA_APPROVAL_SIGNING_KEY"
+        signing_key = _get_signing_key(signing_key)
         message = f"{receipt_id}|{user_id}|{session_id}|{action}|{resource}|{request_digest}|{issued_at}|{expires_at}|{nonce}"
         signature = hmac.new(
             signing_key.encode(),
@@ -222,7 +229,7 @@ class ApprovalReceipt:
         if time.time() > self.expires_at:
             return False
         
-        signing_key = signing_key or "JAYA_APPROVAL_SIGNING_KEY"
+        signing_key = _get_signing_key(signing_key)
         message = f"{self.receipt_id}|{self.user_id}|{self.session_id}|{self.action}|{self.resource}|{self.request_digest}|{self.issued_at}|{self.expires_at}|{self.nonce}"
         expected_signature = hmac.new(
             signing_key.encode(),
@@ -286,7 +293,7 @@ class CognitiveAgentBridge:
         python_exe = Path(sys.executable).resolve()
         pytest_profile = OSProcessProfile(
             executable=python_exe,
-            arguments=("-m", "pytest", "--version"),
+            arguments=("-m", "pytest"),
             cwd=workspace_root,
             cwd_root=workspace_root,
             max_output_bytes=64 * 1024,
@@ -304,8 +311,10 @@ class CognitiveAgentBridge:
         self._capability_sandbox.register_process_profile("python.compile", python_profile)
         
         # Register git profiles
-        git_exe = Path("git").resolve()
-        if git_exe.exists():
+        import shutil
+        git_path = shutil.which("git")
+        if git_path:
+            git_exe = Path(git_path).resolve()
             git_status = OSProcessProfile(
                 executable=git_exe,
                 arguments=("status",),
@@ -469,15 +478,19 @@ class CognitiveAgentBridge:
                 "reason": "Plan must be a list of steps or contain a 'steps' attribute",
             }
 
+        completed_steps = set()
         step_results = []
         failed_step = None
 
         for step in steps:
+            step_id = getattr(step, "step_id", str(len(step_results)))
+            ctx["completed_steps"] = completed_steps
             res = self.execute_action_step(step, context=ctx, user_id=user_id)
             step_results.append(res)
             if not res.get("ok"):
                 failed_step = res
                 break  # Stop execution on first step failure
+            completed_steps.add(step_id)
 
         all_success = (len(step_results) > 0) and (failed_step is None)
         return {
@@ -537,9 +550,14 @@ class CognitiveAgentBridge:
 
         # P0.8: Check dependencies - ensure previous steps succeeded
         if dependencies:
-            # This would need step_results from the plan execution context
-            # For now, we note the dependency requirement
-            pass
+            completed_steps = ctx.get("completed_steps", set())
+            for dep in dependencies:
+                if dep not in completed_steps:
+                    return {
+                        "ok": False,
+                        "error": "UNMET_DEPENDENCY",
+                        "reason": f"Required dependency '{dep}' has not completed successfully",
+                    }
 
         # P0.8: Verify capability matches action
         if required_capability and not self._capability_matches_action(required_capability, tool_name):
@@ -549,7 +567,16 @@ class CognitiveAgentBridge:
                 "reason": f"Required capability '{required_capability}' does not match action '{tool_name}'",
             }
 
-
+        # P0.4 Fix: Bypass Agent/OS effect execution for internal cognitive steps
+        if required_capability == "text.reasoning.basic":
+            return {
+                "ok": True,
+                "action_type": action_type,
+                "tool_executed": "internal_cognitive",
+                "tool_result": {"status": "success", "result": "Cognitive step processed internally"},
+                "cognitive_feedback": {"success": True, "learned": True},
+                "error": None,
+            }
 
         grant_result = self._request_capability_grant(tool_name, inputs, user_id, context=ctx)
         if not grant_result.get("granted"):
@@ -583,12 +610,13 @@ class CognitiveAgentBridge:
             if not getattr(step, field, None):
                 return f"Missing required field: {field}"
         
-        valid_risk_classes = {"READ_ONLY", "REVERSIBLE", "DESTRUCTIVE"}
+        valid_risk_classes = {"READ_ONLY", "REVERSIBLE", "DESTRUCTIVE", "PHYSICAL_ACTION", "SECURITY_SENSITIVE", "COGNITIVE_UPDATE"}
         risk_class = getattr(step, "risk_class", "")
+        risk_class_val = risk_class.value if hasattr(risk_class, "value") else str(risk_class)
         approval_required = getattr(step, "approval_required", False)
         
-        if risk_class not in valid_risk_classes:
-            return f"Invalid risk_class: {risk_class}. Must be one of {valid_risk_classes}"
+        if risk_class_val not in valid_risk_classes:
+            return f"Invalid risk_class: {risk_class_val}. Must be one of {valid_risk_classes}"
             
         if approval_required and risk_class == "READ_ONLY":
             return "RISK_APPROVAL_MISMATCH: READ_ONLY actions should not require approval"
@@ -784,18 +812,47 @@ class CognitiveAgentBridge:
             
             resources = resource_map.get(tool_name, {tool_name: [f"system://{tool_name.replace('.', '_')}"]})
             
-            # P0.6 Fix: Require valid signed ApprovalReceipt instead of boolean bypass
+            # P0.6, P0.7, P0.8 Fix: Require valid signed ApprovalReceipt with strict context validation
             consented_actions = []
             consent_ref = ""
             if tool_name in ["file.write", "process.execute"]:
                 # Check for signed ApprovalReceipt in context
                 approval_receipt = ctx.get("approval_receipt") or tool_args.get("approval_receipt")
                 if approval_receipt and isinstance(approval_receipt, ApprovalReceipt):
-                    if approval_receipt.verify():
-                        consented_actions = [tool_name]
-                        consent_ref = approval_receipt.receipt_id
+                    # Compute expected digest
+                    import json
+                    canonical_request = json.dumps({k: v for k, v in tool_args.items() if k != 'approval_receipt'}, sort_keys=True).encode()
+                    expected_digest = hashlib.sha256(canonical_request).hexdigest()[:16]
+                    print(f"BRIDGE CANONICAL: {canonical_request}")
+                    print(f"BRIDGE DIGEST: {expected_digest}")
+                    
+                    if tool_name == "process.execute":
+                        expected_resource = f"process://{tool_args.get('profile_id', 'default_process')}"
                     else:
-                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Signature verification failed or receipt expired"}
+                        expected_resource = abs_path
+                        
+                    if not approval_receipt.verify():
+                        return {"granted": False, "reason": "INVALID_APPROVAL_RECEIPT: Signature verification failed or receipt expired"}
+                        
+                    # P0.7: Context validation
+                    if approval_receipt.user_id != user_id:
+                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: User ID mismatch (expected {user_id}, got {approval_receipt.user_id})"}
+                    if approval_receipt.action != tool_name:
+                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Action mismatch (expected {tool_name}, got {approval_receipt.action})"}
+                    if approval_receipt.resource != expected_resource:
+                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Resource mismatch (expected {expected_resource}, got {approval_receipt.resource})"}
+                    if approval_receipt.request_digest != expected_digest:
+                        return {"granted": False, "reason": f"INVALID_APPROVAL_RECEIPT: Digest mismatch"}
+                        
+                    # P0.8: Nonce tracking (replay protection)
+                    if not hasattr(self, "_consumed_nonces"):
+                        self._consumed_nonces = set()
+                    if approval_receipt.nonce in self._consumed_nonces:
+                        return {"granted": False, "reason": "INVALID_APPROVAL_RECEIPT: Nonce already consumed (replay detected)"}
+                    self._consumed_nonces.add(approval_receipt.nonce)
+                    
+                    consented_actions = [tool_name]
+                    consent_ref = approval_receipt.receipt_id
                 else:
                     return {"granted": False, "reason": f"USER_CONSENT_REQUIRED: Signed ApprovalReceipt needed for action '{tool_name}'"}
 
@@ -854,17 +911,30 @@ class CognitiveAgentBridge:
 
             # Execute via CapabilitySandbox (async)
             idempotency_hash = abs(hash(str(tool_args))) % 10000000
-            execution = asyncio.run(
-                self._capability_sandbox.execute(
-                    grant_token=grant_token,
-                    action=tool_name,
-                    resources=resources_list,
-                    idempotency_key=f"{tool_name.replace('.', '_')}_{idempotency_hash:012d}",
-                    request_payload=tool_args,
-                    operation=operation,
-                    timeout_seconds=30.0,
+            idempotency_key = f"{tool_name.replace('.', '_')}_{idempotency_hash:012d}"
+            
+            if tool_name == "process.execute":
+                profile_id = tool_args.get("profile_id", "default_process")
+                execution = asyncio.run(
+                    self._capability_sandbox.execute_process_profile(
+                        grant_token=grant_token,
+                        profile_name=profile_id,
+                        idempotency_key=idempotency_key,
+                        timeout_seconds=30.0,
+                    )
                 )
-            )
+            else:
+                execution = asyncio.run(
+                    self._capability_sandbox.execute(
+                        grant_token=grant_token,
+                        action=tool_name,
+                        resources=resources_list,
+                        idempotency_key=idempotency_key,
+                        request_payload=tool_args,
+                        operation=operation,
+                        timeout_seconds=30.0,
+                    )
+                )
             
             is_success = execution.receipt.status == "SUCCEEDED" if execution.receipt else False
             
@@ -872,7 +942,7 @@ class CognitiveAgentBridge:
             error_code = None
             error_msg = None
             if is_success and tool_name == "process.execute" and isinstance(execution.result, dict):
-                exit_code = execution.result.get("exit_code", 0)
+                exit_code = execution.result.get("returncode", 0)
                 if exit_code != 0:
                     is_success = False
                     error_code = "PROCESS_FAILED"
@@ -940,51 +1010,6 @@ class CognitiveAgentBridge:
                 target_path.parent.mkdir(parents=True, exist_ok=True)
                 target_path.write_text(content, encoding="utf-8")
                 return {"path": str(target_path), "bytes_written": len(content.encode("utf-8")), "written": True}
-
-        elif tool_name == "process.execute":
-            # P0.7 Fix: Use ProcessProfile from sandbox instead of arbitrary command execution
-            profile_id = tool_args.get("profile_id")
-            if not profile_id:
-                raise ValueError("INVALID_ACTION_INPUT: Required 'profile_id' input missing for process.execute")
-            
-            # Get profile from sandbox's registered profiles
-            if not self._capability_sandbox or not hasattr(self._capability_sandbox, '_process_profiles'):
-                raise PermissionError(f"UNAUTHORIZED_PROFILE: No process profiles registered in sandbox")
-            
-            sandbox_profile = self._capability_sandbox._process_profiles.get(profile_id)
-            if not sandbox_profile:
-                raise PermissionError(f"UNAUTHORIZED_PROFILE: Process profile '{profile_id}' not registered in sandbox")
-            
-            # Validate args against sandbox profile
-            cmd_args = tool_args.get("args", [])
-            if isinstance(cmd_args, str):
-                import shlex
-                cmd_args = shlex.split(cmd_args, posix=(sys.platform != "win32"))
-            elif not isinstance(cmd_args, list):
-                raise ValueError(f"Invalid args format: {type(cmd_args)}")
-            
-            # Build full command from sandbox profile
-            full_cmd = [str(sandbox_profile.executable)] + list(sandbox_profile.arguments) + cmd_args
-            
-            # Use sandbox profile's working directory
-            cwd = str(sandbox_profile.cwd)
-            
-            res = subprocess.run(
-                full_cmd,
-                shell=False,
-                capture_output=True,
-                text=True,
-                timeout=sandbox_profile.max_output_bytes / 1024,  # rough timeout
-                cwd=cwd,
-            )
-            return {
-                "profile_id": profile_id,
-                "command": " ".join(full_cmd),
-                "exit_code": res.returncode,
-                "stdout": res.stdout[:5000],
-                "stderr": res.stderr[:5000],
-                "success": res.returncode == 0,
-            }
 
         elif tool_name == "system.status":
             import platform
