@@ -129,7 +129,7 @@ def ignite_genesis():
         "memories": [],
         "narrative": (
             "I am Jaya. Version 18.0 — Ultra-Light Self-Evolving AGI.\n"
-            "All 40 Pillars active + V18 upgrades:\n"
+            "All 40 Pillars declared + V18 upgrades:\n"
             "  Biological Soul   : Pilar 1-10 (smart REPAIR dispatch)\n"
             "  Sovereign Armor   : Pilar 11-20 (real AES migrate, hardware re-bind)\n"
             "  Iron Engine       : Pilar 21-30 (LinguaLogica 200+ patterns, SelfBootstrap)\n"
@@ -138,8 +138,7 @@ def ignite_genesis():
             "RAM: <22 MB  |  Weights: ~50 KB packed.  Loyalty sovereign."
         ),
         "pillar_status": {
-            "implemented": 40,
-            "verified":    31,
+            "declared_enabled": 40,
             "version":     "V18.0",
         },
         "creation_timestamp": datetime.now().isoformat()

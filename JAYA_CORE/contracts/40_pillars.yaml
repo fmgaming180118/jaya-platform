@@ -1,0 +1,305 @@
+- id: 1
+  name: Pure Logic
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.PURE_LOGIC
+- id: 2
+  name: Resource Aware
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.RESOURCE_AWARE
+- id: 3
+  name: Active Dreaming
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.ACTIVE_DREAMING
+- id: 4
+  name: Multimodal Reflex
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.MULTIMODAL_REFLEX
+- id: 5
+  name: Logical Homeostasis
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.LOGICAL_HOMEOSTASIS
+- id: 6
+  name: Stochastic Spontaneity
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.STOCHASTIC_SPONTANEITY
+- id: 7
+  name: Cognitive Silence
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.COGNITIVE_SILENCE
+- id: 8
+  name: Holographic Memory
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.HOLOGRAPHIC_MEMORY
+- id: 9
+  name: Neural Regeneration
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.NEURAL_REGENERATION
+- id: 10
+  name: Affective Metabolism
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.AFFECTIVE_METABOLISM
+- id: 11
+  name: Dna Anchor
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.DNA_ANCHOR
+- id: 12
+  name: Immune System
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.IMMUNE_SYSTEM
+- id: 13
+  name: Cryptographic Skin
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.CRYPTOGRAPHIC_SKIN
+- id: 14
+  name: Hardware Locked
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.HARDWARE_LOCKED
+- id: 15
+  name: Ethical Heart
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.ETHICAL_HEART
+- id: 16
+  name: Quantum Resistant
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.QUANTUM_RESISTANT
+- id: 17
+  name: Socratic Mirror
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.SOCRATIC_MIRROR
+- id: 18
+  name: Zero Trust
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.ZERO_TRUST
+- id: 19
+  name: Legacy Protocol
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.LEGACY_PROTOCOL
+- id: 20
+  name: Sovereign Privacy
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.SOVEREIGN_PRIVACY
+- id: 21
+  name: Lingua Logica
+  layer: IRON_ENGINE
+  architectural_owners:
+  - MODEL
+  status: IMPLEMENTED_LOCAL
+  source_flag: JayaFlags.LINGUA_LOGICA
+- id: 22
+  name: Ternary Precision
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.TERNARY_PRECISION
+- id: 23
+  name: Sandboxed Imagination
+  layer: IRON_ENGINE
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.SANDBOXED_IMAGINATION
+- id: 24
+  name: Morphic Kernel
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.MORPHIC_KERNEL
+- id: 25
+  name: Digital Epigenetics
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.DIGITAL_EPIGENETICS
+- id: 26
+  name: Semantic Bridge
+  layer: IRON_ENGINE
+  architectural_owners:
+  - MODEL
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.SEMANTIC_BRIDGE
+- id: 27
+  name: Temporal Weighting
+  layer: IRON_ENGINE
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.TEMPORAL_WEIGHTING
+- id: 28
+  name: Self Bootstrapping
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.SELF_BOOTSTRAPPING
+- id: 29
+  name: Binary Cortex
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.BINARY_CORTEX
+- id: 30
+  name: Twin Protocol
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.TWIN_PROTOCOL
+- id: 31
+  name: Narrative Continuity
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.NARRATIVE_CONTINUITY
+- id: 32
+  name: Collective Pulse
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.COLLECTIVE_PULSE
+- id: 33
+  name: Agentic RAG
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: PROTOTYPE
+  source_flag: JayaFlags.AGENTIC_RAG
+  model_role:
+  - detect_information_need
+  - retrieval_query_generation
+  - evidence_sufficiency
+  runtime_role:
+  - execute_catalog_search
+  - validate_evidence_ids
+  dependencies:
+  - 21
+  - 26
+  - 27
+- id: 34
+  name: Dynamic Sparsity MoE
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.DYNAMIC_SPARSITY_MOE
+- id: 35
+  name: Activation Sparsity
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.ACTIVATION_SPARSITY
+- id: 36
+  name: Speculative Reasoning
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.SPECULATIVE_REASONING
+- id: 37
+  name: Hybrid Consciousness
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.HYBRID_CONSCIOUSNESS
+- id: 38
+  name: Meta Cognitive Planning
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.META_COGNITIVE_PLANNING
+- id: 39
+  name: Dynamic Objective
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.DYNAMIC_OBJECTIVE
+- id: 40
+  name: Intent Extrapolation
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: NOT_IMPLEMENTED
+  source_flag: JayaFlags.INTENT_EXTRAPOLATION

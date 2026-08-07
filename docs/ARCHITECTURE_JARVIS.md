@@ -6,53 +6,15 @@ JAYA (Just Another Your Assistant) is a production-ready, privacy-first, locally
 
 ## Architecture Pillars (40 Pillars)
 
-### Core Cognitive Pillars (1-10)
-1. **Sovereign Identity** - Cryptographic identity with encrypted soul files
-2. **Intent Engine** - Natural language to structured intent classification
-3. **Planning Engine** - Hierarchical task planning with dependencies
-4. **Execution Engine** - Tool use, code execution, API integration
-5. **Memory System** - Working, episodic, semantic, procedural memory
-6. **Narrative Continuity** - Autobiographical memory across sessions
-7. **Twin Protocol** - P2P agent synchronization
-8. **Collective Pulse** - Multi-agent trust/cohesion signals
-9. **Agentic RAG** - Hybrid search (BM25 + vector) with reranking
-10. **Dynamic Sparsity MoE** - Sparse expert routing under resource constraints
+The canonical 40-pillar definition, mapping, and true implementation status is maintained in:
 
-### Advanced Cognitive Pillars (11-20)
-11. **Activation Sparsity** - Adaptive neuron budget per turn
-12. **Meta-Cognitive Planner** - Reflection every 600s on weak tasks
-13. **Self-Bootstrap** - Idle self-study curriculum injection
-14. **Live Evolver** - (1+1)-ES micro-evolution on weights
-15. **Cognitive Model Adapter** - Real LLM integration (local + cloud)
-16. **Multi-Modal Fusion** - Vision, audio, text unified processing
-17. **Code Execution Sandbox** - Secure Python/JS execution
-18. **Agent Orchestration** - Multi-agent task delegation
-19. **A2A Protocol** - Agent-to-agent communication
-20. **Workflow Orchestration** - Multi-step workflow execution
+[docs/arsitektur_40_pilar_jaya.md](arsitektur_40_pilar_jaya.md)
 
-### Infrastructure Pillars (21-30)
-21. **Structured Observability** - JSON logging, Prometheus metrics, OpenTelemetry tracing
-22. **Security Hardening** - Rate limiting, audit logging, capability gating
-23. **Model Distribution** - Cosign/sigstore signed model verification
-24. **Performance Optimization** - llama.cpp profiling, KV cache, speculative decoding
-25. **Advanced Memory** - Semantic, procedural, CRDT sync, hierarchical compression
-26. **Formal Verification** - Property-based testing, TLA+ model checking
-27. **CLI/REPL Interface** - Interactive JAYA shell
-28. **Configuration Management** - Environment-based config with validation
-29. **Health Monitoring** - Component health, resource profiling
-30. **Cross-Device Sync** - CRDT-based conflict-free replication
-
-### Research & Innovation Pillars (31-40)
-31. **Narrative Continuity** - Bounded autobiographical trace
-32. **Twin Protocol** - Deterministic P2P handshake
-33. **Collective Pulse** - Trust/cohesion aggregation
-34. **Agentic RAG** - Procedural retrieval + feedback loop
-35. **Dynamic Sparsity MoE** - Resource-aware expert routing
-36. **Activation Sparsity** - Complexity-adaptive neuron budget
-37. **Meta-Cognitive Planner** - Periodic reflection on weak tasks
-38. **Self-Bootstrap** - Idle curriculum injection
-39. **Live Evolver** - Micro-evolution on live weights
-40. **Morphic Kernel** - Runtime patch generation from feedback
+### Layer Summary
+- **Layer I (1-10)**: Biological Soul (Core reasoning, homeostasis, multimodal reflex)
+- **Layer II (11-20)**: Sovereign Armor (Identity, privacy, zero trust boundary)
+- **Layer III (21-29)**: Iron Engine (Execution core, digital epigenetics, memory weighting)
+- **Layer IV (30-40)**: Transcendental (Cross-agent sync, Librarian Agentic RAG, intent extrapolation)
 
 ## System Architecture
 
