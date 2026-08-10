@@ -8,6 +8,7 @@ from enum import Enum
 from typing import Set
 
 from src.identity.models import NodeClass
+
 from .profiler import ResourceProfile
 
 
@@ -81,15 +82,24 @@ class ExecutionModeController:
 
     def auto_determine_mode(self, profile: ResourceProfile) -> ExecutionMode:
         """Determines recommended execution mode based on ResourceProfile."""
-        if profile.power_mode == "CRITICAL" or profile.available_memory_mb < 64:
+        available_memory_mb = profile.available_memory_mb
+        if profile.power_mode == "CRITICAL" or (
+            available_memory_mb is not None and available_memory_mb < 64
+        ):
             target = ExecutionMode.EMERGENCY
-        elif not profile.network_available:
-            if profile.node_class in (NodeClass.CENTRAL, NodeClass.STANDARD, NodeClass.MISSION):
+        elif available_memory_mb is None:
+            target = ExecutionMode.OFFLINE_SAFE
+        elif profile.network_available is not True:
+            if profile.node_class in (
+                NodeClass.CENTRAL,
+                NodeClass.STANDARD,
+                NodeClass.MISSION,
+            ):
                 target = ExecutionMode.OFFLINE_AUTONOMOUS
             else:
                 target = ExecutionMode.OFFLINE_SAFE
         else:
-            if profile.available_memory_mb < 512:
+            if available_memory_mb < 512:
                 target = ExecutionMode.ONLINE_DEGRADED
             else:
                 target = ExecutionMode.ONLINE_FULL

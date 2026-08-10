@@ -5,6 +5,7 @@ models.py — Data models for JAYA Identity and Node Identity.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 
@@ -39,7 +40,9 @@ class JayaIdentity:
     identity_id: str
     owner_id: str
     version: str = "1.0"
-    created_at: str = "2026-08-02T00:00:00Z"
+    created_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -53,7 +56,9 @@ class NodeIdentity:
     role: NodeRole
     authority: AuthorityLevel
     public_key_fingerprint: Optional[str] = None
-    registered_at: str = "2026-08-02T00:00:00Z"
+    registered_at: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
 
     def to_dict(self) -> Dict[str, Any]:
         res = asdict(self)
@@ -71,5 +76,7 @@ class NodeIdentity:
             role=NodeRole(data["role"]),
             authority=AuthorityLevel(int(data["authority"])),
             public_key_fingerprint=data.get("public_key_fingerprint"),
-            registered_at=str(data.get("registered_at", "2026-08-02T00:00:00Z")),
+            registered_at=str(
+                data.get("registered_at", datetime.now(timezone.utc).isoformat())
+            ),
         )

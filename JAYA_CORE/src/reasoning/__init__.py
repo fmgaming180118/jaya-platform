@@ -9,16 +9,29 @@ Provides:
 
 from __future__ import annotations
 
+from .constraint_solver import ConstraintSolver
+from .logic_engine import LogicEngine
+from .pure_logic import (
+    Literal,
+    LogicFailureCode,
+    LogicProofStore,
+    LogicResult,
+    LogicRule,
+    LogicStatus,
+    LogicTheory,
+    PureLogicError,
+    PureLogicService,
+    PureLogicSolver,
+    SolverLimits,
+)
 from .symbolic_reasoner import (
-    SymbolicReasoner,
     ConstraintSolver,
-    LogicEngine,
     ConstraintViolation,
+    LogicEngine,
+    SymbolicReasoner,
     VerificationResult,
     create_symbolic_reasoner,
 )
-from .logic_engine import LogicEngine
-from .constraint_solver import ConstraintSolver
 
 __all__ = [
     "SymbolicReasoner",
@@ -27,4 +40,15 @@ __all__ = [
     "ConstraintViolation",
     "VerificationResult",
     "create_symbolic_reasoner",
+    "Literal",
+    "LogicFailureCode",
+    "LogicProofStore",
+    "LogicResult",
+    "LogicRule",
+    "LogicStatus",
+    "LogicTheory",
+    "PureLogicError",
+    "PureLogicService",
+    "PureLogicSolver",
+    "SolverLimits",
 ]

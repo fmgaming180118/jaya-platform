@@ -85,7 +85,7 @@ class TestExecutor(unittest.TestCase):
         self.assertFalse(out["ok"])
         self.assertEqual(out["error"], IRFailureCode.UNKNOWN_OPCODE.value)
 
-    def test_unknown_action_stub_is_typed_failure(self):
+    def test_unknown_action_requires_a_real_capability_puzzle(self):
         ex = JayaIRExecutor()
         graph = logic_expr_to_ir(("ACTION", "TURN_ON", "lamp"))
 
@@ -94,7 +94,7 @@ class TestExecutor(unittest.TestCase):
         self.assertFalse(out["ok"])
         self.assertEqual(
             out["error"],
-            IRFailureCode.UNSUPPORTED_OPCODE.value,
+            IRFailureCode.DEPENDENCY_UNAVAILABLE.value,
         )
         self.assertEqual(
             out["failure"]["instruction_index"],

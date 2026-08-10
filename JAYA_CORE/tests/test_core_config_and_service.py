@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+
 from src.core_config import ConfigurationError, CoreConfig
 from src.core_service import DependencyStatus, create_app
 
@@ -55,7 +56,7 @@ def test_production_config_fails_closed_when_required_values_are_missing(
     message = str(captured.value)
     assert "missing:JAYA_SOUL_PASSWORD" in message
     assert "missing:JAYA_CORE_API_KEY" in message
-    assert "missing:JAYA_MODEL_PATH" in message
+    assert "missing:JAYA_MODEL_PATH" not in message
     assert "missing:JAYA_CORE_BIND_HOST" in message
 
 
@@ -68,6 +69,47 @@ def test_conflicting_environment_names_fail_closed(tmp_path: Path) -> None:
         CoreConfig.from_env(environment, core_dir=tmp_path)
 
     assert "conflict:JAYA_ENVIRONMENT,JAYA_ENV" in str(captured.value)
+
+
+def test_production_model_is_optional_until_model_puzzle_is_required(
+    tmp_path: Path,
+) -> None:
+    environment, model_path, _ = _environment(
+        tmp_path,
+        runtime_environment="production",
+    )
+    model_path.unlink()
+    environment.pop("JAYA_MODEL_PATH")
+
+    optional = CoreConfig.from_env(environment, core_dir=tmp_path)
+    assert optional.model_required is False
+
+    environment["JAYA_REQUIRE_MODEL"] = "true"
+    with pytest.raises(ConfigurationError) as captured:
+        CoreConfig.from_env(environment, core_dir=tmp_path)
+    assert "missing:JAYA_MODEL_PATH" in str(captured.value)
+
+
+def test_identity_is_optional_but_required_mode_needs_secret_and_contained_path(
+    tmp_path: Path,
+) -> None:
+    environment, _, data_dir = _environment(tmp_path)
+    environment["JAYA_REQUIRE_IDENTITY"] = "true"
+    with pytest.raises(ConfigurationError) as missing:
+        CoreConfig.from_env(environment, core_dir=tmp_path)
+    assert "missing:JAYA_IDENTITY_KEY_SECRET" in str(missing.value)
+
+    environment["JAYA_IDENTITY_KEY_SECRET"] = "identity-" + ("c" * 40)
+    environment["JAYA_IDENTITY_DIR"] = str(tmp_path / "outside-core-data")
+    with pytest.raises(ConfigurationError) as escaped:
+        CoreConfig.from_env(environment, core_dir=tmp_path)
+    assert "invalid:JAYA_IDENTITY_DIR" in str(escaped.value)
+
+    environment["JAYA_IDENTITY_DIR"] = str(data_dir / "identity")
+    config = CoreConfig.from_env(environment, core_dir=tmp_path)
+    assert config.identity_required is True
+    assert config.identity_dir == (data_dir / "identity").resolve()
+    assert environment["JAYA_IDENTITY_KEY_SECRET"] not in repr(config)
 
 
 @pytest.mark.parametrize(
@@ -228,7 +270,9 @@ def test_default_readiness_fails_when_runtime_is_not_attached(
 
 
 def test_readiness_fails_when_configured_model_disappears(tmp_path: Path) -> None:
-    config = _config(tmp_path)
+    environment, _, _ = _environment(tmp_path)
+    environment["JAYA_REQUIRE_MODEL"] = "true"
+    config = CoreConfig.from_env(environment, core_dir=tmp_path)
     config.model_path.unlink()
 
     with TestClient(create_app(config, runtime=_ReadyRuntime())) as client:

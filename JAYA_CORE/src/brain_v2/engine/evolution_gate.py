@@ -421,7 +421,12 @@ class EvolutionGate:
             )
 
         if self._ethical_heart is not None:
-            ok, reason = self._ethical_heart.evaluate(candidate.candidate_payload)
+            try:
+                result = self._ethical_heart.evaluate(candidate.candidate_payload)
+                ok, reason = result
+            except (RuntimeError, TypeError, ValueError) as exc:
+                ok = False
+                reason = f"structured policy context unavailable: {type(exc).__name__}"
             if not ok:
                 return self._reject(
                     GateDecisionCode.REJECT_SECURITY,

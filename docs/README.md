@@ -2,7 +2,7 @@
 
 **Status:** kanonis  
 **Pemilik:** maintainer ekosistem JAYA  
-**Terakhir ditinjau:** 2 Agustus 2026
+**Terakhir ditinjau:** 10 Agustus 2026
 
 Folder ini adalah satu-satunya sumber kebenaran untuk dokumentasi aktif
 ekosistem JAYA. Tujuannya adalah membuat visi, kondisi aktual, keputusan, dan
@@ -17,6 +17,11 @@ saling bertentangan.
 | Modul apa yang ada dan di mana batasnya? | [ARCHITECTURE.md](ARCHITECTURE.md) |
 | Keputusan arsitektur apa yang sedang berlaku? | [DECISIONS.md](DECISIONS.md) |
 | Bagaimana desain internal JAYA Core dan Cognitive Kernel? | [JAYA_CORE_DESIGN.md](JAYA_CORE_DESIGN.md) |
+| Apa definisi tetap dari 40 pilar JAYA? | [arsitektur_40_pilar_jaya.md](arsitektur_40_pilar_jaya.md) |
+| Apa status implementasi aktual setiap pilar? | [40_PILLARS_IMPLEMENTATION_MATRIX.md](40_PILLARS_IMPLEMENTATION_MATRIX.md) |
+| Pilar mana yang harus dibangun lebih dahulu dan bagaimana checklist-nya? | [pillars/README.md](pillars/README.md) |
+| Berapa persen Pondasi Logika berdasarkan test dan demo aktual? | [LOGICAL_FOUNDATION_PROGRESS.md](LOGICAL_FOUNDATION_PROGRESS.md) |
+| Di mana checkpoint dan checklist Fondasi Kedaulatan? | [SOVEREIGN_FOUNDATION_PROGRESS.md](SOVEREIGN_FOUNDATION_PROGRESS.md) |
 | Bagaimana arsitektur jaringan terdistribusi JAYA Mesh? | [JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md) |
 | Bagaimana alur 16-langkah penemuan ilmiah dan rekayasa multimodal? | [DISCOVERY_PIPELINE_DESIGN.md](DISCOVERY_PIPELINE_DESIGN.md) |
 | Bagaimana alur pengguna, data, discovery, dan promosi? | [WORKFLOWS.md](WORKFLOWS.md) |
@@ -57,12 +62,16 @@ tes serta benchmark nyata, dan disetujui manusia yang boleh dipromosikan.
 
 ## Urutan kebenaran saat terjadi konflik
 
-1. [STATUS.md](STATUS.md) menentukan kondisi implementasi saat ini.
-2. [ROADMAP.md](ROADMAP.md) menentukan prioritas dan exit criteria.
-3. [WORKFLOWS.md](WORKFLOWS.md) menentukan alur operasional.
-4. [ARCHITECTURE.md](ARCHITECTURE.md) menentukan batas komponen.
-5. [DECISIONS.md](DECISIONS.md) menentukan keputusan arsitektur yang diterima.
-6. Dokumen dalam `archive/` hanya konteks historis.
+1. [STATUS.md](STATUS.md) menentukan kondisi implementasi sistem saat ini.
+2. [40_PILLARS_IMPLEMENTATION_MATRIX.md](40_PILLARS_IMPLEMENTATION_MATRIX.md)
+   menentukan status aktual masing-masing pilar.
+3. [pillars/README.md](pillars/README.md) menentukan dependency dan urutan
+   pembangunan 40 pilar.
+4. [ROADMAP.md](ROADMAP.md) menentukan prioritas program dan exit criteria.
+5. [WORKFLOWS.md](WORKFLOWS.md) menentukan alur operasional.
+6. [ARCHITECTURE.md](ARCHITECTURE.md) menentukan batas komponen.
+7. [DECISIONS.md](DECISIONS.md) menentukan keputusan arsitektur yang diterima.
+8. Dokumen dalam `archive/` hanya konteks historis.
 
 Jika kode berbeda dari dokumentasi, catat selisihnya di `STATUS.md` sebagai
 risiko atau gap. Jangan mengubah status menjadi selesai hanya karena file atau

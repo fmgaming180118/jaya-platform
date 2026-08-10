@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Tuple
 
 from src.brain_v2.engine.jaya_ir import IRInstruction, JayaIRGraph, OpCode
@@ -42,7 +43,11 @@ def logic_expr_to_ir(expr: LogicExpr) -> JayaIRGraph:
     instructions = []
 
     if not isinstance(expr, tuple) or not expr:
-        instructions.append(IRInstruction(opcode=OpCode.PASS_LITERAL, args=(_literal(expr),), target="out"))
+        instructions.append(
+            IRInstruction(
+                opcode=OpCode.PASS_LITERAL, args=(_literal(expr),), target="out"
+            )
+        )
         instructions.append(IRInstruction(opcode=OpCode.RETURN, args=("out",)))
         return JayaIRGraph(instructions=instructions, source="lingua")
 
@@ -53,12 +58,19 @@ def logic_expr_to_ir(expr: LogicExpr) -> JayaIRGraph:
         obj = _literal(expr[2]) if len(expr) > 2 else "target"
         opcode = _ACTION_TO_OPCODE.get(action)
         if opcode is None:
+            capability_id = f"action.{action.casefold()}"
+            payload = json.dumps(
+                {"action": action, "target": obj},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
             instructions.append(
                 IRInstruction(
-                    opcode=OpCode.CALL_STUB,
-                    args=("action_fallback", action, obj),
+                    opcode=OpCode.CALL_CAPABILITY,
+                    args=(capability_id, payload),
                     target="out",
-                    metadata={"fallback": True, "kind": "action"},
+                    metadata={"kind": "external_capability"},
                 )
             )
         else:
@@ -75,45 +87,104 @@ def logic_expr_to_ir(expr: LogicExpr) -> JayaIRGraph:
             left = payload[1]
             right = payload[2]
             op = _ARITH_TO_OPCODE.get(arith_op)
-            instructions.append(IRInstruction(opcode=OpCode.LOAD_CONST, args=(left,), target="lhs"))
-            instructions.append(IRInstruction(opcode=OpCode.LOAD_CONST, args=(right,), target="rhs"))
+            instructions.append(
+                IRInstruction(opcode=OpCode.LOAD_CONST, args=(left,), target="lhs")
+            )
+            instructions.append(
+                IRInstruction(opcode=OpCode.LOAD_CONST, args=(right,), target="rhs")
+            )
             if op is None:
+                capability_id = f"math.{arith_op.casefold()}"
+                capability_payload = json.dumps(
+                    {"left": left, "right": right},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
                 instructions.append(
                     IRInstruction(
-                        opcode=OpCode.CALL_STUB,
-                        args=("arith_fallback", arith_op, left, right),
+                        opcode=OpCode.CALL_CAPABILITY,
+                        args=(capability_id, capability_payload),
                         target="out",
-                        metadata={"fallback": True, "kind": "arith"},
+                        metadata={"kind": "external_capability"},
                     )
                 )
             else:
-                instructions.append(IRInstruction(opcode=op, args=(left, right), target="out"))
+                instructions.append(
+                    IRInstruction(opcode=op, args=(left, right), target="out")
+                )
             instructions.append(IRInstruction(opcode=OpCode.RETURN, args=("out",)))
             return JayaIRGraph(instructions=instructions, source="lingua")
 
-        instructions.append(IRInstruction(opcode=OpCode.QUERY_INFO, args=(qtype, _literal(payload)), target="out"))
+        instructions.append(
+            IRInstruction(
+                opcode=OpCode.QUERY_INFO, args=(qtype, _literal(payload)), target="out"
+            )
+        )
         instructions.append(IRInstruction(opcode=OpCode.RETURN, args=("out",)))
         return JayaIRGraph(instructions=instructions, source="lingua")
 
     if head == "LITERAL":
         lit = _literal(expr[1]) if len(expr) > 1 else ""
-        instructions.append(IRInstruction(opcode=OpCode.PASS_LITERAL, args=(lit,), target="out"))
+        instructions.append(
+            IRInstruction(opcode=OpCode.PASS_LITERAL, args=(lit,), target="out")
+        )
         instructions.append(IRInstruction(opcode=OpCode.RETURN, args=("out",)))
         return JayaIRGraph(instructions=instructions, source="lingua")
 
+    payload = json.dumps(
+        {"expression": _literal(expr)},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     instructions.append(
         IRInstruction(
-            opcode=OpCode.CALL_STUB,
-            args=("expr_fallback", _literal(expr)),
+            opcode=OpCode.CALL_CAPABILITY,
+            args=("lingua.expression", payload),
             target="out",
-            metadata={"fallback": True, "kind": "expr"},
+            metadata={"kind": "external_capability"},
         )
     )
     instructions.append(IRInstruction(opcode=OpCode.RETURN, args=("out",)))
     return JayaIRGraph(instructions=instructions, source="lingua")
 
 
-def text_to_ir(text: str, lingua: LinguaLogica | None = None) -> Tuple[LogicExpr, JayaIRGraph]:
+def text_to_ir(
+    text: str, lingua: LinguaLogica | None = None
+) -> Tuple[LogicExpr, JayaIRGraph]:
     adapter = lingua or LinguaLogica()
     expr = adapter.encode(text)
     return expr, logic_expr_to_ir(expr)
+
+
+def logic_request_to_ir(
+    *,
+    request_id: str,
+    facts: list[str],
+    rules: list[dict[str, Any]],
+    query: str,
+) -> JayaIRGraph:
+    """Translate the typed Pure Logic contract into immutable JayaIR."""
+    payload = json.dumps(
+        {
+            "request_id": request_id,
+            "facts": facts,
+            "rules": rules,
+            "query": query,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return JayaIRGraph(
+        instructions=[
+            IRInstruction(
+                opcode=OpCode.CALL_CAPABILITY,
+                args=("core.logic.evaluate", payload),
+                target="logic_result",
+            ),
+            IRInstruction(opcode=OpCode.RETURN, args=("logic_result",)),
+        ],
+        source="lingua-pure-logic",
+    )

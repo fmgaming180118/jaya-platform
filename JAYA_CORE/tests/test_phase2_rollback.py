@@ -71,7 +71,12 @@ class TestPhase2Rollback(unittest.TestCase):
             },
         )
         self.assertTrue(decision["ok"])
-        self.assertTrue(decision["decision"]["accepted"])
+        self.assertFalse(decision["decision"]["accepted"])
+        self.assertEqual(decision["decision"]["code"], "REJECT_SECURITY")
+        self.assertIn(
+            "structured policy context unavailable",
+            decision["decision"]["details"]["ethical_reason"],
+        )
 
         rollback = engine.rollback_stable_state("stable-v1")
         self.assertTrue(rollback["ok"])
@@ -164,7 +169,12 @@ class TestPhase2Rollback(unittest.TestCase):
             verified["evidence"],
         )
         self.assertTrue(decision["ok"])
-        self.assertTrue(decision["decision"]["accepted"])
+        self.assertFalse(decision["decision"]["accepted"])
+        self.assertEqual(decision["decision"]["code"], "REJECT_SECURITY")
+        self.assertIn(
+            "structured policy context unavailable",
+            decision["decision"]["details"]["ethical_reason"],
+        )
 
 
 if __name__ == "__main__":

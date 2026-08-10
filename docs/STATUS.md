@@ -1,6 +1,6 @@
 # Status Implementasi
 
-**Snapshot:** 2 Agustus 2026 (KOREKSI SETELAH AUDIT REALISASI)
+**Snapshot:** 10 Agustus 2026 (KOREKSI SETELAH AUDIT REALISASI)
 **Fokus:** membedakan bukti software lokal dari bukti mutu ilmiah dan produksi
 
 **PERINGATAN: Status sebelumnya mengklaim tingkat kematangan yang tidak didukung oleh kode.**
@@ -9,6 +9,21 @@
 Dokumen ini adalah dashboard kondisi aktual. Urutan pengerjaan berada di
 [ROADMAP.md](ROADMAP.md), sedangkan gate ilmiah Phase A berada di
 [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md).
+
+Untuk JAYA Core, audit 40 pilar per 10 Agustus 2026 mencatat 4 `VERIFIED`, 2
+`INTEGRATED`, 5 `PROTOTYPE`, dan 29 `NOT_IMPLEMENTED`. Urutan dependency
+dan checklist pembangunan setiap pilar berada di
+[pusat pembangunan 40 pilar](pillars/README.md); status rinci tetap dimiliki
+[matriks implementasi](40_PILLARS_IMPLEMENTATION_MATRIX.md).
+
+Tahap Pondasi Logika berada pada **95% / VERIFIED** berdasarkan gate
+yang dapat dieksekusi. Rincian bobot, bukti, dan penghambat production berada di
+[dashboard Pondasi Logika](LOGICAL_FOUNDATION_PROGRESS.md).
+
+Tahap Fondasi Kedaulatan berada pada **45% / IN_PROGRESS**: P11 DNA Anchor dan
+P15 Ethical Heart masing-masing mencapai **90% / INTEGRATED**, sementara P20
+dan P18 belum diimplementasikan. Checkpoint aktif berada di
+[dashboard Fondasi Kedaulatan](SOVEREIGN_FOUNDATION_PROGRESS.md).
 
 ## Definisi kematangan
 
@@ -67,7 +82,7 @@ Label bukti yang dipakai bersama status kematangan:
 | API Research Phase A | IMPLEMENTED / PASS_LOCAL | Suite API+E2E `100 passed` | Deployment, observability, dan provider nyata belum diverifikasi |
 | Knowledge graph | IMPLEMENTED | Graph dan tes komponen tersedia | Skala, migrasi schema, dan kualitas retrieval dunia nyata |
 | Auto-finetune/LoRA | **PROTOTYPE / NOT_IMPLEMENTED** | `EdgeLoRATrainer` hanya placeholder, TIDAK training nyata | Dataset, training, compute, evaluasi holdout, model card, approval nyata |
-| JAYA Core reasoning/JayaIR | IMPLEMENTED | Source, tes unit, readiness contract, dan gate artefak tersedia | **Model kognitif nyata BELUM terintegrasi** (hanya rule-based/keyword) |
+| JAYA Core reasoning/JayaIR | VERIFIED_LOCAL_PROCESS | Pure Logic API+JayaIR puzzle, proof SQLite, ResourceProfile, homeostasis, metrics, backup/rollback/restart; audit 29 test dan 9 deployment check lulus | Pondasi 95%; observasi deployment berkelanjutan belum tersedia |
 | JAYA Agent | PROTOTYPE | API/tool boundary dan tes komponen tersedia | E2E dengan provider dan environment produksi |
 | JAYA OS | PROTOTYPE | Capability sandbox dan runtime komponen tersedia | Ownership kernel legacy dan deployment target |
 | JAYA Android | PROTOTYPE | Proyek, unit test, dan kontrol konfigurasi tersedia | Build APK, model, sync, dan perangkat fisik `BLOCKED_EXTERNAL` |
@@ -138,11 +153,12 @@ dokumen sebelumnya TIDAK VALID karena tidak didukung implementasi nyata.**
 Nilai dari fixture sintetis, output LLM, persona ahli, self-score, atau simulasi
 tidak boleh diberi label representatif, empiris, verified, atau promotable.
 
-### P0 — Status dokumen tidak konsisten dengan kode (ARCHITECTURE THEATRE)
+### P0 — Klaim lama dan script tidak konsisten dengan kode
 
-Dokumen ROADMAP.md, COMPLETED_PHASES_CHECKLIST.md, dan script verifikasi
-mengklaim fase "COMPLETE"/"VERIFIED" sedangkan implementasi nyata adalah
-PROTOTYPE/SCAFFOLD/MOCK. **Ini adalah risiko integritas proyek tertinggi.**
+Dokumen duplikat yang mengulang klaim "COMPLETE"/"VERIFIED" telah dihapus pada
+10 Agustus 2026. Risiko masih ada pada script atau artifact lama yang memberi
+label selesai sementara implementasinya PROTOTYPE/SCAFFOLD/MOCK. Status kanonis
+di dokumen ini dan matriks 40 pilar harus selalu memenangkan konflik.
 
 ### P0 — Otak JAYA masih rule-based/keyword
 

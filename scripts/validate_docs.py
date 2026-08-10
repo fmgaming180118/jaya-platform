@@ -19,7 +19,6 @@ CANONICAL_DOCS = (
     Path("docs/JAYA_CORE_DESIGN.md"),
     Path("docs/JAYA_MESH_DESIGN.md"),
     Path("docs/DISCOVERY_PIPELINE_DESIGN.md"),
-    Path("docs/COMPLETED_PHASES_CHECKLIST.md"),
     Path("docs/WORKFLOWS.md"),
     Path("docs/STATUS.md"),
     Path("docs/ROADMAP.md"),
@@ -29,7 +28,41 @@ CANONICAL_DOCS = (
     Path("docs/DEVELOPMENT.md"),
     Path("docs/GLOSSARY.md"),
     Path("docs/CHANGELOG.md"),
+    Path("docs/arsitektur_40_pilar_jaya.md"),
+    Path("docs/40_PILLARS_IMPLEMENTATION_MATRIX.md"),
+    Path("docs/pillars/README.md"),
+    Path("docs/LOGICAL_FOUNDATION_PROGRESS.md"),
+    Path("docs/SOVEREIGN_FOUNDATION_PROGRESS.md"),
     Path("docs/archive/README.md"),
+)
+
+PILLAR_DOC_PATTERN = re.compile(r"^(\d{2})-p(\d{2})-[a-z0-9-]+\.md$")
+PILLAR_REQUIRED_MARKERS = (
+    "**ID pilar:**",
+    "**Tahap:**",
+    "**Status saat audit:**",
+    "## Tujuan",
+    "## Dependensi",
+    "## Kontrak dan integrasi",
+    "## Checklist implementasi",
+    "## Exit criteria",
+    "## Larangan",
+)
+PILLAR_CONTRACT_PATTERN = re.compile(
+    r"^- id:\s*(\d+)\s*$.*?^\s+status:\s*([A-Z_]+)\s*$",
+    re.MULTILINE | re.DOTALL,
+)
+PILLAR_HEADER_ID_PATTERN = re.compile(r"\*\*ID pilar:\*\*\s*(\d+)")
+PILLAR_HEADER_STATUS_PATTERN = re.compile(
+    r"\*\*Status saat audit:\*\*\s*([A-Z_]+)"
+)
+PILLAR_MATRIX_STATUS_PATTERN = re.compile(
+    r"^##\s+(\d+)\s+—\s+.*?^\*\*Status:\*\*\s*^([A-Z_]+)\s*$",
+    re.MULTILINE | re.DOTALL,
+)
+PILLAR_INDEX_STATUS_PATTERN = re.compile(
+    r"^\|\s*\d{2}\s*\|\s*(\d+)\s*\|.*?\|\s*([A-Z_]+)\s*\|",
+    re.MULTILINE,
 )
 
 ENTRYPOINTS = (
@@ -94,6 +127,95 @@ def validate_doc_files() -> list[str]:
                 f"Found non-canonical documentation directory: {module_dir}/docs"
             )
 
+    pillar_dir = ROOT / "docs/pillars"
+    pillar_docs = sorted(pillar_dir.glob("*.md")) if pillar_dir.is_dir() else []
+    pillar_docs = [path for path in pillar_docs if path.name != "README.md"]
+    if len(pillar_docs) != 40:
+        errors.append(
+            f"Expected exactly 40 pillar construction documents, found {len(pillar_docs)}"
+        )
+
+    construction_orders: set[int] = set()
+    pillar_ids: set[int] = set()
+    contract_path = ROOT / "JAYA_CORE/contracts/40_pillars.yaml"
+    try:
+        contract_text = contract_path.read_text(encoding="utf-8")
+        contract_statuses = {
+            int(pillar_id): status
+            for pillar_id, status in PILLAR_CONTRACT_PATTERN.findall(contract_text)
+        }
+    except OSError as exc:
+        errors.append(f"Cannot read pillar contract {contract_path.relative_to(ROOT)}: {exc}")
+        contract_statuses = {}
+
+    index_path = pillar_dir / "README.md"
+    try:
+        pillar_index = index_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        errors.append(f"Cannot read pillar index {index_path.relative_to(ROOT)}: {exc}")
+        pillar_index = ""
+
+    matrix_path = ROOT / "docs/40_PILLARS_IMPLEMENTATION_MATRIX.md"
+    try:
+        matrix_text = matrix_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        errors.append(f"Cannot read pillar matrix {matrix_path.relative_to(ROOT)}: {exc}")
+        matrix_text = ""
+
+    for path in pillar_docs:
+        match = PILLAR_DOC_PATTERN.fullmatch(path.name)
+        if match is None:
+            errors.append(f"Invalid pillar document filename: {path.relative_to(ROOT)}")
+            continue
+        construction_orders.add(int(match.group(1)))
+        filename_pillar_id = int(match.group(2))
+        pillar_ids.add(filename_pillar_id)
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            errors.append(f"Cannot read pillar document {path.relative_to(ROOT)}: {exc}")
+            continue
+        for marker in PILLAR_REQUIRED_MARKERS:
+            if marker not in content:
+                errors.append(
+                    f"Missing marker '{marker}' in {path.relative_to(ROOT)}"
+                )
+        header_id_match = PILLAR_HEADER_ID_PATTERN.search(content)
+        if header_id_match is None or int(header_id_match.group(1)) != filename_pillar_id:
+            errors.append(
+                f"Pillar ID header does not match filename in {path.relative_to(ROOT)}"
+            )
+        status_match = PILLAR_HEADER_STATUS_PATTERN.search(content)
+        expected_status = contract_statuses.get(filename_pillar_id)
+        if status_match is None or status_match.group(1) != expected_status:
+            errors.append(
+                f"Pillar status drift in {path.relative_to(ROOT)}: "
+                f"expected {expected_status}, found "
+                f"{status_match.group(1) if status_match else 'MISSING'}"
+            )
+        if path.name not in pillar_index:
+            errors.append(f"Pillar document is missing from index: {path.relative_to(ROOT)}")
+
+    expected_numbers = set(range(1, 41))
+    if construction_orders != expected_numbers:
+        errors.append("Pillar construction order must contain each number 01-40 exactly once")
+    if pillar_ids != expected_numbers:
+        errors.append("Pillar documents must cover each pillar ID 01-40 exactly once")
+
+    matrix_statuses = {
+        int(pillar_id): status
+        for pillar_id, status in PILLAR_MATRIX_STATUS_PATTERN.findall(matrix_text)
+    }
+    if matrix_statuses != contract_statuses:
+        errors.append("40-pillar implementation matrix status is out of sync with contract")
+
+    index_statuses = {
+        int(pillar_id): status
+        for pillar_id, status in PILLAR_INDEX_STATUS_PATTERN.findall(pillar_index)
+    }
+    if index_statuses != contract_statuses:
+        errors.append("40-pillar construction index status is out of sync with contract")
+
     return errors
 
 
@@ -123,7 +245,9 @@ def validate_trackability() -> list[str]:
 
 def validate_local_links() -> list[str]:
     errors: list[str] = []
+    pillar_docs = sorted((ROOT / "docs/pillars").glob("*.md"))
     scanned_files = list(CANONICAL_DOCS) + list(ENTRYPOINTS)
+    scanned_files.extend(path.relative_to(ROOT) for path in pillar_docs)
 
     for rel_path in scanned_files:
         source_file = ROOT / rel_path
@@ -131,7 +255,7 @@ def validate_local_links() -> list[str]:
             continue
 
         try:
-            content = source_fs.read_text(encoding="utf-8")
+            content = source_file.read_text(encoding="utf-8")
         except OSError as exc:
             errors.append(f"Cannot read file {rel_path}: {exc}")
             continue
@@ -206,8 +330,9 @@ def main() -> int:
         return 1
 
     print(
-        f"Validasi dokumentasi LULUS: {len(CANONICAL_DOCS)} file aktif, satu Git root, "
-        "tanpa docs modul, seluruh tautan lokal valid, dan source/test dapat dilacak."
+        f"Validasi dokumentasi LULUS: {len(CANONICAL_DOCS)} dokumen kanonis + "
+        "40 dokumen pilar, satu Git root, tanpa docs modul, seluruh tautan lokal "
+        "valid, status pilar sinkron, dan source/test dapat dilacak."
     )
     return 0
 

@@ -7,10 +7,11 @@ import hashlib
 import hmac
 import inspect
 import os
+import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
@@ -19,12 +20,18 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from src.core_config import CoreConfig, core_config
+from src.observability.runtime_metrics import RuntimeMetrics
+from src.reasoning.pure_logic import LogicFailureCode, PureLogicError
 
 _PUBLIC_PATHS = frozenset({"/healthz", "/readyz"})
 _CORS_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 _CORS_HEADERS = frozenset({"authorization", "content-type"})
 _SERVICE_NAME = "jaya-core"
 _SERVICE_VERSION = "1"
+
+
+class CapabilityUnavailableError(RuntimeError):
+    """Raised when a runtime does not implement a requested public contract."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,29 +59,32 @@ class ReadinessDependency(Protocol):
     name: str
     critical: bool
 
-    def check(self) -> DependencyStatus | Awaitable[DependencyStatus]: ...
+    def check(self) -> DependencyStatus | Awaitable[DependencyStatus]:
+        ...
 
 
 class ModelArtifactDependency:
     name = "model_artifact"
-    critical = True
 
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, *, critical: bool = True) -> None:
         self._path = path
+        self.critical = critical
 
     def check(self) -> DependencyStatus:
         try:
             if not self._path.exists():
-                return DependencyStatus(self.name, False, "missing")
+                return DependencyStatus(self.name, False, "missing", self.critical)
             if not self._path.is_file():
-                return DependencyStatus(self.name, False, "not_file")
+                return DependencyStatus(self.name, False, "not_file", self.critical)
             if self._path.stat().st_size <= 0:
-                return DependencyStatus(self.name, False, "empty")
+                return DependencyStatus(self.name, False, "empty", self.critical)
             if not os.access(self._path, os.R_OK):
-                return DependencyStatus(self.name, False, "not_readable")
+                return DependencyStatus(self.name, False, "not_readable", self.critical)
         except OSError:
-            return DependencyStatus(self.name, False, "inspection_failed")
-        return DependencyStatus(self.name, True, "available")
+            return DependencyStatus(
+                self.name, False, "inspection_failed", self.critical
+            )
+        return DependencyStatus(self.name, True, "available", self.critical)
 
 
 class DataDirectoryDependency:
@@ -151,6 +161,31 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=16_384)
 
 
+class LogicRuleRequest(BaseModel):
+    """Strict external representation of one propositional implication."""
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    rule_id: str = Field(alias="id", min_length=1, max_length=128)
+    premises: list[str] = Field(alias="if", min_length=1, max_length=32)
+    conclusion: str = Field(alias="then", min_length=1, max_length=132)
+
+
+class LogicEvaluateRequest(BaseModel):
+    """Bounded input contract for deterministic Pure Logic evaluation."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    request_id: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9_.:-]+$",
+    )
+    facts: list[str] = Field(default_factory=list, max_length=2_000)
+    rules: list[LogicRuleRequest] = Field(default_factory=list, max_length=2_000)
+    query: str = Field(min_length=1, max_length=132)
+
+
 def _error(
     status_code: int,
     code: str,
@@ -223,7 +258,7 @@ async def _runtime_chat(
 ) -> str:
     chat = getattr(runtime, "chat", None)
     if not callable(chat):
-        raise NotImplementedError
+        raise CapabilityUnavailableError
     operation = (
         chat(message)
         if inspect.iscoroutinefunction(chat)
@@ -233,6 +268,36 @@ async def _runtime_chat(
     if not isinstance(result, str) or not result.strip():
         raise RuntimeError("invalid runtime response")
     return result
+
+
+async def _runtime_logic(
+    runtime: object,
+    request: LogicEvaluateRequest,
+    *,
+    timeout_seconds: float,
+) -> dict[str, object]:
+    evaluate = getattr(runtime, "reason_logic", None)
+    if not callable(evaluate):
+        raise CapabilityUnavailableError
+    arguments: dict[str, Any] = {
+        "request_id": request.request_id,
+        "facts": request.facts,
+        "rules": [rule.model_dump(by_alias=True) for rule in request.rules],
+        "query": request.query,
+    }
+    operation = (
+        evaluate(**arguments)
+        if inspect.iscoroutinefunction(evaluate)
+        else run_in_threadpool(evaluate, **arguments)
+    )
+    result = await asyncio.wait_for(operation, timeout=timeout_seconds)
+    serialize = getattr(result, "to_dict", None)
+    if not callable(serialize):
+        raise RuntimeError("invalid logic runtime response")
+    payload = serialize()
+    if not isinstance(payload, dict):
+        raise RuntimeError("invalid logic runtime payload")
+    return payload
 
 
 def create_app(
@@ -246,7 +311,10 @@ def create_app(
     active_config = core_config if config is None else config
     active_config.validate()
     baseline: tuple[ReadinessDependency, ...] = (
-        ModelArtifactDependency(active_config.model_path),
+        ModelArtifactDependency(
+            active_config.model_path,
+            critical=active_config.model_required,
+        ),
         DataDirectoryDependency(active_config.data_dir),
         ApiCredentialDependency(active_config),
         RuntimeDependency(runtime),
@@ -262,6 +330,7 @@ def create_app(
     app.state.config = active_config
     app.state.runtime = runtime
     app.state.readiness_dependencies = readiness_dependencies
+    app.state.metrics = RuntimeMetrics()
     app.add_middleware(
         TrustedHostMiddleware,
         allowed_hosts=list(active_config.trusted_hosts),
@@ -272,10 +341,25 @@ def create_app(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        started = time.perf_counter()
+
+        def observed(response: Response) -> Response:
+            app.state.metrics.observe_http(
+                request.url.path,
+                response.status_code,
+                (time.perf_counter() - started) * 1_000,
+            )
+            return response
+
         origin = request.headers.get("origin")
         origin_allowed = bool(origin and origin in active_config.cors_origins)
         if origin and not origin_allowed:
-            return _error(403, "origin_denied", "Cross-origin request is not allowed.")
+            response = _error(
+                403,
+                "origin_denied",
+                "Cross-origin request is not allowed.",
+            )
+            return observed(response)
 
         preflight = (
             request.method == "OPTIONS"
@@ -285,21 +369,25 @@ def create_app(
         if preflight:
             denied = _cors_preflight_error(request)
             if denied is not None:
-                return denied
+                return observed(denied)
             response: Response = Response(status_code=204)
         elif request.url.path not in _PUBLIC_PATHS:
             if not active_config.api_key:
-                return _error(
-                    503,
-                    "authentication_not_configured",
-                    "Protected API routes are unavailable.",
+                return observed(
+                    _error(
+                        503,
+                        "authentication_not_configured",
+                        "Protected API routes are unavailable.",
+                    )
                 )
             if not _token_matches(active_config, _bearer_token(request)):
-                return _error(
-                    401,
-                    "authentication_required",
-                    "A valid bearer credential is required.",
-                    headers={"WWW-Authenticate": "Bearer"},
+                return observed(
+                    _error(
+                        401,
+                        "authentication_required",
+                        "A valid bearer credential is required.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
                 )
             response = await call_next(request)
         else:
@@ -310,11 +398,11 @@ def create_app(
             response.headers["Access-Control-Allow-Methods"] = ", ".join(
                 sorted(_CORS_METHODS)
             )
-            response.headers["Access-Control-Allow-Headers"] = (
-                "Authorization, Content-Type"
-            )
+            response.headers[
+                "Access-Control-Allow-Headers"
+            ] = "Authorization, Content-Type"
             response.headers["Vary"] = "Origin"
-        return response
+        return observed(response)
 
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, str]:
@@ -371,7 +459,7 @@ def create_app(
                 request.message,
                 timeout_seconds=active_config.request_timeout_seconds,
             )
-        except NotImplementedError:
+        except CapabilityUnavailableError:
             return _error(501, "capability_not_implemented", "Chat is unavailable.")
         except TimeoutError:
             return _error(504, "runtime_timeout", "The Core runtime timed out.")
@@ -382,6 +470,79 @@ def create_app(
                 "The Core runtime could not produce a verified response.",
             )
         return JSONResponse({"response": response})
+
+    @app.post("/v1/logic/evaluate")
+    async def logic_evaluate(request: LogicEvaluateRequest) -> JSONResponse:
+        if runtime is None or not callable(getattr(runtime, "reason_logic", None)):
+            return _error(
+                501,
+                "capability_not_implemented",
+                "No Pure Logic runtime is attached.",
+            )
+        runtime_status = await RuntimeDependency(runtime).check()
+        if not runtime_status.ready:
+            return _error(
+                503,
+                "runtime_not_ready",
+                "The Pure Logic runtime is unavailable.",
+            )
+        try:
+            payload = await _runtime_logic(
+                runtime,
+                request,
+                timeout_seconds=active_config.request_timeout_seconds,
+            )
+        except PureLogicError as exc:
+            status_by_code = {
+                LogicFailureCode.INVALID_INPUT: 422,
+                LogicFailureCode.THEORY_LIMIT_EXCEEDED: 413,
+                LogicFailureCode.SOLVER_TIMEOUT: 504,
+                LogicFailureCode.DUPLICATE_REQUEST: 409,
+                LogicFailureCode.STORAGE_ERROR: 503,
+                LogicFailureCode.CORRUPT_PROOF: 500,
+                LogicFailureCode.RUNTIME_NOT_READY: 503,
+                LogicFailureCode.MEMORY_LIMIT_EXCEEDED: 503,
+                LogicFailureCode.RESOURCE_PROBE_UNAVAILABLE: 503,
+            }
+            return _error(
+                status_by_code[exc.code],
+                exc.code.value.casefold(),
+                str(exc),
+            )
+        except CapabilityUnavailableError:
+            return _error(
+                501,
+                "capability_not_implemented",
+                "Pure Logic is unavailable.",
+            )
+        except TimeoutError:
+            return _error(504, "runtime_timeout", "Pure Logic evaluation timed out.")
+        except Exception:
+            return _error(
+                503,
+                "runtime_unavailable",
+                "Pure Logic could not produce a verified result.",
+            )
+        app.state.metrics.observe_logic(str(payload.get("status", "UNKNOWN")))
+        return JSONResponse(payload)
+
+    @app.get("/v1/metrics")
+    async def metrics() -> JSONResponse:
+        runtime_snapshot: dict[str, object] = {"ready": False}
+        snapshot_provider = getattr(runtime, "operational_snapshot", None)
+        if callable(snapshot_provider):
+            try:
+                value = await run_in_threadpool(snapshot_provider)
+                if isinstance(value, dict):
+                    runtime_snapshot = value
+            except Exception:
+                runtime_snapshot = {"ready": False, "error": "snapshot_failed"}
+        return JSONResponse(
+            {
+                "service": app.state.metrics.snapshot().to_dict(),
+                "runtime": runtime_snapshot,
+            }
+        )
 
     async def thesis_not_implemented() -> JSONResponse:
         return _error(
@@ -402,10 +563,13 @@ def create_app(
 
 __all__ = [
     "ApiCredentialDependency",
+    "CapabilityUnavailableError",
     "DataDirectoryDependency",
     "DependencyStatus",
     "ModelArtifactDependency",
     "ReadinessDependency",
     "RuntimeDependency",
+    "LogicEvaluateRequest",
+    "LogicRuleRequest",
     "create_app",
 ]

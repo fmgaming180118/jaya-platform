@@ -158,7 +158,15 @@ class MorphicKernel:
             return self._reject("patch target does not expose atomic instance state")
 
         if self._ethical_heart:
-            allowed, reason = self._ethical_heart.evaluate(new_code)
+            try:
+                result = self._ethical_heart.evaluate(new_code)
+                allowed, reason = result
+            except (RuntimeError, TypeError, ValueError) as exc:
+                allowed = False
+                reason = (
+                    "structured policy context unavailable: "
+                    f"{type(exc).__name__}"
+                )
             if not allowed:
                 return self._reject(f"EthicalHeart denied patch: {reason}")
 

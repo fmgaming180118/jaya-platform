@@ -152,29 +152,62 @@ def test_best_recent_reranks():
 # ===========================================================================
 
 def test_ethical_heart_allows_safe():
-    from src.brain_v2.soul.ethical_heart import EthicalHeart
+    import hashlib
+    from src.brain_v2.soul.ethical_heart import (
+        EthicalHeart, PolicyEffect, PolicyRequest, PolicyRisk
+    )
     eh = EthicalHeart()
-    ok, reason = eh.evaluate("print('hello world')")
-    assert ok, reason
-    print("[OK] EthicalHeart: safe code allowed")
+    try:
+        decision = eh.evaluate(PolicyRequest(
+            request_id="legacy-suite-safe",
+            actor_brain_id="UNENROLLED",
+            node_id="legacy-suite-node",
+            capability_id="core.reason",
+            risk_class=PolicyRisk.READ_ONLY,
+            permissions=(),
+            payload_sha256=hashlib.sha256(b"{}").hexdigest(),
+        ))
+        assert decision.effect is PolicyEffect.ALLOW
+    finally:
+        eh.close()
+    print("[OK] EthicalHeart: structured safe capability allowed")
 
 
 def test_ethical_heart_blocks_dangerous():
-    from src.brain_v2.soul.ethical_heart import EthicalHeart
+    import hashlib
+    from src.brain_v2.soul.ethical_heart import (
+        EthicalHeart, PolicyEffect, PolicyRequest, PolicyRisk
+    )
     eh = EthicalHeart()
-    ok, _reason = eh.evaluate("rm -rf / --force")
-    assert not ok, "Should have blocked rm -rf"
-    ok2, _ = eh.evaluate("delete all files on disk")
-    assert not ok2, "Should have blocked delete all"
-    print("[OK] EthicalHeart: dangerous patterns blocked")
+    try:
+        decision = eh.evaluate(PolicyRequest(
+            request_id="legacy-suite-danger",
+            actor_brain_id="UNENROLLED",
+            node_id="legacy-suite-node",
+            capability_id="filesystem.erase",
+            risk_class=PolicyRisk.DESTRUCTIVE,
+            permissions=(),
+            payload_sha256=hashlib.sha256(b"{}").hexdigest(),
+        ))
+        assert decision.effect is PolicyEffect.DENY
+    finally:
+        eh.close()
+    print("[OK] EthicalHeart: structured destructive capability denied")
 
 
 def test_ethical_heart_strict_mode():
-    from src.brain_v2.soul.ethical_heart import EthicalHeart
-    eh = EthicalHeart(strict=True)
-    ok, _ = eh.evaluate("import os; os.system('ls')")
-    assert not ok, "Strict mode: os.system should be blocked"
-    print("[OK] EthicalHeart: strict mode blocks system calls")
+    import pytest
+    from src.brain_v2.soul.ethical_heart import (
+        EthicalHeart, PolicyError, PolicyFailureCode
+    )
+    eh = EthicalHeart()
+    try:
+        with pytest.raises(PolicyError) as blocked:
+            eh.evaluate("import os; os.system('ls')")
+        assert blocked.value.code is PolicyFailureCode.INVALID_INPUT
+    finally:
+        eh.close()
+    print("[OK] EthicalHeart: unstructured text cannot grant authority")
 
 
 # ===========================================================================

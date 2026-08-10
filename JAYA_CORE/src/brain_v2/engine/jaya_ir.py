@@ -31,6 +31,13 @@ class IRFailureCode(str, Enum):
     TYPE_MISMATCH = "type_mismatch"
     EXECUTION_LIMIT = "execution_limit"
     EXECUTION_ERROR = "execution_error"
+    DEPENDENCY_UNAVAILABLE = "dependency_unavailable"
+    PERMISSION_DENIED = "permission_denied"
+    INVOCATION_TIMEOUT = "invocation_timeout"
+    POLICY_UNAVAILABLE = "policy_unavailable"
+    POLICY_DENIED = "policy_denied"
+    APPROVAL_REQUIRED = "approval_required"
+    APPROVAL_INVALID = "approval_invalid"
 
 
 class IRMutationError(RuntimeError):
@@ -71,6 +78,8 @@ class OpCode(str, Enum):
     ARITH_SUB = "ARITH_SUB"
     ARITH_MUL = "ARITH_MUL"
     ARITH_DIV = "ARITH_DIV"
+    PURE_LOGIC_EVALUATE = "PURE_LOGIC_EVALUATE"
+    CALL_CAPABILITY = "CALL_CAPABILITY"
 
     # Reserved memory/cache/interop operations. They remain in the schema for
     # compatibility but are rejected until typed runtime semantics exist.
@@ -141,10 +150,7 @@ def _canonical_value(value: Any) -> Any:
 def _freeze_value(value: Any) -> Any:
     if isinstance(value, Mapping):
         return MappingProxyType(
-            {
-                str(key): _freeze_value(item)
-                for key, item in value.items()
-            }
+            {str(key): _freeze_value(item) for key, item in value.items()}
         )
     if isinstance(value, (list, tuple)):
         return tuple(_freeze_value(item) for item in value)
@@ -161,10 +167,7 @@ class IRInstruction:
     _sealed: bool = field(default=False, init=False, repr=False, compare=False)
 
     def __setattr__(self, name: str, value: Any) -> None:
-        if (
-            name in _MUTABLE_INSTRUCTION_FIELDS
-            and getattr(self, "_sealed", False)
-        ):
+        if name in _MUTABLE_INSTRUCTION_FIELDS and getattr(self, "_sealed", False):
             raise IRMutationError("validated IRInstruction is immutable")
         object.__setattr__(self, name, value)
 
@@ -174,9 +177,7 @@ class IRInstruction:
 
     def canonical(self) -> Dict[str, Any]:
         opcode = (
-            self.opcode.value
-            if isinstance(self.opcode, OpCode)
-            else str(self.opcode)
+            self.opcode.value if isinstance(self.opcode, OpCode) else str(self.opcode)
         )
         return {
             "opcode": opcode,
@@ -220,8 +221,7 @@ class JayaIRGraph:
             "version": self.version,
             "source": self.source,
             "instructions": [
-                instruction.canonical()
-                for instruction in self.instructions
+                instruction.canonical() for instruction in self.instructions
             ],
             "metadata": _canonical_value(self.metadata),
         }
@@ -292,10 +292,15 @@ def _issue(
 
 
 def _is_public_variable(value: Any) -> bool:
+    return isinstance(value, str) and value.isidentifier() and not value.startswith("_")
+
+
+def _is_public_capability(value: Any) -> bool:
     return (
         isinstance(value, str)
-        and value.isidentifier()
-        and not value.startswith("_")
+        and 1 <= len(value) <= 128
+        and value[0].islower()
+        and all(char.islower() or char.isdigit() or char in "_.-" for char in value)
     )
 
 
@@ -356,9 +361,7 @@ def _validate_instruction(
         )
         return issues
 
-    if instruction.target is not None and not _is_public_variable(
-        instruction.target
-    ):
+    if instruction.target is not None and not _is_public_variable(instruction.target):
         issues.append(
             _issue(
                 index,
@@ -389,10 +392,7 @@ def _validate_instruction(
         if (
             len(args) != 1
             or instruction.target is None
-            or (
-                opcode == OpCode.LOAD_VAR
-                and not _is_public_variable(args[0])
-            )
+            or (opcode == OpCode.LOAD_VAR and not _is_public_variable(args[0]))
         ):
             issues.append(
                 _issue(
@@ -402,11 +402,7 @@ def _validate_instruction(
                 )
             )
     elif opcode == OpCode.JUMP:
-        if (
-            len(args) != 1
-            or isinstance(args[0], bool)
-            or not isinstance(args[0], int)
-        ):
+        if len(args) != 1 or isinstance(args[0], bool) or not isinstance(args[0], int):
             issues.append(
                 _issue(
                     index,
@@ -415,12 +411,9 @@ def _validate_instruction(
                 )
             )
     elif opcode == OpCode.BRANCH_IF:
-        if (
-            len(args) != 3
-            or any(
-                isinstance(target, bool) or not isinstance(target, int)
-                for target in args[1:]
-            )
+        if len(args) != 3 or any(
+            isinstance(target, bool) or not isinstance(target, int)
+            for target in args[1:]
         ):
             issues.append(
                 _issue(
@@ -458,8 +451,7 @@ def _validate_instruction(
             )
     elif opcode in _ARITH_OPCODES:
         if len(args) != 2 or any(
-            isinstance(value, bool)
-            or not isinstance(value, (int, float, str))
+            isinstance(value, bool) or not isinstance(value, (int, float, str))
             for value in args
         ):
             issues.append(
@@ -469,10 +461,15 @@ def _validate_instruction(
                     IRFailureCode.INVALID_ARGUMENTS,
                 )
             )
-        elif opcode == OpCode.ARITH_DIV and isinstance(
-            args[1],
-            (int, float),
-        ) and not isinstance(args[1], bool) and float(args[1]) == 0.0:
+        elif (
+            opcode == OpCode.ARITH_DIV
+            and isinstance(
+                args[1],
+                (int, float),
+            )
+            and not isinstance(args[1], bool)
+            and float(args[1]) == 0.0
+        ):
             issues.append(
                 _issue(
                     index,
@@ -480,7 +477,65 @@ def _validate_instruction(
                     IRFailureCode.DIVIDE_BY_ZERO,
                 )
             )
-
+    elif opcode == OpCode.PURE_LOGIC_EVALUATE:
+        if (
+            len(args) != 1
+            or not isinstance(args[0], str)
+            or not args[0]
+            or len(args[0].encode("utf-8")) > 512_000
+            or instruction.target is None
+        ):
+            issues.append(
+                _issue(
+                    index,
+                    "PURE_LOGIC_EVALUATE requires one bounded JSON payload and target",
+                    IRFailureCode.INVALID_ARGUMENTS,
+                )
+            )
+        else:
+            try:
+                payload = json.loads(args[0])
+            except json.JSONDecodeError:
+                payload = None
+            required = {"request_id", "facts", "rules", "query"}
+            if not isinstance(payload, dict) or set(payload) != required:
+                issues.append(
+                    _issue(
+                        index,
+                        "PURE_LOGIC_EVALUATE payload must contain only "
+                        "request_id, facts, rules, query",
+                        IRFailureCode.INVALID_ARGUMENTS,
+                    )
+                )
+    elif opcode == OpCode.CALL_CAPABILITY:
+        if (
+            len(args) != 2
+            or not _is_public_capability(args[0])
+            or not isinstance(args[1], str)
+            or len(args[1].encode("utf-8")) > 512_000
+            or instruction.target is None
+        ):
+            issues.append(
+                _issue(
+                    index,
+                    "CALL_CAPABILITY requires capability id, bounded JSON "
+                    "payload, and target",
+                    IRFailureCode.INVALID_ARGUMENTS,
+                )
+            )
+        else:
+            try:
+                capability_payload = json.loads(args[1])
+            except json.JSONDecodeError:
+                capability_payload = None
+            if not isinstance(capability_payload, dict):
+                issues.append(
+                    _issue(
+                        index,
+                        "CALL_CAPABILITY payload must be a JSON object",
+                        IRFailureCode.INVALID_ARGUMENTS,
+                    )
+                )
     try:
         _canonical_value(instruction.metadata)
     except TypeError as exc:
@@ -644,9 +699,7 @@ def validate_graph(
     if not issues:
         cfg_issues = _validate_cfg(graph)
         issues.extend(cfg_issues)
-        invalid_indices.update(
-            issue.index for issue in cfg_issues if issue.index >= 0
-        )
+        invalid_indices.update(issue.index for issue in cfg_issues if issue.index >= 0)
     try:
         _canonical_value(graph.metadata)
     except TypeError as exc:

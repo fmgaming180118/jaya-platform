@@ -492,7 +492,7 @@ class IronEngine:
         """Initialise sovereign-armor subsystems (Pillars 15, 18, 19, 16)."""
         try:
             from src.brain_v2.soul.ethical_heart import EthicalHeart
-            self._ethical_heart = EthicalHeart(strict=False)
+            self._ethical_heart = EthicalHeart()
             logger.info("[Pillar 15] EthicalHeart ready")
         except ImportError as exc:
             logger.warning("EthicalHeart unavailable: %s", exc)

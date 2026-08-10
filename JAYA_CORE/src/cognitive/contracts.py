@@ -51,7 +51,7 @@ class CognitiveStepResult:
     provider: str = ""
     model: str = ""
     error: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -59,6 +59,7 @@ class CognitiveStepResult:
 @dataclass
 class ConstraintViolation:
     """Represents a constraint violation."""
+
     constraint_name: str
     message: str
     severity: str = "error"  # "error" or "warning"
@@ -215,6 +216,7 @@ class JayaIRAction:
     approval_required: bool
     risk_class: str
     inputs: Dict[str, Any] = field(default_factory=dict)
+    policy_receipt: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -264,6 +266,20 @@ class ActionResult:
 
 
 @dataclass
+class EvaluationResult:
+    """Compatibility contract for evaluation of one executed action step."""
+
+    request_id: str
+    is_goal_achieved: bool
+    should_replan: bool
+    summary: str
+    next_step_id: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class GoalEvaluationResult:
     status: str
     confidence: float
@@ -279,6 +295,7 @@ class GoalEvaluationResult:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
 
 @dataclass
 class ApprovalRequest:
@@ -296,6 +313,7 @@ class ApprovalRequest:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
+
 @dataclass
 class CodeChangeArtifact:
     target_path: str
@@ -308,6 +326,7 @@ class CodeChangeArtifact:
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
+
 
 @dataclass
 class ReplanRequest:

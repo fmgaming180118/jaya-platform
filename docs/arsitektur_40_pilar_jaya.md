@@ -2,7 +2,9 @@ STATUS: CANONICAL ARCHITECTURAL CONTRACT
 PILLAR COUNT: 40
 SOURCE OF TRUTH:
 - JayaFlags (schema.py)
-- this document
+- `JAYA_CORE/contracts/40_pillars.yaml` untuk ID, nama, layer, owner, dan status
+- dokumen ini untuk definisi arsitektur
+- `docs/pillars/README.md` untuk dependency dan urutan pembangunan
 
 # Arsitektur 40 Pilar JAYA
 
@@ -18,6 +20,11 @@ JAYA dibangun dengan pendekatan local-first dan sovereign AI. Artinya:
 - Runtime harus efisien untuk perangkat dengan resource terbatas.
 
 Fondasi ini diterjemahkan menjadi 40 pilar yang dibagi ke 4 lapisan arsitektur.
+
+> Nomor 1–40 adalah identitas pilar dan binary compatibility, bukan urutan
+> implementasi. Pembangunan wajib mengikuti
+> [urutan konstruksi berbasis dependency](pillars/README.md). Membuat dokumen,
+> flag, class, atau model contract tidak mengubah status implementasi.
 
 ## 2. Ringkasan Empat Lapisan
 

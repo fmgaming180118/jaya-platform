@@ -8,6 +8,10 @@ Roadmap ini menggantikan checklist fase yang sebelumnya tersebar di modul.
 Definisi penerimaan ilmiah Phase A berada di
 [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md).
 
+Roadmap program tidak menggantikan dependency teknis 40 pilar JAYA Core. Urutan
+pondasi hingga distribusi dan checklist masing-masing pilar berada di
+[pusat pembangunan 40 pilar](pillars/README.md).
+
 ```mermaid
 flowchart LR
     P0["0. Konsolidasi"] --> PA["A. Research foundation"]
@@ -26,6 +30,8 @@ flowchart LR
 | Fase | Status | Tujuan |
 |---|---|---|
 | 0. Konsolidasi dokumentasi/repository | VERIFIED | Satu Git dan satu sumber dokumentasi |
+| Pondasi Logika JAYA Core | VERIFIED (95%) | Otak Core mandiri; model dan capability eksternal sebagai puzzle opsional; 5% menunggu observasi produksi berkelanjutan |
+| Fondasi Kedaulatan JAYA Core | IN_PROGRESS (45%) | P11 DNA Anchor dan P15 Ethical Heart 90%/INTEGRATED; berikutnya P20 Privacy lalu P18 Zero Trust |
 | A. Research foundation | IMPLEMENTED / PASS_LOCAL | Kontrak software lokal lulus; kesiapan ilmiah `BLOCKED_EXTERNAL` |
 | B. Production hardening | PROTOTYPE / PASS_LOCAL | Sesi persisten, circuit breaker, worker terisolasi diuji lokal; **production deployment NOT DONE** |
 | C. Edge dan hybrid intelligence | PROTOTYPE / PASS_LOCAL | Router model lokal teruji; **LoRA training NOT IMPLEMENTED**; target hardware `BLOCKED_EXTERNAL` |

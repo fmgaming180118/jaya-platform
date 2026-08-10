@@ -173,6 +173,10 @@ class CoreConfig:
     core_dir: Path
     soul_password: SecretValue
     model_path: Path
+    model_required: bool
+    identity_required: bool
+    identity_key_secret: SecretValue
+    identity_dir: Path
     data_dir: Path
     agentic_rag_path: Path
     narrative_path: Path
@@ -215,13 +219,21 @@ class CoreConfig:
             minimum=32,
         )
         model_raw = _read(source, "JAYA_MODEL_PATH")
+        model_required = _boolean(source, "JAYA_REQUIRE_MODEL", issues)
+        identity_required = _boolean(source, "JAYA_REQUIRE_IDENTITY", issues)
+        identity_key_secret = _secret(
+            source,
+            "JAYA_IDENTITY_KEY_SECRET",
+            issues,
+            required=identity_required,
+            minimum=32,
+        )
         data_raw = _read(source, "JAYA_CORE_DATA_DIR")
         host_raw = _read(source, "JAYA_CORE_BIND_HOST")
         port_raw = _read(source, "JAYA_CORE_BIND_PORT")
         trusted_raw = _read(source, "JAYA_CORE_TRUSTED_HOSTS")
         if production:
             required_values = (
-                ("JAYA_MODEL_PATH", model_raw),
                 ("JAYA_CORE_DATA_DIR", data_raw),
                 ("JAYA_CORE_BIND_HOST", host_raw),
                 ("JAYA_CORE_BIND_PORT", port_raw),
@@ -230,6 +242,8 @@ class CoreConfig:
             issues.extend(
                 f"missing:{name}" for name, value in required_values if not value
             )
+            if model_required and not model_raw:
+                issues.append("missing:JAYA_MODEL_PATH")
 
         model_path = Path(model_raw or root / "JAYA_SOVEREIGN_V18.jay").expanduser()
         data_dir = Path(data_raw or root / "data").expanduser()
@@ -279,6 +293,17 @@ class CoreConfig:
             timeout = 30.0
 
         data_root = data_dir.resolve()
+        identity_dir = (
+            Path(
+                _read(
+                    source,
+                    "JAYA_IDENTITY_DIR",
+                    str(data_root / "identity"),
+                )
+            )
+            .expanduser()
+            .resolve()
+        )
         agentic_rag = (
             Path(
                 _read(
@@ -309,6 +334,7 @@ class CoreConfig:
             .resolve()
         )
         owned_paths = (
+            ("JAYA_IDENTITY_DIR", identity_dir),
             ("JAYA_AGENTIC_RAG_PATH", agentic_rag),
             ("JAYA_NARRATIVE_PATH", narrative),
             ("JAYA_RESEARCH_INBOX_PATH", research_inbox),
@@ -325,6 +351,10 @@ class CoreConfig:
             core_dir=root,
             soul_password=soul_password,
             model_path=model_path.resolve(),
+            model_required=model_required,
+            identity_required=identity_required,
+            identity_key_secret=identity_key_secret,
+            identity_dir=identity_dir,
             data_dir=data_root,
             agentic_rag_path=agentic_rag,
             narrative_path=narrative,
@@ -354,6 +384,10 @@ class CoreConfig:
         return {
             "environment": self.environment.value,
             "model_path": str(self.model_path),
+            "model_required": self.model_required,
+            "identity_required": self.identity_required,
+            "identity_secret_configured": bool(self.identity_key_secret),
+            "identity_dir": str(self.identity_dir),
             "data_dir": str(self.data_dir),
             "agentic_rag_path": str(self.agentic_rag_path),
             "narrative_path": str(self.narrative_path),
