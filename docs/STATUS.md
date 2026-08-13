@@ -1,6 +1,6 @@
 # Status Implementasi
 
-**Snapshot:** 10 Agustus 2026 (KOREKSI SETELAH AUDIT REALISASI)
+**Snapshot:** 14 Agustus 2026 (KOREKSI SETELAH AUDIT REALISASI)
 **Fokus:** membedakan bukti software lokal dari bukti mutu ilmiah dan produksi
 
 **PERINGATAN: Status sebelumnya mengklaim tingkat kematangan yang tidak didukung oleh kode.**
@@ -10,8 +10,8 @@ Dokumen ini adalah dashboard kondisi aktual. Urutan pengerjaan berada di
 [ROADMAP.md](ROADMAP.md), sedangkan gate ilmiah Phase A berada di
 [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md).
 
-Untuk JAYA Core, audit 40 pilar per 10 Agustus 2026 mencatat 4 `VERIFIED`, 2
-`INTEGRATED`, 5 `PROTOTYPE`, dan 29 `NOT_IMPLEMENTED`. Urutan dependency
+Untuk JAYA Core, audit 40 pilar per 14 Agustus 2026 mencatat 5 `VERIFIED`, 7
+`INTEGRATED`, 0 `IMPLEMENTED_LOCAL`, 4 `PROTOTYPE`, dan 24 `NOT_IMPLEMENTED`. Urutan dependency
 dan checklist pembangunan setiap pilar berada di
 [pusat pembangunan 40 pilar](pillars/README.md); status rinci tetap dimiliki
 [matriks implementasi](40_PILLARS_IMPLEMENTATION_MATRIX.md).
@@ -20,10 +20,20 @@ Tahap Pondasi Logika berada pada **95% / VERIFIED** berdasarkan gate
 yang dapat dieksekusi. Rincian bobot, bukti, dan penghambat production berada di
 [dashboard Pondasi Logika](LOGICAL_FOUNDATION_PROGRESS.md).
 
-Tahap Fondasi Kedaulatan berada pada **45% / IN_PROGRESS**: P11 DNA Anchor dan
-P15 Ethical Heart masing-masing mencapai **90% / INTEGRATED**, sementara P20
-dan P18 belum diimplementasikan. Checkpoint aktif berada di
+Tahap Fondasi Kedaulatan berada pada **92,5% / IMPLEMENTED_LOCAL**: P11 DNA
+Anchor dan P15 Ethical Heart **90%**, sedangkan P20 Sovereign Privacy dan P18
+Zero Trust **95%**; semuanya `INTEGRATED`. Sisa bukti adalah deployment live di
+secret manager/HSM, scheduler, distributed clock, telemetry, dan recovery drill.
+Checkpoint aktif berada di
 [dashboard Fondasi Kedaulatan](SOVEREIGN_FOUNDATION_PROGRESS.md).
+
+Tahap **Selubung Keamanan** telah mencapai **90% / INTEGRATED**. P13
+Cryptographic Skin **90% / INTEGRATED**, P14 Hardware Locked **85% /
+INTEGRATED**, P16 Quantum Resistant **95% / VERIFIED**, dan P12 Immune System
+**90% / INTEGRATED**. Seluruh jalur implementasi lokal selesai; TPM attestation,
+independent security review, anti-rollback hardware, dan bukti deployment
+berkelanjutan tetap memerlukan environment eksternal. Bukti serta gate kanonis
+ada di [dashboard Selubung Keamanan](SECURITY_ENVELOPE_PROGRESS.md).
 
 ## Definisi kematangan
 
@@ -32,7 +42,7 @@ dan P18 belum diimplementasikan. Checkpoint aktif berada di
 | IDEA | Konsep belum dijadwalkan |
 | PLANNED | Scope dan exit criteria sudah ditentukan |
 | PROTOTYPE | Ada kode/demo, tetapi masih memakai asumsi atau simulasi |
-| IMPLEMENTED | Jalur utama tersedia dan memiliki tes terarah |
+| IMPLEMENTED_LOCAL | Jalur utama bekerja lokal dan memiliki tes nyata |
 | INTEGRATED | Terhubung end-to-end dengan dependency nyata |
 | VERIFIED | Exit criteria, benchmark, keamanan, dan risiko utama telah diverifikasi |
 | PRODUCTION | Verified, terobservasi, aman, terdokumentasi, dan memiliki rollback |

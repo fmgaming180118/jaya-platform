@@ -534,9 +534,13 @@ class TestPhase2Integration:
         # Execute plan
         result = asyncio.run(executor.execute(plan))
         
-        # Verify result
-        assert result.success, f"Execution failed: {result.error}"
-        assert len(result.steps) > 0, "Should have executed steps"
+        # WRITE_CODE contains an approval-gated fs.write step. The local test
+        # executor must not fabricate a successful file mutation.
+        assert result.success is False
+        assert any(
+            step.error == "UNSUPPORTED_ACTION: fs.write"
+            for step in result.steps
+        )
 
     def test_nlu_low_confidence_fallback(self, nlu_adapter, symbolic_reasoner):
         """Test fallback when NLU confidence is low."""

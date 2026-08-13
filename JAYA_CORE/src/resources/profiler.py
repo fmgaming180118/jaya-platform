@@ -7,6 +7,8 @@ import platform
 import shutil
 import socket
 import subprocess
+import threading
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +46,7 @@ class ResourceProfile:
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
     sources: Dict[str, str] = field(default_factory=dict)
+    metric_ages_ms: Dict[str, float] = field(default_factory=dict)
     errors: tuple[str, ...] = ()
 
     @property
@@ -75,6 +78,7 @@ class ResourceProfiler:
         standard_memory_threshold_mb: int = 4_000,
         edge_memory_threshold_mb: int = 1_000,
         storage_path: Path | str = ".",
+        slow_probe_interval_seconds: float = 5.0,
     ) -> None:
         thresholds = (
             central_memory_threshold_mb,
@@ -89,10 +93,16 @@ class ResourceProfiler:
             > edge_memory_threshold_mb
         ):
             raise ValueError("memory thresholds must be strictly descending")
+        if not 0.1 <= slow_probe_interval_seconds <= 300:
+            raise ValueError("slow_probe_interval_seconds must be between 0.1 and 300")
         self.central_threshold = central_memory_threshold_mb
         self.standard_threshold = standard_memory_threshold_mb
         self.edge_threshold = edge_memory_threshold_mb
         self.storage_path = Path(storage_path)
+        self.slow_probe_interval_seconds = float(slow_probe_interval_seconds)
+        self._slow_probe_lock = threading.RLock()
+        self._accelerator_cache: dict[str, Any] | None = None
+        self._accelerator_cached_at = 0.0
 
     def profile(
         self,
@@ -100,6 +110,7 @@ class ResourceProfiler:
         override_available_mem_mb: int | None = None,
         network_available: bool | None = None,
         power_mode: str = "UNKNOWN",
+        force_slow_probe: bool = False,
     ) -> ResourceProfile:
         self._validate_override("override_total_mem_mb", override_total_mem_mb)
         self._validate_override("override_available_mem_mb", override_available_mem_mb)
@@ -122,6 +133,7 @@ class ResourceProfiler:
         accelerator_total_memory_mb: int | None = None
         accelerator_free_memory_mb: int | None = None
         sources: Dict[str, str] = {"cpu": "os.cpu_count"}
+        metric_ages_ms: Dict[str, float] = {}
         errors: list[str] = []
 
         if override_total_mem_mb is not None:
@@ -179,40 +191,20 @@ class ResourceProfiler:
         except (ImportError, OSError, RuntimeError, ValueError) as exc:
             errors.append(f"psutil_unavailable:{type(exc).__name__}")
 
-        nvidia_smi = shutil.which("nvidia-smi")
-        if nvidia_smi:
-            try:
-                completed = subprocess.run(
-                    [
-                        nvidia_smi,
-                        "--query-gpu=name,memory.total,memory.free,temperature.gpu",
-                        "--format=csv,noheader,nounits",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    timeout=2.0,
-                    check=False,
-                )
-                if completed.returncode == 0 and completed.stdout.strip():
-                    values = [
-                        item.strip()
-                        for item in completed.stdout.splitlines()[0].split(",")
-                    ]
-                    if len(values) == 4:
-                        accelerator_available = True
-                        accelerator_name = values[0]
-                        accelerator_total_memory_mb = int(float(values[1]))
-                        accelerator_free_memory_mb = int(float(values[2]))
-                        if thermal_celsius is None:
-                            thermal_celsius = float(values[3])
-                        sources["accelerator"] = "nvidia-smi"
-                        sources.setdefault("thermal", "nvidia-smi")
-                else:
-                    errors.append("accelerator_probe_failed:nonzero_exit")
-            except (OSError, subprocess.SubprocessError, ValueError) as exc:
-                errors.append(f"accelerator_probe_failed:{type(exc).__name__}")
-        else:
-            sources["accelerator"] = "nvidia-smi:not_found"
+        accelerator, accelerator_age_ms = self._accelerator_snapshot(
+            force_refresh=force_slow_probe
+        )
+        accelerator_available = accelerator["available"]
+        accelerator_name = accelerator["name"]
+        accelerator_total_memory_mb = accelerator["total_memory_mb"]
+        accelerator_free_memory_mb = accelerator["free_memory_mb"]
+        sources["accelerator"] = accelerator["source"]
+        metric_ages_ms["accelerator"] = accelerator_age_ms
+        errors.extend(accelerator["errors"])
+        if thermal_celsius is None and accelerator["thermal_celsius"] is not None:
+            thermal_celsius = accelerator["thermal_celsius"]
+            sources["thermal"] = accelerator["source"]
+            metric_ages_ms["thermal"] = accelerator_age_ms
 
         try:
             storage_free_mb = int(
@@ -246,8 +238,80 @@ class ResourceProfiler:
             battery_percent=battery_percent,
             power_source=power_source,
             sources=sources,
+            metric_ages_ms=metric_ages_ms,
             errors=tuple(errors),
         )
+
+    def _accelerator_snapshot(
+        self,
+        *,
+        force_refresh: bool,
+    ) -> tuple[dict[str, Any], float]:
+        """Return one bounded slow-hardware probe with explicit metric age."""
+
+        with self._slow_probe_lock:
+            now = time.monotonic()
+            age_seconds = now - self._accelerator_cached_at
+            if (
+                not force_refresh
+                and self._accelerator_cache is not None
+                and age_seconds < self.slow_probe_interval_seconds
+            ):
+                return dict(self._accelerator_cache), round(age_seconds * 1_000, 3)
+
+            snapshot: dict[str, Any] = {
+                "available": None,
+                "name": None,
+                "total_memory_mb": None,
+                "free_memory_mb": None,
+                "thermal_celsius": None,
+                "source": "nvidia-smi:not_found",
+                "errors": (),
+            }
+            nvidia_smi = shutil.which("nvidia-smi")
+            if nvidia_smi:
+                snapshot["source"] = "nvidia-smi"
+                try:
+                    completed = subprocess.run(
+                        [
+                            nvidia_smi,
+                            "--query-gpu=name,memory.total,memory.free,"
+                            "temperature.gpu",
+                            "--format=csv,noheader,nounits",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=2.0,
+                        check=False,
+                    )
+                    if completed.returncode == 0 and completed.stdout.strip():
+                        values = [
+                            item.strip()
+                            for item in completed.stdout.splitlines()[0].split(",")
+                        ]
+                        if len(values) == 4:
+                            snapshot.update(
+                                {
+                                    "available": True,
+                                    "name": values[0],
+                                    "total_memory_mb": int(float(values[1])),
+                                    "free_memory_mb": int(float(values[2])),
+                                    "thermal_celsius": float(values[3]),
+                                }
+                            )
+                        else:
+                            snapshot["errors"] = (
+                                "accelerator_probe_failed:invalid_output",
+                            )
+                    else:
+                        snapshot["errors"] = ("accelerator_probe_failed:nonzero_exit",)
+                except (OSError, subprocess.SubprocessError, ValueError) as exc:
+                    snapshot["errors"] = (
+                        f"accelerator_probe_failed:{type(exc).__name__}",
+                    )
+            self._accelerator_cache = snapshot
+            self._accelerator_cached_at = time.monotonic()
+            return dict(snapshot), 0.0
 
     def _classify(
         self,

@@ -3,7 +3,7 @@
 **Status dokumen:** kanonis untuk urutan pembangunan pilar
 **Status implementasi:** lihat [matriks audit](../40_PILLARS_IMPLEMENTATION_MATRIX.md)
 **Kontrak ID dan flag:** `JAYA_CORE/contracts/40_pillars.yaml`
-**Terakhir ditinjau:** 10 Agustus 2026
+**Terakhir ditinjau:** 14 Agustus 2026
 
 Folder ini menjawab satu pertanyaan: **pilar mana yang harus dibangun lebih dulu,
 apa dependensinya, dan bukti apa yang wajib tersedia sebelum melanjutkan?**
@@ -51,12 +51,12 @@ dokumen tidak mengubah status implementasi.
 | 04 | 5 | Logical Homeostasis | VERIFIED | [Buka](04-p05-logical-homeostasis.md) |
 | 05 | 11 | DNA Anchor | INTEGRATED | [Buka](05-p11-dna-anchor.md) |
 | 06 | 15 | Ethical Heart | INTEGRATED | [Buka](06-p15-ethical-heart.md) |
-| 07 | 20 | Sovereign Privacy | NOT_IMPLEMENTED | [Buka](07-p20-sovereign-privacy.md) |
-| 08 | 18 | Zero Trust | NOT_IMPLEMENTED | [Buka](08-p18-zero-trust.md) |
-| 09 | 13 | Cryptographic Skin | NOT_IMPLEMENTED | [Buka](09-p13-cryptographic-skin.md) |
-| 10 | 14 | Hardware Locked | PROTOTYPE | [Buka](10-p14-hardware-locked.md) |
-| 11 | 16 | Quantum Resistant | NOT_IMPLEMENTED | [Buka](11-p16-quantum-resistant.md) |
-| 12 | 12 | Immune System | NOT_IMPLEMENTED | [Buka](12-p12-immune-system.md) |
+| 07 | 20 | Sovereign Privacy | INTEGRATED | [Buka](07-p20-sovereign-privacy.md) |
+| 08 | 18 | Zero Trust | INTEGRATED | [Buka](08-p18-zero-trust.md) |
+| 09 | 13 | Cryptographic Skin | INTEGRATED | [Buka](09-p13-cryptographic-skin.md) |
+| 10 | 14 | Hardware Locked | INTEGRATED | [Buka](10-p14-hardware-locked.md) |
+| 11 | 16 | Quantum Resistant | VERIFIED | [Buka](11-p16-quantum-resistant.md) |
+| 12 | 12 | Immune System | INTEGRATED | [Buka](12-p12-immune-system.md) |
 | 13 | 22 | Ternary Precision | NOT_IMPLEMENTED | [Buka](13-p22-ternary-precision.md) |
 | 14 | 29 | Binary Cortex | NOT_IMPLEMENTED | [Buka](14-p29-binary-cortex.md) |
 | 15 | 23 | Sandboxed Imagination | PROTOTYPE | [Buka](15-p23-sandboxed-imagination.md) |

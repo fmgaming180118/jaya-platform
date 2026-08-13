@@ -2,7 +2,7 @@
 
 **Status:** kanonis  
 **Pemilik:** maintainer ekosistem JAYA  
-**Terakhir ditinjau:** 10 Agustus 2026
+**Terakhir ditinjau:** 14 Agustus 2026
 
 Folder ini adalah satu-satunya sumber kebenaran untuk dokumentasi aktif
 ekosistem JAYA. Tujuannya adalah membuat visi, kondisi aktual, keputusan, dan
@@ -22,6 +22,7 @@ saling bertentangan.
 | Pilar mana yang harus dibangun lebih dahulu dan bagaimana checklist-nya? | [pillars/README.md](pillars/README.md) |
 | Berapa persen Pondasi Logika berdasarkan test dan demo aktual? | [LOGICAL_FOUNDATION_PROGRESS.md](LOGICAL_FOUNDATION_PROGRESS.md) |
 | Di mana checkpoint dan checklist Fondasi Kedaulatan? | [SOVEREIGN_FOUNDATION_PROGRESS.md](SOVEREIGN_FOUNDATION_PROGRESS.md) |
+| Di mana progres Tahap 3 Selubung Keamanan? | [SECURITY_ENVELOPE_PROGRESS.md](SECURITY_ENVELOPE_PROGRESS.md) |
 | Bagaimana arsitektur jaringan terdistribusi JAYA Mesh? | [JAYA_MESH_DESIGN.md](JAYA_MESH_DESIGN.md) |
 | Bagaimana alur 16-langkah penemuan ilmiah dan rekayasa multimodal? | [DISCOVERY_PIPELINE_DESIGN.md](DISCOVERY_PIPELINE_DESIGN.md) |
 | Bagaimana alur pengguna, data, discovery, dan promosi? | [WORKFLOWS.md](WORKFLOWS.md) |

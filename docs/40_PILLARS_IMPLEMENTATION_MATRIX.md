@@ -2,7 +2,7 @@
 
 **Status:** audit implementasi kanonis
 
-**Snapshot:** 10 Agustus 2026
+**Snapshot:** 14 Agustus 2026
 
 **Urutan pembangunan:** [pusat pembangunan 40 pilar](pillars/README.md)
 
@@ -10,9 +10,10 @@ Dokumen ini hanya menyatakan kondisi implementasi aktual. Dokumen pembangunan
 menentukan pekerjaan dan dependency, tetapi tidak menjadi bukti bahwa fitur
 sudah tersedia.
 
-Ringkasan audit: 4 `VERIFIED`, 2 `INTEGRATED`, 5 `PROTOTYPE`, 29
-`NOT_IMPLEMENTED`, dan 0 `PRODUCTION`. Empat pilar Pondasi Logika masing-masing
-terukur 95%; P11 DNA Anchor dan P15 Ethical Heart masing-masing terukur 90%.
+Ringkasan audit: 5 `VERIFIED`, 7 `INTEGRATED`, 0 `IMPLEMENTED_LOCAL`, 4
+`PROTOTYPE`, 24 `NOT_IMPLEMENTED`, dan 0 `PRODUCTION`. Empat pilar Pondasi
+Logika masing-masing terukur 95%; P11/P15 terukur 90%, P20/P18 terukur 95%,
+P13/P12 terukur 90%, P14 terukur 85%, dan P16 terukur 95%.
 
 ## 1 — Pure Logic
 
@@ -211,13 +212,20 @@ SECURITY, RUNTIME
 ## 12 — Immune System
 
 **Current file(s):**
-None
+`JAYA_CORE/src/security/immune_system.py`,
+`JAYA_CORE/src/cognitive/runtime.py`, `scripts/run_jaya_core_server.py`,
+`JAYA_CORE/tests/test_immune_system.py`, `scripts/demo_immune_system.py`
 
 **Status:**
-NOT_IMPLEMENTED
+INTEGRATED
 
 **Evidence/Gaps:**
-No implementation exists. A flag is merely declared in `schema.py`.
+Audit berbobot mengukur 90%. Registry integritas ditandatangani DNA, perubahan
+artefak dikarantina dalam envelope P13 terenkripsi, insiden/circuit breaker dan
+audit hash-chain bertahan setelah restart, serta runtime masuk safe-stop sampai
+probe recovery nyata lulus. Telemetry lokal memaparkan kelas, severity, state,
+circuit breaker, dan audit event. Exporter telemetry serta recovery drill
+deployment belum tersedia.
 
 **Target owner:**
 SECURITY, RUNTIME
@@ -227,13 +235,24 @@ SECURITY, RUNTIME
 ## 13 — Cryptographic Skin
 
 **Current file(s):**
-None
+`JAYA_CORE/src/security/cryptographic_skin.py`,
+`JAYA_CORE/src/security/capsule.py`, `JAYA_CORE/src/memory/backup.py`,
+`JAYA_CORE/src/capabilities/puzzle.py`, `JAYA_CORE/src/mesh/sync_engine.py`,
+`JAYA_CORE/src/cognitive/runtime.py`, `scripts/run_jaya_core_server.py`,
+`scripts/demo_cryptographic_skin.py`, `JAYA_CORE/tests/test_security_capsule.py`
 
 **Status:**
-NOT_IMPLEMENTED
+INTEGRATED
 
 **Evidence/Gaps:**
-No implementation exists. A flag is merely declared in `schema.py`.
+Executable audit measures 90%. AES-256-GCM envelopes bind version, purpose,
+subject, content type, key ID, nonce, issued/expiry time, and ciphertext to a
+DNA Anchor Ed25519 attestation. Persistent key lifecycle, nonce uniqueness,
+restart, rotation, revocation, wrong-secret/tamper/expiry failures, audit-chain
+corruption, runtime wiring, launcher configuration, demo, and benchmark pass.
+One-file `.jayac` capsules now protect brain, backup, mesh, and puzzle boundaries
+with strict kind/subject binding and optional P16 hybrid signatures. External
+KMS/anti-rollback and sustained production observation remain.
 
 **Target owner:**
 SECURITY, RUNTIME
@@ -243,14 +262,20 @@ SECURITY, RUNTIME
 ## 14 — Hardware Locked
 
 **Current file(s):**
-`JAYA_CORE/src/brain_v2/protection/hardware.py`, `JAYA_CORE/src/resources/profiler.py`
+`JAYA_CORE/src/brain_v2/protection/hardware.py`,
+`JAYA_CORE/src/security/cryptographic_skin.py`,
+`JAYA_CORE/src/cognitive/runtime.py`, `scripts/run_jaya_core_server.py`,
+`JAYA_CORE/tests/test_hardware_binding.py`, `scripts/demo_hardware_binding.py`
 
 **Status:**
-PROTOTYPE
+INTEGRATED
 
 **Evidence/Gaps:**
-Hardware fingerprint/profiling scaffolding exists, but no TPM/Secure Enclave
-attestation, node certificate, key rewrap, or migration proof is integrated.
+Audit berbobot mengukur 85%. `brain_id`, `node_id`, dan `instance_id` terpisah;
+enrollment, boot authorization, clone rejection, migration/rewrap, revocation,
+DNA attestation, persistence, audit hash-chain, dan konteks key P13 terintegrasi.
+Provider nyata lokal memakai Windows DPAPI machine scope, tetapi tidak diklaim
+hardware-backed; TPM/Secure Enclave attestation dan observasi produksi tersisa.
 
 **Target owner:**
 SECURITY, RUNTIME
@@ -286,13 +311,23 @@ SECURITY, RUNTIME
 ## 16 — Quantum Resistant
 
 **Current file(s):**
-None
+`JAYA_CORE/src/brain_v2/protection/pqc.py`,
+`JAYA_CORE/src/security/quantum_lifecycle.py`,
+`JAYA_CORE/src/security/capsule.py`, `scripts/demo_quantum_security.py`,
+`JAYA_CORE/tests/test_quantum_security.py`,
+`JAYA_CORE/tests/test_security_capsule.py`
 
 **Status:**
-NOT_IMPLEMENTED
+VERIFIED
 
 **Evidence/Gaps:**
-No implementation exists. A flag is merely declared in `schema.py`.
+Audit berbobot mengukur 95%. Kontrak suite versioned, threat-horizon policy,
+hybrid verification, dan downgrade protection tersedia; fallback lama tetap
+dilabeli jujur `ED25519_CLASSICAL_NOT_PQ`. Provider `liboqs` ML-DSA-65 nyata
+terhubung ke keystore SQLite yang private key-nya disegel P13, rotation lineage,
+restart, revocation, artifact lama, capsule P13, puzzle pack, dan benchmark.
+Security review independen serta bukti deployment masih diperlukan sebelum
+status produksi.
 
 **Target owner:**
 SECURITY, RUNTIME
@@ -318,13 +353,20 @@ RUNTIME
 ## 18 — Zero Trust
 
 **Current file(s):**
-None
+`JAYA_CORE/src/brain_v2/protection/zero_trust.py`,
+`JAYA_CORE/src/cognitive/runtime.py`,
+`JAYA_CORE/tests/test_zero_trust_authority.py`, `scripts/demo_zero_trust.py`
 
 **Status:**
-NOT_IMPLEMENTED
+INTEGRATED
 
 **Evidence/Gaps:**
-No implementation exists. A flag is merely declared in `schema.py`.
+Persistent principal ACL, DNA-bound short-lived envelope, exact payload digest,
+node/capability scope, expiry, nonce replay storage, and hash-chained decisions
+gate the canonical puzzle registry after Ethical Heart. Spoof, replay, tamper,
+revocation, restart, and legacy trusted-source injection tests pass. Progress is
+95%; CA rotation, distributed clock, revocation propagation, and live recovery
+remain unproven.
 
 **Target owner:**
 SECURITY, RUNTIME
@@ -350,13 +392,19 @@ RUNTIME
 ## 20 — Sovereign Privacy
 
 **Current file(s):**
-None
+`JAYA_CORE/src/security/sovereign_privacy.py`,
+`JAYA_CORE/src/privacy_redaction.py`, `JAYA_CORE/src/memory/episodic.py`,
+`JAYA_CORE/src/cognitive/runtime.py`, `JAYA_CORE/tests/test_sovereign_privacy.py`
 
 **Status:**
-NOT_IMPLEMENTED
+INTEGRATED
 
 **Evidence/Gaps:**
-No implementation exists. A flag is merely declared in `schema.py`.
+Signed scoped consent, purpose/provider default-deny, AES-GCM vault and episodic
+memory references, owner export/delete, retention, restart, wrong-key/tamper
+failure, structured-log redaction, and external-model fallback pass executable
+tests and demo. Progress is 95%; live key manager, retention scheduler, backup
+deletion, telemetry, and recovery drill remain unproven.
 
 **Target owner:**
 SECURITY, RUNTIME

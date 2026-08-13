@@ -31,7 +31,8 @@ flowchart LR
 |---|---|---|
 | 0. Konsolidasi dokumentasi/repository | VERIFIED | Satu Git dan satu sumber dokumentasi |
 | Pondasi Logika JAYA Core | VERIFIED (95%) | Otak Core mandiri; model dan capability eksternal sebagai puzzle opsional; 5% menunggu observasi produksi berkelanjutan |
-| Fondasi Kedaulatan JAYA Core | IN_PROGRESS (45%) | P11 DNA Anchor dan P15 Ethical Heart 90%/INTEGRATED; berikutnya P20 Privacy lalu P18 Zero Trust |
+| Fondasi Kedaulatan JAYA Core | IMPLEMENTED_LOCAL (92,5%) | P11/P15 90% dan P20/P18 95%, seluruhnya INTEGRATED; observasi serta recovery deployment masih diperlukan |
+| Selubung Keamanan JAYA Core | INTEGRATED (90%) | P13 90%, P14 85%, P16 95%, P12 90%; implementasi lokal selesai, bukti hardware/deployment eksternal tersisa |
 | A. Research foundation | IMPLEMENTED / PASS_LOCAL | Kontrak software lokal lulus; kesiapan ilmiah `BLOCKED_EXTERNAL` |
 | B. Production hardening | PROTOTYPE / PASS_LOCAL | Sesi persisten, circuit breaker, worker terisolasi diuji lokal; **production deployment NOT DONE** |
 | C. Edge dan hybrid intelligence | PROTOTYPE / PASS_LOCAL | Router model lokal teruji; **LoRA training NOT IMPLEMENTED**; target hardware `BLOCKED_EXTERNAL` |

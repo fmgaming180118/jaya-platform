@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 CANONICAL_DOCS = (
@@ -33,6 +32,7 @@ CANONICAL_DOCS = (
     Path("docs/pillars/README.md"),
     Path("docs/LOGICAL_FOUNDATION_PROGRESS.md"),
     Path("docs/SOVEREIGN_FOUNDATION_PROGRESS.md"),
+    Path("docs/SECURITY_ENVELOPE_PROGRESS.md"),
     Path("docs/archive/README.md"),
 )
 
@@ -53,9 +53,7 @@ PILLAR_CONTRACT_PATTERN = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 PILLAR_HEADER_ID_PATTERN = re.compile(r"\*\*ID pilar:\*\*\s*(\d+)")
-PILLAR_HEADER_STATUS_PATTERN = re.compile(
-    r"\*\*Status saat audit:\*\*\s*([A-Z_]+)"
-)
+PILLAR_HEADER_STATUS_PATTERN = re.compile(r"\*\*Status saat audit:\*\*\s*([A-Z_]+)")
 PILLAR_MATRIX_STATUS_PATTERN = re.compile(
     r"^##\s+(\d+)\s+—\s+.*?^\*\*Status:\*\*\s*^([A-Z_]+)\s*$",
     re.MULTILINE | re.DOTALL,
@@ -132,7 +130,8 @@ def validate_doc_files() -> list[str]:
     pillar_docs = [path for path in pillar_docs if path.name != "README.md"]
     if len(pillar_docs) != 40:
         errors.append(
-            f"Expected exactly 40 pillar construction documents, found {len(pillar_docs)}"
+            "Expected exactly 40 pillar construction documents, "
+            f"found {len(pillar_docs)}"
         )
 
     construction_orders: set[int] = set()
@@ -145,7 +144,9 @@ def validate_doc_files() -> list[str]:
             for pillar_id, status in PILLAR_CONTRACT_PATTERN.findall(contract_text)
         }
     except OSError as exc:
-        errors.append(f"Cannot read pillar contract {contract_path.relative_to(ROOT)}: {exc}")
+        errors.append(
+            f"Cannot read pillar contract {contract_path.relative_to(ROOT)}: {exc}"
+        )
         contract_statuses = {}
 
     index_path = pillar_dir / "README.md"
@@ -159,7 +160,9 @@ def validate_doc_files() -> list[str]:
     try:
         matrix_text = matrix_path.read_text(encoding="utf-8")
     except OSError as exc:
-        errors.append(f"Cannot read pillar matrix {matrix_path.relative_to(ROOT)}: {exc}")
+        errors.append(
+            f"Cannot read pillar matrix {matrix_path.relative_to(ROOT)}: {exc}"
+        )
         matrix_text = ""
 
     for path in pillar_docs:
@@ -173,15 +176,18 @@ def validate_doc_files() -> list[str]:
         try:
             content = path.read_text(encoding="utf-8")
         except OSError as exc:
-            errors.append(f"Cannot read pillar document {path.relative_to(ROOT)}: {exc}")
+            errors.append(
+                f"Cannot read pillar document {path.relative_to(ROOT)}: {exc}"
+            )
             continue
         for marker in PILLAR_REQUIRED_MARKERS:
             if marker not in content:
-                errors.append(
-                    f"Missing marker '{marker}' in {path.relative_to(ROOT)}"
-                )
+                errors.append(f"Missing marker '{marker}' in {path.relative_to(ROOT)}")
         header_id_match = PILLAR_HEADER_ID_PATTERN.search(content)
-        if header_id_match is None or int(header_id_match.group(1)) != filename_pillar_id:
+        if (
+            header_id_match is None
+            or int(header_id_match.group(1)) != filename_pillar_id
+        ):
             errors.append(
                 f"Pillar ID header does not match filename in {path.relative_to(ROOT)}"
             )
@@ -194,11 +200,15 @@ def validate_doc_files() -> list[str]:
                 f"{status_match.group(1) if status_match else 'MISSING'}"
             )
         if path.name not in pillar_index:
-            errors.append(f"Pillar document is missing from index: {path.relative_to(ROOT)}")
+            errors.append(
+                f"Pillar document is missing from index: {path.relative_to(ROOT)}"
+            )
 
     expected_numbers = set(range(1, 41))
     if construction_orders != expected_numbers:
-        errors.append("Pillar construction order must contain each number 01-40 exactly once")
+        errors.append(
+            "Pillar construction order must contain each number 01-40 exactly once"
+        )
     if pillar_ids != expected_numbers:
         errors.append("Pillar documents must cover each pillar ID 01-40 exactly once")
 
@@ -207,14 +217,18 @@ def validate_doc_files() -> list[str]:
         for pillar_id, status in PILLAR_MATRIX_STATUS_PATTERN.findall(matrix_text)
     }
     if matrix_statuses != contract_statuses:
-        errors.append("40-pillar implementation matrix status is out of sync with contract")
+        errors.append(
+            "40-pillar implementation matrix status is out of sync with contract"
+        )
 
     index_statuses = {
         int(pillar_id): status
         for pillar_id, status in PILLAR_INDEX_STATUS_PATTERN.findall(pillar_index)
     }
     if index_statuses != contract_statuses:
-        errors.append("40-pillar construction index status is out of sync with contract")
+        errors.append(
+            "40-pillar construction index status is out of sync with contract"
+        )
 
     return errors
 
@@ -278,13 +292,15 @@ def validate_local_links() -> list[str]:
                 resolved_target.relative_to(ROOT)
             except ValueError:
                 errors.append(
-                    f"Link out of repository boundary in {rel_path}: '{target}' -> {resolved_target}"
+                    f"Link out of repository boundary in {rel_path}: "
+                    f"'{target}' -> {resolved_target}"
                 )
                 continue
 
             if not resolved_target.exists():
                 errors.append(
-                    f"Broken local link in {rel_path}: '{label}' points to non-existent '{target}'"
+                    f"Broken local link in {rel_path}: '{label}' points to "
+                    f"non-existent '{target}'"
                 )
 
     return errors
@@ -308,7 +324,8 @@ def validate_single_git_root() -> list[str]:
             toplevel = Path(result.stdout.strip()).resolve()
             if toplevel != ROOT:
                 errors.append(
-                    f"Submodule Git root detected at {toplevel}; expected single root at {ROOT}"
+                    f"Submodule Git root detected at {toplevel}; "
+                    f"expected single root at {ROOT}"
                 )
     except OSError as exc:
         errors.append(f"Git check failed: {exc}")

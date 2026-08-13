@@ -27,6 +27,20 @@ Copy-Item JAYA_RESEARCH\.env.example JAYA_RESEARCH\.env
 Isi credential yang diperlukan di `JAYA_RESEARCH/.env`. Jangan menaruh nilai
 secret di dokumentasi atau command history yang dibagikan.
 
+Repository dapat dipindahkan ke direktori mana pun. Source dan build script
+wajib menemukan root melalui lokasi file/Git, bukan drive atau direktori
+komputer tertentu. Dataset PDF eksternal dapat diarahkan tanpa mengubah source:
+
+```powershell
+$env:JAYA_PDF_TRAINING_DIR='D:\dataset\PDF-TugasAkhir'
+$env:JAYA_REFERENCE_PDF_DIR='D:\dataset\referensi\jurnal_pdf'
+```
+
+Folder root hanya untuk modul dan entrypoint kanonis. Data, audit run, cache,
+database, serta artifact lokal ditempatkan di `data/` atau direktori runtime
+modul yang sudah diabaikan Git. Fixture lintas fitur berada di `test_features/`;
+fixture milik satu modul berada di `<MODUL>/tests/fixtures/`.
+
 UI:
 
 ```powershell
@@ -180,6 +194,9 @@ python .github\tools\repo_layout_audit.py --fail-on-violations
 
 Audit gagal hanya untuk pelanggaran level error. Warning syntax pada file legacy
 tetap harus dicatat, tetapi tidak boleh mendorong perubahan di luar scope.
+Audit ini juga menolak source atau script aktif yang bergantung pada path
+absolut workstation. Fixture pengujian literal harus diberi pengecualian lokal
+`portability-audit: allow` yang dapat direview.
 
 ## Alur perubahan
 

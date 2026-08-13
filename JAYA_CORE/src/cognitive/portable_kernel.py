@@ -124,9 +124,10 @@ class PortableCognitiveKernelRunner:
     def run_portable_request(
         self, user_request: UserRequest, budget: Optional[ResourceBudget] = None
     ) -> PortableKernelExecutionResult:
-        # For testing: if budget is provided, use a higher memory limit
-        test_max_ram = PORTABLE_MAX_RAM_MB * 3 if budget is not None else PORTABLE_MAX_RAM_MB
-        metrics = self.compile_and_validate(max_ram_mb=test_max_ram)
+        memory_limit = (
+            budget.max_memory_mb if budget is not None else PORTABLE_MAX_RAM_MB
+        )
+        metrics = self.compile_and_validate(max_ram_mb=memory_limit)
         # PROTOTYPE: Hardcoded READY status - no actual component validation
         status_map = {comp: "PROTOTYPE_READY" for comp in self.COMPONENTS}
 

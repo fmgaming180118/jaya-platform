@@ -149,7 +149,7 @@ class FeatureRegistry:
                 continue
 
             try:
-                manifest_data = json.loads(manifest_fs.read_text(encoding="utf-8"))
+                manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
                 manifest = FeatureManifest.from_dict(manifest_data)
 
                 # Validate protocol version
@@ -453,7 +453,7 @@ class FeatureRegistry:
             shutil.rmtree(target_dir)
             raise ValueError("Feature missing manifest.json")
 
-        manifest_data = json.loads(manifest_fs.read_text(encoding="utf-8"))
+        manifest_data = json.loads(manifest_file.read_text(encoding="utf-8"))
         manifest = FeatureManifest.from_dict(manifest_data)
 
         # Verify module file exists

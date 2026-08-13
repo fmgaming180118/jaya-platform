@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+import subprocess
 import time
 from contextlib import closing
 from pathlib import Path
@@ -75,12 +76,13 @@ def _profile(
     network_available: bool | None = True,
     power_mode: str = "NORMAL",
     thermal_celsius: float | None = None,
+    process_memory_mb: int | None = 64,
 ) -> ResourceProfile:
     return ResourceProfile(
         node_class=NodeClass.STANDARD,
         total_memory_mb=8_192 if available_memory_mb is not None else None,
         available_memory_mb=available_memory_mb,
-        process_memory_mb=64,
+        process_memory_mb=process_memory_mb,
         cpu_count=4,
         storage_free_mb=storage_free_mb,
         network_available=network_available,
@@ -241,6 +243,62 @@ def test_p01_process_memory_limit_is_enforced(tmp_path: Path) -> None:
         service.close()
 
     assert captured.value.code is LogicFailureCode.MEMORY_LIMIT_EXCEEDED
+
+
+def test_p01_runtime_memory_gate_uses_profile_baseline_plus_task_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile = _profile(available_memory_mb=256, process_memory_mb=1_536)
+    runtime = JayaCoreRuntime(
+        db_path=tmp_path / "runtime-memory-headroom.db",
+        node_id="memory-headroom-node",
+        resource_profiler=_StaticProfiler(profile),  # type: ignore[arg-type]
+    )
+    observed: dict[str, int | None] = {}
+    original_evaluate = runtime.logic_service.evaluate
+
+    def record_limit(**kwargs: object) -> object:
+        observed["limit"] = kwargs.get("max_process_memory_mb")  # type: ignore[assignment]
+        return original_evaluate(**kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(runtime.logic_service, "evaluate", record_limit)
+    try:
+        result = runtime.reason_logic(
+            request_id="runtime-memory-headroom",
+            facts=["a"],
+            rules=[],
+            query="a",
+        )
+    finally:
+        runtime.close()
+
+    assert result.status is LogicStatus.PROVED
+    assert observed["limit"] == 1_536 + 128
+
+
+def test_p01_runtime_memory_gate_fails_without_process_baseline(
+    tmp_path: Path,
+) -> None:
+    runtime = JayaCoreRuntime(
+        db_path=tmp_path / "runtime-memory-unknown.db",
+        node_id="memory-unknown-node",
+        resource_profiler=_StaticProfiler(  # type: ignore[arg-type]
+            _profile(process_memory_mb=None)
+        ),
+    )
+    try:
+        with pytest.raises(PureLogicError) as captured:
+            runtime.reason_logic(
+                request_id="runtime-memory-unknown",
+                facts=["a"],
+                rules=[],
+                query="a",
+            )
+    finally:
+        runtime.close()
+
+    assert captured.value.code is LogicFailureCode.RESOURCE_PROBE_UNAVAILABLE
 
 
 def test_p01_persistence_restart_idempotency_and_corruption(tmp_path: Path) -> None:
@@ -491,12 +549,48 @@ def test_p02_profile_changes_runtime_budget_and_mode() -> None:
 
 def test_p02_profiler_overhead_is_measured(tmp_path: Path) -> None:
     profiler = ResourceProfiler(storage_path=tmp_path)
+    profiler.profile(force_slow_probe=True)
     started = time.perf_counter()
     samples = [profiler.profile() for _ in range(10)]
     average_ms = ((time.perf_counter() - started) * 1_000) / len(samples)
 
     assert all(sample.collected_at for sample in samples)
+    assert all("accelerator" in sample.metric_ages_ms for sample in samples)
     assert average_ms < 250
+
+
+def test_p02_slow_hardware_probe_is_cached_with_age(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def run_probe(*args: object, **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        return subprocess.CompletedProcess(
+            args=["nvidia-smi"],
+            returncode=0,
+            stdout="Test GPU, 6144, 4096, 55\n",
+            stderr="",
+        )
+
+    monkeypatch.setattr("src.resources.profiler.shutil.which", lambda _: "nvidia-smi")
+    monkeypatch.setattr("src.resources.profiler.subprocess.run", run_probe)
+    profiler = ResourceProfiler(
+        storage_path=tmp_path,
+        slow_probe_interval_seconds=60,
+    )
+
+    first = profiler.profile()
+    cached = profiler.profile()
+    refreshed = profiler.profile(force_slow_probe=True)
+
+    assert calls == 2
+    assert first.accelerator_name == "Test GPU"
+    assert cached.accelerator_free_memory_mb == 4_096
+    assert cached.metric_ages_ms["accelerator"] >= 0
+    assert refreshed.metric_ages_ms["accelerator"] == 0
 
 
 def test_p05_state_transitions_hysteresis_and_restart(tmp_path: Path) -> None:

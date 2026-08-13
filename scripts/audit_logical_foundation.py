@@ -202,7 +202,14 @@ PILLARS: dict[str, tuple[Gate, ...]] = {
             ("test_p02_profile_changes_runtime_budget_and_mode",),
         ),
         Gate("real_device_demo", 10, demo="resource"),
-        Gate("measured_performance", 5, ("test_p02_profiler_overhead_is_measured",)),
+        Gate(
+            "measured_performance",
+            5,
+            (
+                "test_p02_profiler_overhead_is_measured",
+                "test_p02_slow_hardware_probe_is_cached_with_age",
+            ),
+        ),
     )
     + COMMON_UNFINISHED,
     "P05 Logical Homeostasis": (
@@ -231,7 +238,14 @@ PILLARS: dict[str, tuple[Gate, ...]] = {
             ("test_p05_corrupt_ledger_fails_closed_and_recovers_after_health",),
         ),
         Gate("degrade_recover_demo", 10, demo="homeostasis"),
-        Gate("measured_performance", 5, ("test_p02_profiler_overhead_is_measured",)),
+        Gate(
+            "measured_performance",
+            5,
+            (
+                "test_p02_profiler_overhead_is_measured",
+                "test_p02_slow_hardware_probe_is_cached_with_age",
+            ),
+        ),
     )
     + COMMON_UNFINISHED,
 }

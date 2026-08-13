@@ -125,6 +125,27 @@ def _csv(source: Mapping[str, str], name: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(item for item in values if item))
 
 
+def _bounded_integer(
+    source: Mapping[str, str],
+    name: str,
+    issues: list[str],
+    *,
+    default: int,
+    minimum: int,
+    maximum: int,
+) -> int:
+    raw = _read(source, name)
+    try:
+        value = int(raw) if raw else default
+    except ValueError:
+        issues.append(f"invalid:{name}")
+        return default
+    if not minimum <= value <= maximum:
+        issues.append(f"invalid:{name}")
+        return default
+    return value
+
+
 def _valid_host(value: str) -> bool:
     if not value:
         return False
@@ -177,6 +198,18 @@ class CoreConfig:
     identity_required: bool
     identity_key_secret: SecretValue
     identity_dir: Path
+    privacy_required: bool
+    privacy_key_secret: SecretValue
+    zero_trust_required: bool
+    cryptographic_skin_required: bool
+    cryptographic_skin_secret: SecretValue
+    hardware_lock_required: bool
+    immune_system_required: bool
+    quantum_security_required: bool
+    quantum_policy_version: int
+    quantum_asset_lifetime_days: int
+    quantum_threat_horizon_year: int
+    quantum_classical_cutoff_year: int
     data_dir: Path
     agentic_rag_path: Path
     narrative_path: Path
@@ -228,6 +261,33 @@ class CoreConfig:
             required=identity_required,
             minimum=32,
         )
+        privacy_required = production or _boolean(
+            source, "JAYA_REQUIRE_PRIVACY", issues
+        )
+        privacy_key_secret = _secret(
+            source,
+            "JAYA_PRIVACY_KEY_SECRET",
+            issues,
+            required=privacy_required,
+            minimum=32,
+        )
+        zero_trust_required = _boolean(source, "JAYA_REQUIRE_ZERO_TRUST", issues)
+        if zero_trust_required and not identity_required:
+            issues.append("invalid:JAYA_REQUIRE_ZERO_TRUST_REQUIRES_IDENTITY")
+        if zero_trust_required and not privacy_required:
+            issues.append("invalid:JAYA_REQUIRE_ZERO_TRUST_REQUIRES_PRIVACY")
+        cryptographic_skin_required = _boolean(
+            source, "JAYA_REQUIRE_CRYPTOGRAPHIC_SKIN", issues
+        )
+        cryptographic_skin_secret = _secret(
+            source,
+            "JAYA_CRYPTOGRAPHIC_SKIN_SECRET",
+            issues,
+            required=cryptographic_skin_required,
+            minimum=32,
+        )
+        if cryptographic_skin_required and not identity_required:
+            issues.append("invalid:JAYA_REQUIRE_CRYPTOGRAPHIC_SKIN_REQUIRES_IDENTITY")
         data_raw = _read(source, "JAYA_CORE_DATA_DIR")
         host_raw = _read(source, "JAYA_CORE_BIND_HOST")
         port_raw = _read(source, "JAYA_CORE_BIND_PORT")
@@ -244,6 +304,61 @@ class CoreConfig:
             )
             if model_required and not model_raw:
                 issues.append("missing:JAYA_MODEL_PATH")
+        hardware_lock_required = _boolean(source, "JAYA_REQUIRE_HARDWARE_LOCK", issues)
+        if hardware_lock_required and not identity_required:
+            issues.append("invalid:JAYA_REQUIRE_HARDWARE_LOCK_REQUIRES_IDENTITY")
+        if hardware_lock_required and not cryptographic_skin_required:
+            issues.append(
+                "invalid:JAYA_REQUIRE_HARDWARE_LOCK_REQUIRES_CRYPTOGRAPHIC_SKIN"
+            )
+        immune_system_required = _boolean(
+            source, "JAYA_REQUIRE_IMMUNE_SYSTEM", issues
+        )
+        if immune_system_required and not zero_trust_required:
+            issues.append("invalid:JAYA_REQUIRE_IMMUNE_SYSTEM_REQUIRES_ZERO_TRUST")
+        if immune_system_required and not cryptographic_skin_required:
+            issues.append(
+                "invalid:JAYA_REQUIRE_IMMUNE_SYSTEM_REQUIRES_CRYPTOGRAPHIC_SKIN"
+            )
+        quantum_security_required = _boolean(
+            source, "JAYA_REQUIRE_QUANTUM_SECURITY", issues
+        )
+        if quantum_security_required and not cryptographic_skin_required:
+            issues.append(
+                "invalid:JAYA_REQUIRE_QUANTUM_SECURITY_REQUIRES_CRYPTOGRAPHIC_SKIN"
+            )
+        quantum_policy_version = _bounded_integer(
+            source,
+            "JAYA_QUANTUM_POLICY_VERSION",
+            issues,
+            default=1,
+            minimum=1,
+            maximum=1_000_000,
+        )
+        quantum_asset_lifetime_days = _bounded_integer(
+            source,
+            "JAYA_QUANTUM_ASSET_LIFETIME_DAYS",
+            issues,
+            default=3_650,
+            minimum=1,
+            maximum=36_500,
+        )
+        quantum_threat_horizon_year = _bounded_integer(
+            source,
+            "JAYA_QUANTUM_THREAT_HORIZON_YEAR",
+            issues,
+            default=2035,
+            minimum=2025,
+            maximum=2200,
+        )
+        quantum_classical_cutoff_year = _bounded_integer(
+            source,
+            "JAYA_QUANTUM_CLASSICAL_CUTOFF_YEAR",
+            issues,
+            default=2028,
+            minimum=2025,
+            maximum=2200,
+        )
 
         model_path = Path(model_raw or root / "JAYA_SOVEREIGN_V18.jay").expanduser()
         data_dir = Path(data_raw or root / "data").expanduser()
@@ -355,6 +470,18 @@ class CoreConfig:
             identity_required=identity_required,
             identity_key_secret=identity_key_secret,
             identity_dir=identity_dir,
+            privacy_required=privacy_required,
+            privacy_key_secret=privacy_key_secret,
+            zero_trust_required=zero_trust_required,
+            cryptographic_skin_required=cryptographic_skin_required,
+            cryptographic_skin_secret=cryptographic_skin_secret,
+            hardware_lock_required=hardware_lock_required,
+            immune_system_required=immune_system_required,
+            quantum_security_required=quantum_security_required,
+            quantum_policy_version=quantum_policy_version,
+            quantum_asset_lifetime_days=quantum_asset_lifetime_days,
+            quantum_threat_horizon_year=quantum_threat_horizon_year,
+            quantum_classical_cutoff_year=quantum_classical_cutoff_year,
             data_dir=data_root,
             agentic_rag_path=agentic_rag,
             narrative_path=narrative,
@@ -388,6 +515,20 @@ class CoreConfig:
             "identity_required": self.identity_required,
             "identity_secret_configured": bool(self.identity_key_secret),
             "identity_dir": str(self.identity_dir),
+            "privacy_required": self.privacy_required,
+            "privacy_secret_configured": bool(self.privacy_key_secret),
+            "zero_trust_required": self.zero_trust_required,
+            "cryptographic_skin_required": self.cryptographic_skin_required,
+            "cryptographic_skin_secret_configured": bool(
+                self.cryptographic_skin_secret
+            ),
+            "hardware_lock_required": self.hardware_lock_required,
+            "immune_system_required": self.immune_system_required,
+            "quantum_security_required": self.quantum_security_required,
+            "quantum_policy_version": self.quantum_policy_version,
+            "quantum_asset_lifetime_days": self.quantum_asset_lifetime_days,
+            "quantum_threat_horizon_year": self.quantum_threat_horizon_year,
+            "quantum_classical_cutoff_year": self.quantum_classical_cutoff_year,
             "data_dir": str(self.data_dir),
             "agentic_rag_path": str(self.agentic_rag_path),
             "narrative_path": str(self.narrative_path),

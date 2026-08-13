@@ -22,6 +22,8 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable, Mapping, Protocol, Sequence, runtime_checkable
 
+from src.security.capsule import CapsuleKind, JayaCapsuleCodec
+
 _SAFE_ID = re.compile(r"^[a-z][a-z0-9_.-]{0,127}$")
 _SAFE_VERSION = re.compile(r"^[0-9]+\.[0-9]+(?:\.[0-9]+)?$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -70,6 +72,7 @@ class PuzzleManifest:
     max_payload_bytes: int = 262_144
     artifact: str | None = None
     artifact_sha256: str | None = None
+    artifact_format: str = "python"
     entrypoint: str = "create_puzzle"
     risk_class: str = "SECURITY_SENSITIVE"
 
@@ -125,6 +128,11 @@ class PuzzleManifest:
                 PuzzleFailureCode.INVALID_MANIFEST,
                 "artifact_sha256 is invalid",
             )
+        if self.artifact_format not in {"python", "jayac"}:
+            raise PuzzleError(
+                PuzzleFailureCode.INVALID_MANIFEST,
+                "artifact_format must be python or jayac",
+            )
         if not self.entrypoint.isidentifier():
             raise PuzzleError(
                 PuzzleFailureCode.INVALID_MANIFEST,
@@ -149,6 +157,7 @@ class PuzzleManifest:
             "max_payload_bytes",
             "artifact",
             "artifact_sha256",
+            "artifact_format",
             "entrypoint",
             "risk_class",
         }
@@ -181,6 +190,7 @@ class PuzzleManifest:
                 max_payload_bytes=int(value.get("max_payload_bytes", 262_144)),
                 artifact=value.get("artifact"),
                 artifact_sha256=value.get("artifact_sha256"),
+                artifact_format=value.get("artifact_format", "python"),
                 entrypoint=value.get("entrypoint", "create_puzzle"),
                 risk_class=value.get("risk_class", "SECURITY_SENSITIVE"),
             )
@@ -247,6 +257,7 @@ class CapabilityPuzzleRegistry:
         authorization_validator: (
             Callable[[str, Mapping[str, Any], object], bool] | None
         ) = None,
+        capsule_codec: JayaCapsuleCodec | None = None,
     ) -> None:
         if not 1 <= worker_count <= 32:
             raise ValueError("worker_count must be between 1 and 32")
@@ -257,6 +268,7 @@ class CapabilityPuzzleRegistry:
             )
         self._authorization_required = authorization_required
         self._authorization_validator = authorization_validator
+        self._capsule_codec = capsule_codec
         self._manifests: dict[str, PuzzleManifest] = {}
         self._puzzles: dict[str, CapabilityPuzzle] = {}
         self._modules: dict[str, ModuleType] = {}
@@ -551,6 +563,34 @@ class CapabilityPuzzleRegistry:
             )
 
         module_name = f"jaya_puzzle_{manifest.puzzle_id.replace('.', '_')}"
+        if manifest.artifact_format == "jayac":
+            if self._capsule_codec is None:
+                raise PuzzleError(
+                    PuzzleFailureCode.ARTIFACT_INTEGRITY_FAILED,
+                    "P13/P16 capsule service is required for this puzzle",
+                )
+            try:
+                source = self._capsule_codec.open(
+                    artifact.read_bytes(),
+                    expected_kind=CapsuleKind.PUZZLE,
+                    expected_subject=f"puzzle:{manifest.puzzle_id}:{manifest.version}",
+                )
+                module = ModuleType(module_name)
+                module.__file__ = f"<jayac:{artifact.name}>"
+                exec(compile(source, module.__file__, "exec"), module.__dict__)
+                factory = getattr(module, manifest.entrypoint)
+                puzzle = factory()
+            except Exception as exc:
+                raise PuzzleError(
+                    PuzzleFailureCode.ADAPTER_INVALID,
+                    "sealed puzzle entrypoint failed",
+                ) from exc
+            if not isinstance(puzzle, CapabilityPuzzle):
+                raise PuzzleError(
+                    PuzzleFailureCode.ADAPTER_INVALID,
+                    "sealed puzzle does not satisfy the capability protocol",
+                )
+            return manifest, puzzle, module
         spec = importlib.util.spec_from_file_location(module_name, artifact)
         if spec is None or spec.loader is None:
             raise PuzzleError(

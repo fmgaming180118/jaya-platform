@@ -13,6 +13,8 @@ from __future__ import annotations
 import argparse
 import ast
 import json
+import os
+import re
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -105,6 +107,48 @@ TREE_DIR_IGNORE = {
     "node_modules",
 }
 
+PORTABILITY_SCAN_ROOTS = (
+    ".github/tools",
+    "scripts",
+    "JAYA_CORE",
+    "JAYA_RESEARCH",
+    "JAYA_AGENT",
+    "JAYA_OS",
+    "JAYA_ANDROID",
+)
+PORTABILITY_SOURCE_SUFFIXES = {
+    ".bat",
+    ".js",
+    ".jsx",
+    ".kt",
+    ".kts",
+    ".ps1",
+    ".py",
+    ".sh",
+    ".ts",
+    ".tsx",
+}
+PORTABILITY_IGNORE_PARTS = {
+    ".git",
+    ".gradle",
+    ".idea",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "blueprint-nvidia",
+    "build",
+    "data",
+    "dist",
+    "llama.cpp",
+    "node_modules",
+    "venv",
+}
+WORKSTATION_PATH_PATTERN = re.compile(
+    r"(?:[a-z]:[\\/](?:users|kampus|project)[\\/]|/mnt/[a-z]/)",
+    re.IGNORECASE,
+)
+
 
 def _to_posix(path: Path, root: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
@@ -141,7 +185,10 @@ def _scan_root_hygiene(root: Path) -> list[Violation]:
                         rule="root-directory-policy",
                         path=name,
                         detail="Unexpected root directory.",
-                        suggestion="Move it under JAYA_CORE/, JAYA_RESEARCH/, docs/, or .github/.",
+                        suggestion=(
+                            "Move it under JAYA_CORE/, JAYA_RESEARCH/, docs/, "
+                            "or .github/."
+                        ),
                     )
                 )
 
@@ -152,7 +199,9 @@ def _scan_root_hygiene(root: Path) -> list[Violation]:
                         rule="root-tests-forbidden",
                         path=name,
                         detail="Root tests/ folder is not allowed.",
-                        suggestion="Move tests to JAYA_CORE/tests/ or JAYA_RESEARCH/tests/.",
+                        suggestion=(
+                            "Move tests to JAYA_CORE/tests/ or " "JAYA_RESEARCH/tests/."
+                        ),
                     )
                 )
             continue
@@ -164,7 +213,10 @@ def _scan_root_hygiene(root: Path) -> list[Violation]:
                     rule="root-file-policy",
                     path=name,
                     detail="Unexpected root file.",
-                    suggestion="Move file to JAYA_CORE/, JAYA_RESEARCH/, docs/, or .github/.",
+                    suggestion=(
+                        "Move file to JAYA_CORE/, JAYA_RESEARCH/, docs/, "
+                        "or .github/."
+                    ),
                 )
             )
 
@@ -257,8 +309,14 @@ def _scan_cross_imports(root: Path) -> list[Violation]:
                                     severity="error",
                                     rule="cross-domain-import",
                                     path=f"{rel}:{line}",
-                                    detail=f"{side_dir} directly imports {forbidden_prefix}.",
-                                    suggestion="Remove direct cross-domain dependency and use approved contract boundary.",
+                                    detail=(
+                                        f"{side_dir} directly imports "
+                                        f"{forbidden_prefix}."
+                                    ),
+                                    suggestion=(
+                                        "Remove direct cross-domain dependency and "
+                                        "use approved contract boundary."
+                                    ),
                                 )
                             )
                 elif isinstance(node, ast.ImportFrom):
@@ -269,14 +327,62 @@ def _scan_cross_imports(root: Path) -> list[Violation]:
                                 severity="error",
                                 rule="cross-domain-import",
                                 path=f"{rel}:{line}",
-                                detail=f"{side_dir} directly imports from {forbidden_prefix}.",
-                                suggestion="Remove direct cross-domain dependency and use approved contract boundary.",
+                                detail=(
+                                    f"{side_dir} directly imports from "
+                                    f"{forbidden_prefix}."
+                                ),
+                                suggestion=(
+                                    "Remove direct cross-domain dependency and "
+                                    "use approved contract boundary."
+                                ),
                             )
                         )
 
     scan_side("JAYA_CORE", "JAYA_RESEARCH")
     scan_side("JAYA_RESEARCH", "JAYA_CORE")
 
+    return violations
+
+
+def _scan_workstation_paths(root: Path) -> list[Violation]:
+    """Reject source tied to a developer workstation directory."""
+
+    violations: list[Violation] = []
+    for relative_root in PORTABILITY_SCAN_ROOTS:
+        scan_root = root / relative_root
+        if not scan_root.exists():
+            continue
+        for current_root, directories, filenames in os.walk(scan_root):
+            directories[:] = [
+                directory
+                for directory in directories
+                if directory.lower() not in PORTABILITY_IGNORE_PARTS
+                and not directory.lower().startswith((".venv", "venv"))
+            ]
+            for filename in filenames:
+                path = Path(current_root) / filename
+                if path.suffix.lower() not in PORTABILITY_SOURCE_SUFFIXES:
+                    continue
+                text = path.read_text(encoding="utf-8", errors="ignore")
+                for line_number, line in enumerate(text.splitlines(), start=1):
+                    if (
+                        WORKSTATION_PATH_PATTERN.search(line)
+                        and "portability-audit: allow" not in line
+                    ):
+                        violations.append(
+                            Violation(
+                                severity="error",
+                                rule="absolute-workstation-path",
+                                path=f"{_to_posix(path, root)}:{line_number}",
+                                detail=(
+                                    "Source depends on an absolute workstation path."
+                                ),
+                                suggestion=(
+                                    "Use runtime discovery, configuration, or an "
+                                    "environment variable instead."
+                                ),
+                            )
+                        )
     return violations
 
 
@@ -292,6 +398,7 @@ def run_audit(root: Path) -> list[Violation]:
     ):
         violations.extend(_scan_doc_placement(root, domain))
     violations.extend(_scan_cross_imports(root))
+    violations.extend(_scan_workstation_paths(root))
     return violations
 
 
@@ -353,8 +460,12 @@ def _write_json(path: Path, root: Path, violations: list[Violation]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Audit repository layout policy for JAYA workspace.")
-    parser.add_argument("--root", default=".", help="Workspace root path (default: current directory)")
+    parser = argparse.ArgumentParser(
+        description="Audit repository layout policy for JAYA workspace."
+    )
+    parser.add_argument(
+        "--root", default=".", help="Workspace root path (default: current directory)"
+    )
     parser.add_argument("--json-out", help="Optional JSON report output path")
     parser.add_argument(
         "--fail-on-violations",

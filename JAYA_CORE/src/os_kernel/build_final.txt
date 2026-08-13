@@ -23,11 +23,10 @@ Media status : is blank
 Media summary: 0 sessions, 0 data blocks, 0 data,  149g free
 Added to ISO image: directory '/'='/tmp/grub.oTwi8M'
 xorriso : UPDATE :     295 files added in 1 seconds
-Added to ISO image: directory '/'='/mnt/d/Kampus/coba-coba/jaya-research/JAYA_CORE/src/os_kernel/isodir'
+Added to ISO image: directory '/'='<KERNEL_DIR>/isodir'
 xorriso : UPDATE :     299 files added in 1 seconds
 xorriso : NOTE : Copying to System Area: 512 bytes from file '/usr/lib/grub/i386-pc/boot_hybrid.img'
 xorriso : UPDATE :  90.45% done
 ISO image produced: 2512 sectors
 Written to medium : 2512 sectors at LBA 0
 Writing to 'stdio:JAYA_PRODUCTION.iso' completed successfully.
-

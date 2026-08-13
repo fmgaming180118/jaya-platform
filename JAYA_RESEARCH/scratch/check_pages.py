@@ -1,7 +1,16 @@
+import os
+
 import pdfplumber
 from pathlib import Path
 
-pdf_path = Path(r"d:\Kampus\coba-coba\jaya-research\data-training\PDF-TugasAkhir\TA_1318001_Hanny-Kurnia-Putri_FINAL_SIDANG.pdf")
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+PDF_FOLDER = Path(
+    os.environ.get(
+        "JAYA_PDF_TRAINING_DIR",
+        REPOSITORY_ROOT / "data-training" / "PDF-TugasAkhir",
+    )
+).expanduser().resolve()
+pdf_path = PDF_FOLDER / "TA_1318001_Hanny-Kurnia-Putri_FINAL_SIDANG.pdf"
 
 with pdfplumber.open(str(pdf_path)) as pdf:
     print(f"Total pages: {len(pdf.pages)}")
@@ -17,4 +26,3 @@ with pdfplumber.open(str(pdf_path)) as pdf:
             for line in text.split("\n"):
                 if "gateway" in line.lower() or "gerbang" in line.lower() or "bpmn" in line.lower():
                     print(line)
-

@@ -154,6 +154,7 @@ class TestCapabilities:
             min_memory_mb=512,
             offline_available=True,
         )
+        cap.health_status = "HEALTHY"
         reg.register(cap)
         assert reg.lookup("cad.parametric_modeling") == cap
 
@@ -167,8 +168,7 @@ class TestCapabilities:
 
     def test_negotiation_local_vs_offload_vs_unavailable(self):
         reg = CapabilityRegistry()
-        reg.register(
-            CapabilityManifest(
+        local = CapabilityManifest(
                 capability_id="core.reason",
                 version="1.0",
                 provider="built_in",
@@ -176,7 +176,8 @@ class TestCapabilities:
                 min_memory_mb=16,
                 offline_available=True,
             )
-        )
+        local.health_status = "HEALTHY"
+        reg.register(local)
         negotiator = CapabilityNegotiator(reg)
         budget = ResourceBudget(max_memory_mb=512, allow_network=True, allow_remote_offload=True)
 
@@ -289,10 +290,11 @@ class TestJayaCoreRuntime:
             user_id="user_test",
         )
         resp = runtime.process(req)
-        assert resp.status == "SUCCESS"
+        assert resp.status == "CAPABILITY_UNAVAILABLE"
         assert resp.intent_type == "CREATE_PLAN"
         assert resp.jayair_request is not None
-        assert len(resp.jayair_request["steps"]) >= 1
+        assert resp.jayair_request["steps"] == []
+        assert "fs.list" in resp.message
 
     def test_runtime_process_3d_design_missing_capability(self):
         runtime = JayaCoreRuntime(db_path=":memory:")

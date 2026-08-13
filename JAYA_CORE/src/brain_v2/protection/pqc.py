@@ -1,138 +1,473 @@
-"""Pillar 16 — Quantum-Resistant Skin (PQC).
+"""P16 Quantum Resistant: honest crypto agility with no fake PQ fallback."""
 
-Provides post-quantum cryptographic signing and verification for
-inter-device communication and .jay manifest integrity.
+from __future__ import annotations
 
-Backends (in priority order):
-1. ``liboqs`` — NIST PQC finalist algorithms (Dilithium3, Kyber).
-2. ``cryptography`` — ECDSA P-256 (pre-quantum but strong conventional).
-3. Pure-Python HMAC-SHA3-256 — fallback, symmetric only.
-
-Usage
------
-    pqc = PQCWrapper()
-    sig = pqc.sign(b"my payload")
-    ok  = pqc.verify(b"my payload", sig)
-    print(pqc.algorithm)   # "DILITHIUM3" / "ECDSA_P256" / "HMAC_SHA3"
-"""
-
+import base64
 import hashlib
-import hmac
-import logging
-import os
-from typing import Any, Dict
+import importlib
+import json
+import re
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
+from enum import Enum
+from typing import Protocol
 
-logger = logging.getLogger("PQC")
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import (
+    Ed25519PrivateKey,
+    Ed25519PublicKey,
+)
 
-# Backend detection
-_backend: str = "HMAC_SHA3"    # fallback
-_oqs_available: bool = False
-_ecdsa_available: bool = False
+_SAFE_PROVIDER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 
-try:
-    import oqs as _oqs_lib  # type: ignore[import]
-    _oqs_available = True
-    _backend = "DILITHIUM3"
-except ImportError:
-    _oqs_lib = None  # type: ignore[assignment]
 
-if not _oqs_available:
+def _canonical(value: Mapping[str, object]) -> bytes:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode()
+
+
+def _encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
     try:
-        from cryptography.hazmat.backends import default_backend  # type: ignore[import]
-        from cryptography.hazmat.primitives import (  # type: ignore[import]
-            hashes,
-            serialization,
-        )
-        from cryptography.hazmat.primitives.asymmetric import ec  # type: ignore[import]
-        _ecdsa_available = True
-        _backend = "ECDSA_P256"
-    except ImportError:
-        pass
-
-logger.debug("[PQC] backend selected: %s", _backend)
+        return base64.b64decode(value + padding, altchars=b"-_", validate=True)
+    except (TypeError, ValueError) as exc:
+        raise QuantumSecurityError(
+            QuantumFailureCode.INVALID_ENVELOPE,
+            "quantum signature envelope contains invalid encoded data",
+        ) from exc
 
 
-# ---------------------------------------------------------------------------
-# PQCWrapper
-# ---------------------------------------------------------------------------
+class QuantumSuite(str, Enum):
+    CLASSICAL_ED25519 = "CLASSICAL_ED25519"
+    HYBRID_ED25519_ML_DSA_65 = "HYBRID_ED25519_ML_DSA_65"
+    ML_DSA_65 = "ML_DSA_65"
 
-class PQCWrapper:
-    """Post-quantum (or best-available) cryptographic signing wrapper.
 
-    Parameters
-    ----------
-    secret_key:
-        Used only for the HMAC fallback backend.  For OQS/ECDSA the key
-        pair is generated/loaded internally.
-    """
+_SUITE_RANK = {
+    QuantumSuite.CLASSICAL_ED25519: 0,
+    QuantumSuite.HYBRID_ED25519_ML_DSA_65: 1,
+    QuantumSuite.ML_DSA_65: 2,
+}
 
-    def __init__(self, secret_key: bytes = b""):
-        self._secret = secret_key or os.urandom(32)
-        self.algorithm = _backend
-        self._sign_count:   int = 0
-        self._verify_count: int = 0
 
-        # Initialise backend-specific state
-        self._private_key: Any = None
-        self._public_key:  Any = None
-        self._oqs_sig:     Any = None
+class QuantumFailureCode(str, Enum):
+    INVALID_INPUT = "QUANTUM_INVALID_INPUT"
+    INVALID_ENVELOPE = "QUANTUM_INVALID_ENVELOPE"
+    PROVIDER_UNAVAILABLE = "QUANTUM_PROVIDER_UNAVAILABLE"
+    ALGORITHM_UNSUPPORTED = "QUANTUM_ALGORITHM_UNSUPPORTED"
+    DOWNGRADE_REJECTED = "QUANTUM_DOWNGRADE_REJECTED"
+    SIGNATURE_INVALID = "QUANTUM_SIGNATURE_INVALID"
+    POLICY_EXPIRED = "QUANTUM_POLICY_EXPIRED"
+    KEY_REVOKED = "QUANTUM_KEY_REVOKED"
 
-        if _oqs_available and _oqs_lib is not None:
-            self._oqs_sig = _oqs_lib.Signature("Dilithium3")  # type: ignore[union-attr]
-            self._public_key = self._oqs_sig.generate_keypair()  # type: ignore[union-attr]
-        elif _ecdsa_available:
-            from cryptography.hazmat.backends import default_backend as _be
-            from cryptography.hazmat.primitives.asymmetric import ec as _ec
-            self._private_key = _ec.generate_private_key(
-                _ec.SECP256R1(), _be()
+
+class QuantumSecurityError(RuntimeError):
+    def __init__(self, code: QuantumFailureCode, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True, slots=True)
+class QuantumPolicy:
+    policy_version: int
+    minimum_suite: QuantumSuite
+    asset_lifetime_days: int
+    threat_horizon_year: int
+    allow_classical_until_year: int
+
+    def validate(self, current_year: int) -> None:
+        if (
+            self.policy_version <= 0
+            or not 1 <= self.asset_lifetime_days <= 36_500
+            or not 2025 <= self.threat_horizon_year <= 2200
+            or not 2025 <= self.allow_classical_until_year <= 2200
+        ):
+            raise QuantumSecurityError(
+                QuantumFailureCode.INVALID_INPUT,
+                "quantum algorithm policy is invalid",
             )
-            self._public_key = self._private_key.public_key()
+        if (
+            self.minimum_suite is QuantumSuite.CLASSICAL_ED25519
+            and current_year > self.allow_classical_until_year
+        ):
+            raise QuantumSecurityError(
+                QuantumFailureCode.POLICY_EXPIRED,
+                "classical-only policy has passed its declared horizon",
+            )
 
-    # ------------------------------------------------------------------
 
-    def sign(self, data: bytes) -> bytes:
-        """Return a signature for *data*."""
-        self._sign_count += 1
-        if _oqs_available and self._oqs_sig:
-            return bytes(self._oqs_sig.sign(data))
-        if _ecdsa_available and self._private_key:
-            from cryptography.hazmat.primitives import hashes as _h
-            from cryptography.hazmat.primitives.asymmetric import ec as _ec
-            return self._private_key.sign(data, _ec.ECDSA(_h.SHA256()))  # type: ignore[no-any-return]
-        # HMAC fallback
-        return hmac.new(self._secret, data, hashlib.sha3_256).digest()
+class PostQuantumSignatureProvider(Protocol):
+    provider_id: str
+    algorithm: str
 
-    def verify(self, data: bytes, signature: bytes) -> bool:
-        """Return True if *signature* is valid for *data*."""
-        self._verify_count += 1
+    def available(self) -> bool:
+        ...
+
+    def public_key(self) -> bytes:
+        ...
+
+    def sign(self, payload: bytes) -> bytes:
+        ...
+
+    def verify(self, payload: bytes, signature: bytes, public_key: bytes) -> bool:
+        ...
+
+
+class OQSMLDSA65Provider:
+    """Optional liboqs-backed ML-DSA-65 production adapter."""
+
+    provider_id = "liboqs-ml-dsa-65"
+    algorithm = "ML-DSA-65"
+
+    def __init__(
+        self,
+        *,
+        secret_key: bytes | None = None,
+        public_key: bytes | None = None,
+    ) -> None:
         try:
-            if _oqs_available and self._oqs_sig:
-                return bool(self._oqs_sig.verify(data, signature, self._public_key))
-            if _ecdsa_available and self._public_key:
-                from cryptography.exceptions import InvalidSignature
-                from cryptography.hazmat.primitives import hashes as _h
-                from cryptography.hazmat.primitives.asymmetric import ec as _ec
-                try:
-                    self._public_key.verify(
-                        signature, data, _ec.ECDSA(_h.SHA256())
-                    )
-                    return True
-                except InvalidSignature:
-                    return False
-            # HMAC fallback
-            expected = hmac.new(self._secret, data, hashlib.sha3_256).digest()
-            return hmac.compare_digest(expected, signature)
-        except Exception as exc:
-            logger.warning("[PQC] verify error: %s", exc)
+            self._oqs = importlib.import_module("oqs")
+            mechanisms = set(self._oqs.get_enabled_sig_mechanisms())
+            self._mechanism = next(
+                (name for name in ("ML-DSA-65", "Dilithium3") if name in mechanisms),
+                None,
+            )
+        except (ImportError, AttributeError, RuntimeError):
+            self._oqs = None
+            self._mechanism = None
+        self._signer = None
+        self._public_key = bytes(public_key) if public_key is not None else None
+        if self.available():
+            self._signer = self._oqs.Signature(self._mechanism, secret_key)
+            if secret_key is None:
+                self._public_key = bytes(self._signer.generate_keypair())
+            elif self._public_key is None:
+                raise QuantumSecurityError(
+                    QuantumFailureCode.INVALID_INPUT,
+                    "restored ML-DSA key requires its public key",
+                )
+
+    def available(self) -> bool:
+        return self._oqs is not None and self._mechanism is not None
+
+    def public_key(self) -> bytes:
+        self._require_available()
+        return bytes(self._public_key or b"")
+
+    def sign(self, payload: bytes) -> bytes:
+        self._require_available()
+        return bytes(self._signer.sign(payload))
+
+    def export_secret_key(self) -> bytes:
+        self._require_available()
+        return bytes(self._signer.export_secret_key())
+
+    def versions(self) -> dict[str, str]:
+        self._require_available()
+        return {
+            "liboqs_python": str(self._oqs.oqs_python_version()),
+            "liboqs": str(self._oqs.oqs_version()),
+        }
+
+    def close(self) -> None:
+        signer = self._signer
+        if signer is not None:
+            signer.free()
+            self._signer = None
+
+    def verify(self, payload: bytes, signature: bytes, public_key: bytes) -> bool:
+        self._require_available()
+        try:
+            with self._oqs.Signature(self._mechanism) as verifier:
+                return bool(verifier.verify(payload, signature, public_key))
+        except Exception:
             return False
 
-    # ------------------------------------------------------------------
+    def _require_available(self) -> None:
+        if not self.available():
+            raise QuantumSecurityError(
+                QuantumFailureCode.PROVIDER_UNAVAILABLE,
+                "liboqs ML-DSA-65 provider is unavailable",
+            )
 
-    def status(self) -> Dict[str, Any]:
-        return {
-            "algorithm":    self.algorithm,
-            "oqs":          _oqs_available,
-            "ecdsa":        _ecdsa_available,
-            "signs":        self._sign_count,
-            "verifies":     self._verify_count,
+
+@dataclass(frozen=True, slots=True)
+class AgileSignatureEnvelope:
+    payload_sha256: str
+    suite: QuantumSuite
+    policy_version: int
+    provider_id: str
+    classical_public_key: str | None
+    classical_signature: str | None
+    pq_public_key: str | None
+    pq_signature: str | None
+    schema_version: int = 1
+
+    def to_dict(self) -> dict[str, object]:
+        value = asdict(self)
+        value["suite"] = self.suite.value
+        return value
+
+    @classmethod
+    def from_dict(cls, value: Mapping[str, object]) -> AgileSignatureEnvelope:
+        expected = {
+            "classical_public_key",
+            "classical_signature",
+            "payload_sha256",
+            "policy_version",
+            "pq_public_key",
+            "pq_signature",
+            "provider_id",
+            "schema_version",
+            "suite",
         }
+        if set(value) != expected:
+            raise QuantumSecurityError(
+                QuantumFailureCode.INVALID_ENVELOPE,
+                "quantum signature envelope schema is invalid",
+            )
+        try:
+            return cls(
+                payload_sha256=str(value["payload_sha256"]),
+                suite=QuantumSuite(str(value["suite"])),
+                policy_version=int(value["policy_version"]),
+                provider_id=str(value["provider_id"]),
+                classical_public_key=(
+                    None
+                    if value["classical_public_key"] is None
+                    else str(value["classical_public_key"])
+                ),
+                classical_signature=(
+                    None
+                    if value["classical_signature"] is None
+                    else str(value["classical_signature"])
+                ),
+                pq_public_key=(
+                    None
+                    if value["pq_public_key"] is None
+                    else str(value["pq_public_key"])
+                ),
+                pq_signature=(
+                    None
+                    if value["pq_signature"] is None
+                    else str(value["pq_signature"])
+                ),
+                schema_version=int(value["schema_version"]),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise QuantumSecurityError(
+                QuantumFailureCode.INVALID_ENVELOPE,
+                "quantum signature envelope schema is invalid",
+            ) from exc
+
+
+class QuantumSignatureAuthority:
+    """Apply a versioned suite policy and reject cryptographic downgrade."""
+
+    def __init__(
+        self,
+        policy: QuantumPolicy,
+        *,
+        pq_provider: PostQuantumSignatureProvider | None = None,
+        classical_private_key: Ed25519PrivateKey | None = None,
+        current_year: int,
+    ) -> None:
+        policy.validate(current_year)
+        self.policy = policy
+        self.pq_provider = pq_provider
+        self._classical = classical_private_key or Ed25519PrivateKey.generate()
+
+    def sign(
+        self,
+        payload: bytes,
+        suite: QuantumSuite,
+    ) -> AgileSignatureEnvelope:
+        self._enforce_suite(suite)
+        digest = hashlib.sha256(payload).hexdigest()
+        classical_public: str | None = None
+        classical_signature: str | None = None
+        pq_public: str | None = None
+        pq_signature: str | None = None
+        if suite in {
+            QuantumSuite.CLASSICAL_ED25519,
+            QuantumSuite.HYBRID_ED25519_ML_DSA_65,
+        }:
+            classical_public = _encode(
+                self._classical.public_key().public_bytes(
+                    serialization.Encoding.Raw,
+                    serialization.PublicFormat.Raw,
+                )
+            )
+            classical_signature = _encode(self._classical.sign(payload))
+        provider_id = "cryptography-ed25519-classical"
+        if suite in {
+            QuantumSuite.HYBRID_ED25519_ML_DSA_65,
+            QuantumSuite.ML_DSA_65,
+        }:
+            provider = self._require_pq_provider()
+            provider_id = provider.provider_id
+            pq_public = _encode(provider.public_key())
+            pq_signature = _encode(provider.sign(payload))
+        return AgileSignatureEnvelope(
+            payload_sha256=digest,
+            suite=suite,
+            policy_version=self.policy.policy_version,
+            provider_id=provider_id,
+            classical_public_key=classical_public,
+            classical_signature=classical_signature,
+            pq_public_key=pq_public,
+            pq_signature=pq_signature,
+        )
+
+    def verify(
+        self,
+        payload: bytes,
+        value: AgileSignatureEnvelope | Mapping[str, object],
+    ) -> bool:
+        envelope = (
+            value
+            if isinstance(value, AgileSignatureEnvelope)
+            else AgileSignatureEnvelope.from_dict(value)
+        )
+        self._enforce_suite(envelope.suite)
+        if (
+            envelope.schema_version != 1
+            or envelope.policy_version != self.policy.policy_version
+            or not _SAFE_PROVIDER.fullmatch(envelope.provider_id)
+            or envelope.payload_sha256 != hashlib.sha256(payload).hexdigest()
+        ):
+            raise QuantumSecurityError(
+                QuantumFailureCode.INVALID_ENVELOPE,
+                "quantum signature envelope metadata is invalid",
+            )
+        classical_valid = envelope.suite is QuantumSuite.ML_DSA_65
+        if envelope.suite in {
+            QuantumSuite.CLASSICAL_ED25519,
+            QuantumSuite.HYBRID_ED25519_ML_DSA_65,
+        }:
+            try:
+                if (
+                    not envelope.classical_public_key
+                    or not envelope.classical_signature
+                ):
+                    raise ValueError
+                Ed25519PublicKey.from_public_bytes(
+                    _decode(envelope.classical_public_key)
+                ).verify(_decode(envelope.classical_signature), payload)
+                classical_valid = True
+            except (InvalidSignature, ValueError):
+                classical_valid = False
+        pq_valid = envelope.suite is QuantumSuite.CLASSICAL_ED25519
+        if envelope.suite in {
+            QuantumSuite.HYBRID_ED25519_ML_DSA_65,
+            QuantumSuite.ML_DSA_65,
+        }:
+            provider = self._require_pq_provider()
+            if envelope.provider_id != provider.provider_id:
+                raise QuantumSecurityError(
+                    QuantumFailureCode.INVALID_ENVELOPE,
+                    "quantum signature provider does not match the active provider",
+                )
+            pq_valid = bool(
+                envelope.pq_public_key
+                and envelope.pq_signature
+                and provider.verify(
+                    payload,
+                    _decode(envelope.pq_signature),
+                    _decode(envelope.pq_public_key),
+                )
+            )
+        return classical_valid and pq_valid
+
+    def status(self) -> dict[str, object]:
+        provider = self.pq_provider
+        return {
+            "ready": (
+                self.policy.minimum_suite is QuantumSuite.CLASSICAL_ED25519
+                or bool(provider and provider.available())
+            ),
+            "policy_version": self.policy.policy_version,
+            "minimum_suite": self.policy.minimum_suite.value,
+            "asset_lifetime_days": self.policy.asset_lifetime_days,
+            "threat_horizon_year": self.policy.threat_horizon_year,
+            "pq_provider_available": bool(provider and provider.available()),
+            "pq_provider_id": provider.provider_id if provider else None,
+            "quantum_resistant": bool(provider and provider.available()),
+        }
+
+    def _enforce_suite(self, suite: QuantumSuite) -> None:
+        if _SUITE_RANK[suite] < _SUITE_RANK[self.policy.minimum_suite]:
+            raise QuantumSecurityError(
+                QuantumFailureCode.DOWNGRADE_REJECTED,
+                "signature suite is below the configured quantum policy",
+            )
+
+    def _require_pq_provider(self) -> PostQuantumSignatureProvider:
+        if self.pq_provider is None or not self.pq_provider.available():
+            raise QuantumSecurityError(
+                QuantumFailureCode.PROVIDER_UNAVAILABLE,
+                "a maintained ML-DSA-65 provider is unavailable",
+            )
+        if self.pq_provider.algorithm not in {"ML-DSA-65", "Dilithium3"}:
+            raise QuantumSecurityError(
+                QuantumFailureCode.ALGORITHM_UNSUPPORTED,
+                "post-quantum provider algorithm is unsupported",
+            )
+        return self.pq_provider
+
+
+class PQCWrapper:
+    """Legacy compatibility wrapper, explicitly classical and not PQ secure."""
+
+    algorithm = "ED25519_CLASSICAL_NOT_PQ"
+    quantum_resistant = False
+
+    def __init__(self, secret_key: bytes = b"") -> None:
+        del secret_key
+        self._private_key = Ed25519PrivateKey.generate()
+        self._public_key = self._private_key.public_key()
+        self._sign_count = 0
+        self._verify_count = 0
+
+    def sign(self, data: bytes) -> bytes:
+        self._sign_count += 1
+        return self._private_key.sign(data)
+
+    def verify(self, data: bytes, signature: bytes) -> bool:
+        self._verify_count += 1
+        try:
+            self._public_key.verify(signature, data)
+            return True
+        except InvalidSignature:
+            return False
+
+    def status(self) -> dict[str, object]:
+        return {
+            "algorithm": self.algorithm,
+            "quantum_resistant": False,
+            "status": "CLASSICAL_ONLY",
+            "signs": self._sign_count,
+            "verifies": self._verify_count,
+        }
+
+
+__all__ = [
+    "AgileSignatureEnvelope",
+    "OQSMLDSA65Provider",
+    "PQCWrapper",
+    "PostQuantumSignatureProvider",
+    "QuantumFailureCode",
+    "QuantumPolicy",
+    "QuantumSecurityError",
+    "QuantumSignatureAuthority",
+    "QuantumSuite",
+]

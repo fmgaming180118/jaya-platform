@@ -4,6 +4,146 @@ Perubahan penting pada arah, status, arsitektur, dan dokumentasi dicatat di sini
 Format tanggal menggunakan `YYYY-MM-DD`. Klaim status harus memiliki bukti yang
 dapat dijalankan ulang.
 
+## 2026-08-14 - Repository dibuat portabel setelah relokasi
+
+### Changed
+
+- Menghapus seluruh referensi source ke lokasi lama
+  `D:\Kampus\coba-coba\jaya-research` dan path WSL pasangannya.
+- Script dataset Research sekarang memakai `JAYA_PDF_TRAINING_DIR` dan
+  `JAYA_REFERENCE_PDF_DIR` dengan default yang ditemukan dari repository root.
+- Build kernel menemukan source dari lokasi script sehingga tidak bergantung
+  current working directory atau drive tertentu.
+- Memindahkan audit lokal dari `.tmp` ke `data/local-audits` dan fixture
+  acceptance ke `test_features/acceptance`.
+
+### Verification
+
+- Repository layout audit: `PASS`, 0 pelanggaran.
+- Documentation validator: `PASS`.
+- Scan path workstation absolut pada source/script: 0 temuan.
+
+## 2026-08-14 - Tahap 3 Selubung Keamanan mencapai 90%
+
+### Added
+
+- Menambahkan format biner satu-file `.jayac` untuk brain, backup, puzzle, dan
+  mesh dengan binding kind/subject serta enkripsi P13.
+- Menghubungkan provider ML-DSA-65 nyata melalui `liboqs-python`/`liboqs`
+  0.16.0, keystore persisten terenkripsi P13, rotation lineage, restart,
+  revocation, dan hybrid signature pada capsule.
+- Menambahkan secure SQLite backup/restore, sealed puzzle loading, secure mesh
+  batch, telemetry Immune System, serta demo P16 end-to-end.
+
+### Verification
+
+- Audit Tahap 3: `42 passed`, `0 failed`, `0 skipped`; empat demo nyata lulus.
+- Full regression JAYA Core: `693 passed`, `0 failed`, `11 skipped` dalam
+  285,10 detik.
+- P13 `90% / INTEGRATED`; P14 `85% / INTEGRATED`; P16 `95% / VERIFIED`; P12
+  `90% / INTEGRATED`.
+- Tahap 3: `90% / INTEGRATED`. Sisa bukti adalah TPM/Secure Enclave, KMS dan
+  anti-rollback eksternal, security review independen, serta observasi produksi.
+  Tidak ada klaim `PRODUCTION`.
+
+## 2026-08-14 - Tahap 3 Selubung Keamanan mencapai 75%
+
+### Added
+
+- Menambahkan P13 Cryptographic Skin dengan envelope AES-256-GCM versioned,
+  associated data, Scrypt + HKDF, persistent nonce registry, expiry, dan batas
+  payload.
+- Setiap envelope ditandatangani DNA Anchor Ed25519; key lifecycle dan audit
+  hash-chain bertahan setelah restart serta gagal tertutup ketika rusak.
+- Menambahkan wiring launcher/runtime, konfigurasi secret tervalidasi, 13
+  evidence test, demo lifecycle nyata, dan auditor Tahap 3 berbobot.
+- Mengganti fingerprint P14 dengan node-binding persisten yang memakai Windows
+  DPAPI machine scope, DNA attestation, migration/rewrap, revocation, clone
+  rejection, serta konteks key P13.
+- Menambahkan kontrak P16 crypto-agility, threat-horizon policy, hybrid
+  verification, downgrade protection, dan adapter `liboqs` ML-DSA-65 yang gagal
+  tertutup. Ed25519 tidak lagi diklaim quantum-resistant.
+- Menambahkan P12 Immune System dengan registry integritas bertanda tangan,
+  karantina terenkripsi P13, incident ledger, circuit breaker, runtime safe-stop,
+  restart, serta recovery probe.
+
+### Verification
+
+- Audit Tahap 3: `32 passed`, `0 failed`, `1 skipped`; ketiga demo nyata lulus.
+- Full regression JAYA Core: `683 passed`, `0 failed`, `12 skipped` dalam
+  332,37 detik.
+- P13 `80% / IMPLEMENTED_LOCAL`; P14 `85% / INTEGRATED`; P16 `50% /
+  PROTOTYPE`; P12 `85% / INTEGRATED`.
+- Tahap 3: `75% / IN_PROGRESS`. ML-DSA nyata berstatus `BLOCKED_EXTERNAL`
+  karena `liboqs` belum tersedia; TPM attestation dan bukti produksi juga belum
+  ada. Tidak ada klaim `PRODUCTION`.
+
+## 2026-08-14 - Verifier dan resource gate dibuat repeatable
+
+### Changed
+
+- Deployment verifier kini mengaktifkan privacy gate dengan secret ephemeral
+  terisolasi pada child process dan tidak bergantung pada environment pengguna.
+- Runtime menerjemahkan budget memori tugas menjadi ceiling RSS berupa baseline
+  proses terukur + headroom tugas; direct solver gate tetap absolut.
+- Resource profiler mencache hanya probe `nvidia-smi` yang lambat, mencatat umur
+  metric, dan menyediakan force-refresh. Metric dinamis lain tetap live.
+- Benchmark profiler melakukan warm-up cold probe sebelum mengukur steady-state.
+
+### Verification
+
+- Audit Pondasi Logika: `32 passed`; P01/P21/P02/P05 masing-masing 95% dan
+  tahap tetap `95% / VERIFIED`.
+- Audit Fondasi Kedaulatan: `60 passed`; tahap tetap jujur pada
+  `92,5% / IMPLEMENTED_LOCAL`.
+- Deployment verifier: sembilan dari sembilan check `PASS`.
+- Tiga regresi order-sensitive lulus `15/15` pada lima pengulangan.
+- Benchmark profiler lima batch pada Windows 11 AMD64/Python 3.12.7: mean
+  6,902 ms, deviasi standar 0,417 ms, maksimum 7,600 ms per profile.
+- Dua full suite dari proses baru: masing-masing `652 passed`, `0 failed`,
+  `10 skipped` dalam 293,14 dan 287,75 detik.
+
+## 2026-08-13 - Fondasi Kedaulatan mencapai 92,5 persen lokal
+
+### Added
+
+- Menambahkan P20 Sovereign Privacy: signed scoped consent, purpose/provider
+  default-deny, AES-GCM vault, episodic memory reference, retention,
+  export/delete, log redaction, runtime model gate, dan demo terukur.
+- Menambahkan P18 Zero Trust: persistent principal ACL, DNA-bound short-lived
+  envelope, payload/node/capability binding, nonce replay protection,
+  hash-chain audit, dual gate puzzle runtime, dan demo terukur.
+- Memperluas auditor menjadi 57 executable tests dan empat demo nyata.
+
+### Changed
+
+- Mode produksi kini mewajibkan `JAYA_PRIVACY_KEY_SECRET`; mode Zero Trust wajib
+  membutuhkan DNA Anchor melalui `JAYA_REQUIRE_ZERO_TRUST=true`.
+- Menghapus trusted-source bypass dari jalur scan input legacy dan meredaksi
+  secret yang muncul di message maupun exception log.
+- Menaikkan P20 dan P18 menjadi `INTEGRATED` (95%); progres tahap menjadi
+  `92,5% / IMPLEMENTED_LOCAL`.
+
+### Verification
+
+- Auditor: `57 passed`; P11 90%, P15 90%, P20 95%, P18 95%; empat demo lulus.
+- Regression penuh awal: `636 passed`, `12 failed`, `11 skipped`; kegagalan legacy
+  di luar file perubahan dicatat pada checkpoint dan mencegah klaim production.
+
+### Regression repair
+
+- Memperbaiki penulisan source sandbox serta scene, package, dan manifest fitur
+  yang sebelumnya memakai variabel `*_fs` tidak terdefinisi.
+- Memperbaiki pembacaan manifest feature registry pada discovery dan install.
+- Mempertahankan capability health fail-closed; test kini menyatakan status
+  `HEALTHY` secara eksplisit dan runtime test mengharapkan unavailable ketika
+  capability belum tersedia.
+- Menjadikan budget test portable kernel berasal dari RSS aktual dan memastikan
+  runner memakai `ResourceBudget.max_memory_mb` yang diberikan.
+- Regression akhir: `648 passed`, `0 failed`, `11 skipped` dalam 322,84 detik.
+
+---
+
 ## 2026-08-10 - P15 Ethical Heart mencapai 90 persen
 
 ### Added

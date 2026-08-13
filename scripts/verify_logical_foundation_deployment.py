@@ -131,6 +131,10 @@ def verify_deployment(work_dir: Path) -> dict[str, Any]:
             "JAYA_CORE_TRUSTED_HOSTS": "127.0.0.1",
             "JAYA_NODE_ID": "deployment-verifier-node",
             "JAYA_REQUIRE_MODEL": "false",
+            "JAYA_REQUIRE_IDENTITY": "false",
+            "JAYA_REQUIRE_PRIVACY": "true",
+            "JAYA_PRIVACY_KEY_SECRET": secrets.token_urlsafe(48),
+            "JAYA_REQUIRE_ZERO_TRUST": "false",
         }
     )
     environment.pop("JAYA_MODEL_PATH", None)

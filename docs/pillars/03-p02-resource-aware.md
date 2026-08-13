@@ -33,9 +33,17 @@ Metric yang tidak dapat dibaca wajib berstatus `UNKNOWN`, bukan nilai perkiraan.
 - [x] Benchmark overhead profiler pada perangkat lokal.
 
 Probe memakai data OS/`psutil` dan `nvidia-smi` bila tersedia, tanpa fallback
-palsu. Consumer di luar Core tetap puzzle opsional. Lima persen terakhir adalah
-observasi deployment berkelanjutan; lihat
+palsu. Probe GPU yang relatif lambat dicache dengan umur metric eksplisit dan
+dapat dipaksa refresh; RAM, RSS, storage, network, battery, dan CPU tetap dibaca
+live. Benchmark melakukan warm-up probe lambat sebelum mengukur steady-state,
+sehingga hasil repeatable tanpa menyembunyikan usia data. Consumer di luar Core
+tetap puzzle opsional. Lima persen terakhir adalah observasi deployment
+berkelanjutan; lihat
 [dashboard Pondasi Logika](../LOGICAL_FOUNDATION_PROGRESS.md).
+
+Pengukuran 14 Agustus 2026 pada Windows 11 AMD64 dan Python 3.12.7 menjalankan
+lima batch, masing-masing 10 profile setelah warm-up: mean 6,902 ms, deviasi
+standar 0,417 ms, dan maksimum 7,600 ms per profile.
 
 ## Exit criteria
 

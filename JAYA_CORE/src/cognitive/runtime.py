@@ -12,7 +12,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional
 
 from src.brain_v2.engine.jaya_ir_exec import JayaIRExecutor
 from src.brain_v2.engine.jaya_ir_translator import logic_request_to_ir
@@ -26,8 +26,14 @@ from src.brain_v2.protection.dna_anchor import (
     DNAAnchorError,
     DNAFailureCode,
 )
+from src.brain_v2.protection.hardware import NodeBindingAuthority, NodeBootReceipt
+from src.brain_v2.protection.zero_trust import (
+    ZeroTrustAuthority,
+    create_trust_envelope,
+)
 from src.brain_v2.soul.ethical_heart import (
     EthicalHeart,
+    PolicyDecision,
     PolicyEffect,
     PolicyError,
     PolicyRequest,
@@ -65,6 +71,24 @@ from src.reasoning.pure_logic import (
 from src.resources.budget import ResourceBudgetCalculator
 from src.resources.modes import ExecutionModeController
 from src.resources.profiler import ResourceProfiler
+from src.security.capsule import CapsuleKind, JayaCapsuleCodec
+from src.security.cryptographic_skin import (
+    CryptographicSkin,
+    CryptographicSkinError,
+    CryptographicSkinFailureCode,
+    SealedEnvelope,
+)
+from src.security.immune_system import ImmuneSystem
+from src.security.quantum_lifecycle import PersistentQuantumAuthority
+from src.security.sovereign_privacy import (
+    DataClassification,
+    DataDestination,
+    DataPurpose,
+    PrivacyEffect,
+    PrivacyMemoryCodec,
+    PrivacyUseRequest,
+    SovereignPrivacy,
+)
 
 from .context import ContextManager
 from .contracts import (
@@ -125,6 +149,20 @@ class JayaCoreRuntime:
         identity_anchor: DNAAnchor | None = None,
         identity_required: bool = False,
         owner_approval_public_keys: dict[str, bytes | str] | None = None,
+        privacy_guard: SovereignPrivacy | None = None,
+        privacy_required: bool = False,
+        zero_trust_authority: ZeroTrustAuthority | None = None,
+        zero_trust_required: bool = False,
+        cryptographic_skin: CryptographicSkin | None = None,
+        cryptographic_skin_required: bool = False,
+        hardware_binding: NodeBindingAuthority | None = None,
+        hardware_boot_receipt: NodeBootReceipt | None = None,
+        hardware_lock_required: bool = False,
+        immune_system: ImmuneSystem | None = None,
+        immune_system_required: bool = False,
+        quantum_authority: PersistentQuantumAuthority | None = None,
+        quantum_security_required: bool = False,
+        capsule_codec: JayaCapsuleCodec | None = None,
     ) -> None:
         # Identity
         self.identity_anchor = identity_anchor
@@ -180,7 +218,47 @@ class JayaCoreRuntime:
         self.model_router = ModelRouter()
 
         # Memory
-        self.episodic_memory = EpisodicMemoryStore(db_path=db_path)
+        self.privacy_guard = privacy_guard
+        self.privacy_required = privacy_required
+        if privacy_required and privacy_guard is None:
+            raise RuntimeError("authorized Core runtime requires Sovereign Privacy")
+        self.zero_trust_authority = zero_trust_authority
+        self.zero_trust_required = zero_trust_required
+        if zero_trust_required and (
+            zero_trust_authority is None
+            or identity_anchor is None
+            or privacy_guard is None
+        ):
+            raise RuntimeError(
+                "authorized Core runtime requires Zero Trust and DNA Anchor"
+            )
+        self.cryptographic_skin = cryptographic_skin
+        self.cryptographic_skin_required = cryptographic_skin_required
+        if cryptographic_skin_required and cryptographic_skin is None:
+            raise RuntimeError("authorized Core runtime requires Cryptographic Skin")
+        self.hardware_binding = hardware_binding
+        self.hardware_boot_receipt = hardware_boot_receipt
+        self.hardware_lock_required = hardware_lock_required
+        if hardware_lock_required and (
+            hardware_binding is None or hardware_boot_receipt is None
+        ):
+            raise RuntimeError("authorized Core runtime requires Hardware Locked")
+        self.immune_system = immune_system
+        self.immune_system_required = immune_system_required
+        if immune_system_required and immune_system is None:
+            raise RuntimeError("authorized Core runtime requires Immune System")
+        self.quantum_authority = quantum_authority
+        self.quantum_security_required = quantum_security_required
+        if quantum_security_required and quantum_authority is None:
+            raise RuntimeError("authorized Core runtime requires Quantum Security")
+        self.capsule_codec = capsule_codec
+        memory_codec = (
+            PrivacyMemoryCodec(privacy_guard) if privacy_guard is not None else None
+        )
+        self.episodic_memory = EpisodicMemoryStore(
+            db_path=db_path,
+            payload_codec=memory_codec,
+        )
         self.working_memory = WorkingMemory(session_id="default_session")
         self.logic_service = PureLogicService(
             store=LogicProofStore(db_path),
@@ -202,7 +280,9 @@ class JayaCoreRuntime:
                     purpose,
                     digest,
                 ).to_dict()
-            ) if identity_anchor is not None else None,
+            )
+            if identity_anchor is not None
+            else None,
             attestation_verifier=(
                 identity_anchor.verify_attestation
                 if identity_anchor is not None
@@ -212,7 +292,8 @@ class JayaCoreRuntime:
         self.puzzle_registry = CapabilityPuzzleRegistry(
             puzzle_dirs,
             authorization_required=True,
-            authorization_validator=self.ethical_heart.authorizes_capability,
+            authorization_validator=self._authorizes_capability,
+            capsule_codec=capsule_codec,
         )
         self.puzzle_registry.attach(
             PuzzleManifest(
@@ -226,6 +307,14 @@ class JayaCoreRuntime:
             _PureLogicPuzzle(self),
         )
         self.puzzle_registry.refresh()
+        if zero_trust_authority is not None:
+            zero_trust_authority.ensure_principal(
+                policy_actor_id,
+                self.node_identity.node_id,
+                tuple(
+                    item.capability_id for item in self.puzzle_registry.capabilities()
+                ),
+            )
         self.logic_ir_executor = JayaIRExecutor(
             logic_service=self.logic_service,
             puzzle_registry=self.puzzle_registry,
@@ -290,6 +379,9 @@ class JayaCoreRuntime:
         return (
             self._is_ready
             and self._identity_is_ready()
+            and self._hardware_is_ready()
+            and self._immune_is_ready()
+            and self._quantum_is_ready()
             and self.episodic_memory.health_check()
             and self.logic_service.is_ready()
             and self.homeostasis.is_ready()
@@ -321,13 +413,19 @@ class JayaCoreRuntime:
                 f"logical foundation entered SAFE_STOP: {', '.join(decision.reasons)}",
             )
         budget = self.budget_calculator.calculate(profile)
+        if profile.process_memory_mb is None:
+            raise PureLogicError(
+                LogicFailureCode.RESOURCE_PROBE_UNAVAILABLE,
+                "cannot establish the solver process-memory baseline",
+            )
+        process_memory_ceiling_mb = profile.process_memory_mb + budget.max_memory_mb
 
         result = self.logic_service.evaluate(
             request_id=request_id,
             facts=facts,
             rules=rules,
             query=query,
-            max_process_memory_mb=budget.max_memory_mb,
+            max_process_memory_mb=process_memory_ceiling_mb,
         )
         event = MemoryEvent(
             event_id=f"evt-logic-{request_id}",
@@ -378,8 +476,110 @@ class JayaCoreRuntime:
             "logic_proofs": self.logic_service.store.count(),
             "puzzles": len(self.puzzle_registry.capabilities()),
             "ethical_heart": self.ethical_heart.status(),
+            "sovereign_privacy": (
+                self.privacy_guard.status()
+                if self.privacy_guard is not None
+                else {"ready": False, "mode": "UNCONFIGURED"}
+            ),
+            "zero_trust": (
+                self.zero_trust_authority.status()
+                if self.zero_trust_authority is not None
+                else {"ready": False, "mode": "UNCONFIGURED"}
+            ),
+            "cryptographic_skin": (
+                self.cryptographic_skin.status()
+                if self.cryptographic_skin is not None
+                else {"ready": False, "mode": "UNCONFIGURED"}
+            ),
+            "hardware_locked": (
+                self.hardware_binding.status(self.hardware_boot_receipt.brain_id)
+                if self.hardware_binding is not None
+                and self.hardware_boot_receipt is not None
+                else {"ready": False, "mode": "UNCONFIGURED"}
+            ),
+            "immune_system": (
+                self.immune_system.status()
+                if self.immune_system is not None
+                else {"ready": False, "mode": "UNCONFIGURED"}
+            ),
+            "quantum_security": (
+                self.quantum_authority.status()
+                if self.quantum_authority is not None
+                else {"ready": False, "mode": "UNCONFIGURED"}
+            ),
             "resource_profile": profile.to_dict(),
         }
+
+    def seal_artifact(
+        self,
+        payload: bytes,
+        *,
+        purpose: str,
+        subject: str,
+        content_type: str = "application/octet-stream",
+        ttl_seconds: int = 3_600,
+    ) -> SealedEnvelope:
+        """Seal a Core-owned artifact through the configured P13 boundary."""
+
+        if self.cryptographic_skin is None:
+            raise CryptographicSkinError(
+                CryptographicSkinFailureCode.NOT_CONFIGURED,
+                "Cryptographic Skin is not configured",
+            )
+        return self.cryptographic_skin.seal(
+            payload,
+            purpose=purpose,
+            subject=subject,
+            content_type=content_type,
+            ttl_seconds=ttl_seconds,
+        )
+
+    def open_artifact(
+        self,
+        envelope: SealedEnvelope | Mapping[str, object],
+    ) -> bytes:
+        """Verify and open a Core-owned artifact through P13."""
+
+        if self.cryptographic_skin is None:
+            raise CryptographicSkinError(
+                CryptographicSkinFailureCode.NOT_CONFIGURED,
+                "Cryptographic Skin is not configured",
+            )
+        return self.cryptographic_skin.open(envelope)
+
+    def seal_capsule(
+        self,
+        payload: bytes,
+        *,
+        kind: CapsuleKind,
+        subject: str,
+    ) -> bytes:
+        if self.capsule_codec is None:
+            raise CryptographicSkinError(
+                CryptographicSkinFailureCode.NOT_CONFIGURED,
+                "JAYA capsule boundary is not configured",
+            )
+        return self.capsule_codec.seal(
+            payload, kind=kind, subject=subject
+        )
+
+    def open_capsule(
+        self,
+        container: bytes,
+        *,
+        expected_kind: CapsuleKind,
+        expected_subject: str,
+    ) -> bytes:
+        if self.capsule_codec is None:
+            raise CryptographicSkinError(
+                CryptographicSkinFailureCode.NOT_CONFIGURED,
+                "JAYA capsule boundary is not configured",
+            )
+        return self.capsule_codec.open(
+            container,
+            expected_kind=expected_kind,
+            expected_subject=expected_subject,
+        )
 
     def _identity_is_ready(self) -> bool:
         if self.identity_anchor is None:
@@ -488,9 +688,7 @@ class JayaCoreRuntime:
                 policy_decision = self.ethical_heart.evaluate(
                     PolicyRequest(
                         request_id=hashlib.sha256(
-                            f"plan:{request.request_id}:{step.step_id}".encode(
-                                "utf-8"
-                            )
+                            f"plan:{request.request_id}:{step.step_id}".encode("utf-8")
                         ).hexdigest(),
                         actor_brain_id=self._policy_actor_id,
                         node_id=self.node_identity.node_id,
@@ -575,6 +773,50 @@ class JayaCoreRuntime:
         # Select Model for narrative response
         model_req = ModelRequest(prompt=request.raw_prompt, context=snapshot.to_dict())
         model = self.model_router.select_model(model_req, execution_mode, budget)
+        if self.privacy_guard is not None:
+            model_cost = model.estimate_cost(model_req)
+            provider_id = str(model.model_id)
+            destination = (
+                DataDestination.EXTERNAL_PROVIDER
+                if model_cost.requires_network
+                else DataDestination.LOCAL
+            )
+            prompt_digest = hashlib.sha256(
+                request.raw_prompt.encode("utf-8")
+            ).hexdigest()
+            privacy_decision = self.privacy_guard.evaluate(
+                PrivacyUseRequest(
+                    request_id=hashlib.sha256(
+                        f"model:{request.request_id}".encode("utf-8")
+                    ).hexdigest(),
+                    actor_id=request.user_id,
+                    owner_id=request.user_id,
+                    subject_id=request.user_id,
+                    data_id=f"prompt:{request.request_id}",
+                    classification=DataClassification.CONFIDENTIAL,
+                    purpose=DataPurpose.MODEL_INFERENCE,
+                    destination=destination,
+                    provider_id=provider_id,
+                    payload_sha256=prompt_digest,
+                    consent_id=request.active_context.get("privacy_consent_id"),
+                )
+            )
+            if privacy_decision.effect is PrivacyEffect.DENY:
+                model = self.model_router.select_model(
+                    model_req,
+                    execution_mode,
+                    budget,
+                    prefer_offline=True,
+                )
+                if model.estimate_cost(model_req).requires_network:
+                    return CoreResponse(
+                        request_id=request.request_id,
+                        status="FAILED",
+                        message="Sovereign Privacy denied external model use.",
+                        execution_mode=execution_mode.value,
+                        intent_type=intent.intent_type.value,
+                        metadata={"privacy_receipt": privacy_decision.to_dict()},
+                    )
         model_resp = model.generate(model_req)
 
         if not response_msg:
@@ -673,6 +915,70 @@ class JayaCoreRuntime:
             evaluation=eval_res.to_dict(),
         )
 
+    def _authorizes_capability(
+        self,
+        capability_id: str,
+        payload: Mapping[str, Any],
+        authorization: object,
+    ) -> bool:
+        """Require an Ethical Heart receipt and a fresh DNA-bound trust proof."""
+
+        if not self.ethical_heart.authorizes_capability(
+            capability_id, payload, authorization
+        ):
+            return False
+        if self.zero_trust_authority is None:
+            return not self.zero_trust_required
+        anchor = self.identity_anchor
+        privacy = self.privacy_guard
+        if (
+            anchor is None
+            or privacy is None
+            or not isinstance(authorization, PolicyDecision)
+        ):
+            return False
+        try:
+            encoded = json.dumps(
+                payload,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            ).encode("utf-8")
+            privacy_decision = privacy.evaluate(
+                PrivacyUseRequest(
+                    request_id=hashlib.sha256(
+                        f"capability:{authorization.receipt_sha256}".encode()
+                    ).hexdigest(),
+                    actor_id=self._policy_actor_id,
+                    owner_id=self._policy_actor_id,
+                    subject_id=self._policy_actor_id,
+                    data_id=f"capability:{capability_id}",
+                    classification=DataClassification.CONFIDENTIAL,
+                    purpose=DataPurpose.CORE_REASONING,
+                    destination=DataDestination.LOCAL,
+                    provider_id=capability_id,
+                    payload_sha256=hashlib.sha256(encoded).hexdigest(),
+                )
+            )
+            if privacy_decision.effect is not PrivacyEffect.ALLOW:
+                return False
+            envelope = create_trust_envelope(
+                principal_id=self._policy_actor_id,
+                node_id=self.node_identity.node_id,
+                capability_id=capability_id,
+                payload=payload,
+                policy_receipt_sha256=authorization.receipt_sha256,
+                privacy_receipt_sha256=privacy_decision.receipt_sha256,
+                signer=lambda purpose, digest: anchor.sign_attestation(
+                    purpose, digest
+                ).to_dict(),
+            )
+            decision = self.zero_trust_authority.authorize(envelope, payload)
+            return self.zero_trust_authority.validates(capability_id, payload, decision)
+        except (RuntimeError, TypeError, ValueError):
+            return False
+
     def close(self) -> None:
         """Close all persistent stores owned by this runtime."""
         self.puzzle_registry.close()
@@ -680,5 +986,36 @@ class JayaCoreRuntime:
         self.episodic_memory.close()
         self.logic_service.close()
         self.homeostasis.close()
+        if self.privacy_guard is not None:
+            self.privacy_guard.close()
+        if self.zero_trust_authority is not None:
+            self.zero_trust_authority.close()
+        if self.immune_system is not None:
+            self.immune_system.close()
+        if self.quantum_authority is not None:
+            self.quantum_authority.close()
+        if self.cryptographic_skin is not None:
+            self.cryptographic_skin.close()
+        if self.hardware_binding is not None:
+            self.hardware_binding.close()
         if self.identity_anchor is not None:
             self.identity_anchor.close()
+
+    def _hardware_is_ready(self) -> bool:
+        if self.hardware_binding is None or self.hardware_boot_receipt is None:
+            return not self.hardware_lock_required
+        return bool(
+            self.hardware_binding.status(self.hardware_boot_receipt.brain_id).get(
+                "ready"
+            )
+        )
+
+    def _immune_is_ready(self) -> bool:
+        if self.immune_system is None:
+            return not self.immune_system_required
+        return bool(self.immune_system.status().get("ready"))
+
+    def _quantum_is_ready(self) -> bool:
+        if self.quantum_authority is None:
+            return not self.quantum_security_required
+        return bool(self.quantum_authority.status().get("ready"))

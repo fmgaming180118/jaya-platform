@@ -2,7 +2,7 @@
 
 - **ID pilar:** 12
 - **Tahap:** 3 — Selubung keamanan
-- **Status saat audit:** NOT_IMPLEMENTED
+- **Status saat audit:** INTEGRATED — 90%
 - **Pemilik:** SECURITY, RUNTIME
 
 ## Tujuan
@@ -23,12 +23,16 @@ Signals + integrity probes → detection → quarantine/safe-stop → recovery r
 
 ## Checklist implementasi
 
-- [ ] Definisikan kelas insiden, severity, signal source, dan response policy.
-- [ ] Tambahkan integrity monitor untuk brain, model, memory, dan puzzle pack.
-- [ ] Implementasikan quarantine, circuit breaker, safe-stop, dan recovery.
-- [ ] Persistensikan incident ledger tanpa menyimpan secret.
-- [ ] Uji corruption, malicious pack, repeated failure, false positive, dan restart.
-- [ ] Demo menunjukkan isolasi serta rollback artifact nyata.
+- [x] Definisikan kelas insiden, severity, source, dan failure code stabil.
+- [x] Tambahkan registry/probe integritas untuk artifact Core yang didaftarkan.
+- [x] Implementasikan karantina P13, circuit breaker, safe-stop, dan recovery.
+- [x] Persistensikan incident ledger dan audit hash-chain tanpa secret.
+- [x] Uji corruption, path escape, batas resource, repeated failure, dan restart.
+- [x] Demo menunjukkan isolasi serta pemulihan artifact nyata.
+- [x] Publikasikan telemetry lokal untuk kelas/severity/state insiden, circuit
+  breaker, dan jumlah audit event.
+- [ ] Hubungkan feed policy dan exporter telemetry deployment nyata.
+- [ ] Jalankan recovery drill serta observasi produksi persisten.
 
 ## Exit criteria
 
@@ -39,3 +43,18 @@ tidak mengaku sehat sebelum recovery probe benar-benar lulus.
 
 Exception handler umum, antivirus branding, atau selalu mengembalikan aman bukan
 Immune System.
+
+## Alur nyata saat ini
+
+```text
+Artifact terdaftar + DNA attestation
+→ probe SHA-256
+→ insiden persisten
+→ envelope P13 terenkripsi + hapus sumber tidak aman
+→ runtime safe-stop
+→ artifact approved dipulihkan
+→ probe recovery lulus → insiden resolved
+```
+
+Dependency yang gagal berulang membuka circuit breaker persisten. Runtime tidak
+kembali ready sebelum health probe benar-benar mengembalikan sehat.

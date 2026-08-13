@@ -16,9 +16,16 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-TEST_FILE = ROOT / "JAYA_CORE" / "tests" / "test_sovereign_foundation.py"
+TEST_FILES = (
+    ROOT / "JAYA_CORE" / "tests" / "test_sovereign_foundation.py",
+    ROOT / "JAYA_CORE" / "tests" / "test_sovereign_privacy.py",
+    ROOT / "JAYA_CORE" / "tests" / "test_zero_trust_authority.py",
+    ROOT / "JAYA_CORE" / "tests" / "test_logical_foundation.py",
+)
 P11_DEMO = ROOT / "scripts" / "demo_sovereign_foundation.py"
 P15_DEMO = ROOT / "scripts" / "demo_ethical_heart.py"
+P20_DEMO = ROOT / "scripts" / "demo_sovereign_privacy.py"
+P18_DEMO = ROOT / "scripts" / "demo_zero_trust.py"
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,9 +153,7 @@ P15_GATES = (
     Gate(
         "dna_signed_decision_receipts",
         10,
-        (
-            "test_p15_runtime_signs_receipts_with_dna_and_preserves_them_on_restart",
-        ),
+        ("test_p15_runtime_signs_receipts_with_dna_and_preserves_them_on_restart",),
     ),
     Gate(
         "restart_and_tamper_detection",
@@ -181,6 +186,128 @@ P15_GATES = (
     ),
 )
 
+P20_GATES = (
+    Gate(
+        "structured_contract",
+        5,
+        ("test_p20_external_use_requires_signed_scoped_consent_and_revocation",),
+    ),
+    Gate(
+        "signed_scoped_consent",
+        10,
+        ("test_p20_external_use_requires_signed_scoped_consent_and_revocation",),
+    ),
+    Gate(
+        "purpose_and_provider_gate",
+        15,
+        ("test_p20_external_use_requires_signed_scoped_consent_and_revocation",),
+    ),
+    Gate(
+        "encryption_at_rest",
+        15,
+        (
+            "test_p20_encrypted_vault_restart_export_and_owner_deletion",
+            "test_p20_episodic_payload_is_encrypted_and_survives_restart",
+        ),
+    ),
+    Gate(
+        "retention_restart_deletion",
+        10,
+        (
+            "test_p20_encrypted_vault_restart_export_and_owner_deletion",
+            "test_p20_retention_purge_and_cross_owner_fail_closed",
+        ),
+    ),
+    Gate(
+        "owner_access_and_export",
+        10,
+        ("test_p20_encrypted_vault_restart_export_and_owner_deletion",),
+    ),
+    Gate(
+        "log_redaction",
+        10,
+        ("test_p20_structured_logs_redact_messages_nested_fields_and_exceptions",),
+    ),
+    Gate(
+        "canonical_runtime_gate",
+        10,
+        ("test_p20_runtime_blocks_external_model_and_encrypts_prompt_memory",),
+    ),
+    Gate(
+        "tamper_wrong_key_failure",
+        5,
+        ("test_p20_wrong_key_and_ciphertext_tamper_fail_closed",),
+    ),
+    Gate("real_demo_and_measurement", 5, demo=True),
+    Gate(
+        "sustained_production_observation",
+        5,
+        unavailable_reason=(
+            "belum ada key manager, retention scheduler, dan recovery drill live"
+        ),
+    ),
+)
+
+P18_GATES = (
+    Gate(
+        "structured_contract",
+        5,
+        ("test_p18_payload_bound_dna_attestation_least_privilege_and_replay",),
+    ),
+    Gate(
+        "persistent_principal_registry",
+        10,
+        (
+            "test_p18_payload_bound_dna_attestation_least_privilege_and_replay",
+            "test_p18_expired_wrong_node_revoked_and_injection_fail_closed",
+        ),
+    ),
+    Gate(
+        "authentication_freshness_replay",
+        15,
+        (
+            "test_p18_payload_bound_dna_attestation_least_privilege_and_replay",
+            "test_p18_expired_wrong_node_revoked_and_injection_fail_closed",
+        ),
+    ),
+    Gate(
+        "least_privilege_authorization",
+        15,
+        ("test_p18_payload_bound_dna_attestation_least_privilege_and_replay",),
+    ),
+    Gate(
+        "artifact_integrity",
+        10,
+        ("test_p21_tampered_external_puzzle_is_never_imported",),
+    ),
+    Gate(
+        "canonical_runtime_dual_gate",
+        15,
+        (
+            "test_p18_canonical_launcher_executes_capability_through_dual_gate",
+            "test_p15_runtime_registry_rejects_missing_or_forged_policy_receipt",
+        ),
+    ),
+    Gate(
+        "persistent_audit",
+        10,
+        ("test_p18_payload_bound_dna_attestation_least_privilege_and_replay",),
+    ),
+    Gate(
+        "spoof_expiry_revoke_injection",
+        10,
+        ("test_p18_expired_wrong_node_revoked_and_injection_fail_closed",),
+    ),
+    Gate("real_demo_and_measurement", 5, demo=True),
+    Gate(
+        "sustained_production_observation",
+        5,
+        unavailable_reason=(
+            "belum ada CA rotation, distributed clock, dan revocation propagation live"
+        ),
+    ),
+)
+
 
 def _run_tests(junit: Path) -> tuple[dict[str, str], dict[str, Any]]:
     environment = os.environ.copy()
@@ -191,7 +318,7 @@ def _run_tests(junit: Path) -> tuple[dict[str, str], dict[str, Any]]:
         "pytest",
         "-c",
         os.devnull,
-        str(TEST_FILE),
+        *(str(path) for path in TEST_FILES),
         "-q",
         f"--junitxml={junit}",
     ]
@@ -293,6 +420,59 @@ def _run_p15_demo(workspace: Path) -> tuple[bool, dict[str, Any]]:
     }
 
 
+def _run_p20_demo(workspace: Path) -> tuple[bool, dict[str, Any]]:
+    return _run_simple_demo(
+        P20_DEMO,
+        workspace,
+        lambda value: bool(
+            value.get("restart_restored")
+            and value.get("plaintext_absent")
+            and value.get("external_without_consent") == "DENY"
+            and value.get("external_with_consent") == "ALLOW"
+            and value.get("audit_chain_valid")
+        ),
+    )
+
+
+def _run_p18_demo(workspace: Path) -> tuple[bool, dict[str, Any]]:
+    return _run_simple_demo(
+        P18_DEMO,
+        workspace,
+        lambda value: bool(
+            value.get("allow") == "ALLOW"
+            and value.get("replay") == "ZERO_TRUST_REPLAY_DETECTED"
+            and value.get("payload_tamper") == "ZERO_TRUST_PAYLOAD_MISMATCH"
+            and value.get("audit_chain_valid")
+        ),
+    )
+
+
+def _run_simple_demo(
+    script: Path,
+    workspace: Path,
+    validator: Any,
+) -> tuple[bool, dict[str, Any]]:
+    command = [sys.executable, str(script), "--workspace", str(workspace)]
+    completed = subprocess.run(
+        command, cwd=ROOT, capture_output=True, text=True, timeout=30, check=False
+    )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        payload = {"status": "FAILED", "raw_output": completed.stdout}
+    passed = (
+        completed.returncode == 0
+        and payload.get("status") == "VERIFIED_LOCAL"
+        and validator(payload)
+    )
+    return passed, {
+        "command": command,
+        "exit_code": completed.returncode,
+        "result": payload,
+        "stderr": completed.stderr.strip(),
+    }
+
+
 def _score_gates(
     gates: tuple[Gate, ...],
     tests: dict[str, str],
@@ -332,6 +512,8 @@ def main() -> int:
         tests, test_run = _run_tests(workspace / "pytest.xml")
         p11_demo_passed, p11_demo_run = _run_p11_demo(workspace / "p11-demo")
         p15_demo_passed, p15_demo_run = _run_p15_demo(workspace / "p15-demo")
+        p20_demo_passed, p20_demo_run = _run_p20_demo(workspace / "p20-demo")
+        p18_demo_passed, p18_demo_run = _run_p18_demo(workspace / "p18-demo")
 
     p11_achieved, p11_gate_results = _score_gates(
         P11_GATES,
@@ -343,9 +525,16 @@ def main() -> int:
         tests,
         p15_demo_passed,
     )
+    p20_achieved, p20_gate_results = _score_gates(P20_GATES, tests, p20_demo_passed)
+    p18_achieved, p18_gate_results = _score_gates(P18_GATES, tests, p18_demo_passed)
     p11_status = "INTEGRATED" if p11_achieved >= 80 else "IMPLEMENTED_LOCAL"
     p15_status = "INTEGRATED" if p15_achieved >= 80 else "IMPLEMENTED_LOCAL"
-    stage_percentage = round((p11_achieved + p15_achieved) / 4)
+    p20_status = "INTEGRATED" if p20_achieved >= 80 else "IMPLEMENTED_LOCAL"
+    p18_status = "INTEGRATED" if p18_achieved >= 80 else "IMPLEMENTED_LOCAL"
+    stage_percentage = round(
+        (p11_achieved + p15_achieved + p20_achieved + p18_achieved) / 4,
+        1,
+    )
     report = {
         "schema_version": 1,
         "measured_at": datetime.now(timezone.utc).isoformat(),
@@ -362,14 +551,27 @@ def main() -> int:
                 "gates": p15_gate_results,
             },
             "P20 Sovereign Privacy": {
-                "percentage": 0,
-                "status": "NOT_IMPLEMENTED",
+                "percentage": p20_achieved,
+                "status": p20_status,
+                "gates": p20_gate_results,
             },
-            "P18 Zero Trust": {"percentage": 0, "status": "NOT_IMPLEMENTED"},
+            "P18 Zero Trust": {
+                "percentage": p18_achieved,
+                "status": p18_status,
+                "gates": p18_gate_results,
+            },
         },
-        "overall": {"percentage": stage_percentage, "status": "IN_PROGRESS"},
+        "overall": {
+            "percentage": stage_percentage,
+            "status": "IMPLEMENTED_LOCAL" if stage_percentage >= 90 else "IN_PROGRESS",
+        },
         "test_run": test_run,
-        "demo_runs": {"P11": p11_demo_run, "P15": p15_demo_run},
+        "demo_runs": {
+            "P11": p11_demo_run,
+            "P15": p15_demo_run,
+            "P20": p20_demo_run,
+            "P18": p18_demo_run,
+        },
     }
     if args.json_output:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
@@ -380,13 +582,19 @@ def main() -> int:
     print("Fondasi Kedaulatan — executable evidence audit")
     for name, value in report["pillars"].items():
         print(f"{name}: {value['percentage']}% ({value['status']})")
-    print(f"OVERALL: {stage_percentage}% (IN_PROGRESS)")
+    print(f"OVERALL: {stage_percentage}% ({report['overall']['status']})")
     print(test_run["stdout"])
-    return 0 if (
-        test_run["exit_code"] == 0
-        and p11_demo_passed
-        and p15_demo_passed
-    ) else 1
+    return (
+        0
+        if (
+            test_run["exit_code"] == 0
+            and p11_demo_passed
+            and p15_demo_passed
+            and p20_demo_passed
+            and p18_demo_passed
+        )
+        else 1
+    )
 
 
 if __name__ == "__main__":

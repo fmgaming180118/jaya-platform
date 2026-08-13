@@ -84,7 +84,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: INTEGRATED
   source_flag: JayaFlags.IMMUNE_SYSTEM
 - id: 13
   name: Cryptographic Skin
@@ -92,7 +92,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: INTEGRATED
   source_flag: JayaFlags.CRYPTOGRAPHIC_SKIN
 - id: 14
   name: Hardware Locked
@@ -100,7 +100,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: PROTOTYPE
+  status: INTEGRATED
   source_flag: JayaFlags.HARDWARE_LOCKED
 - id: 15
   name: Ethical Heart
@@ -116,7 +116,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: VERIFIED
   source_flag: JayaFlags.QUANTUM_RESISTANT
 - id: 17
   name: Socratic Mirror
@@ -131,7 +131,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: INTEGRATED
   source_flag: JayaFlags.ZERO_TRUST
 - id: 19
   name: Legacy Protocol
@@ -146,7 +146,7 @@
   architectural_owners:
   - SECURITY
   - RUNTIME
-  status: NOT_IMPLEMENTED
+  status: INTEGRATED
   source_flag: JayaFlags.SOVEREIGN_PRIVACY
 - id: 21
   name: Lingua Logica

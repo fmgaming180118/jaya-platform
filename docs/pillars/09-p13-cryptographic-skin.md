@@ -2,7 +2,7 @@
 
 - **ID pilar:** 13
 - **Tahap:** 3 — Selubung keamanan
-- **Status saat audit:** NOT_IMPLEMENTED
+- **Status saat audit:** INTEGRATED — 90%
 - **Pemilik:** SECURITY, RUNTIME
 
 ## Tujuan
@@ -26,12 +26,22 @@ Key derivation, rotation, version, nonce, dan algorithm suite harus eksplisit.
 
 ## Checklist implementasi
 
-- [ ] Pilih primitive dari library kriptografi terawat; jangan membuat cipher.
-- [ ] Definisikan envelope versioned, associated data, key ID, nonce, dan expiry.
-- [ ] Integrasikan ke `.jaya`, memory, backup, mesh, dan puzzle pack.
+- [x] Pilih primitive dari library kriptografi terawat; jangan membuat cipher.
+- [x] Definisikan envelope versioned, associated data, key ID, nonce, dan expiry.
+- [x] Integrasikan capsule satu-file `.jayac` ke brain, backup, mesh, dan puzzle
+  pack melalui boundary runtime yang sama.
 - [ ] Gunakan OS keystore/secret manager dan prosedur rotasi/revocation.
-- [ ] Uji wrong key, nonce reuse, truncation, bit flip, rollback, dan corruption.
-- [ ] Benchmark latency serta ukuran pada target node.
+- [ ] Uji wrong key, nonce reuse, truncation, bit flip, rollback, dan corruption
+  pada target lokal; seluruhnya kecuali anti-rollback eksternal sudah lulus.
+- [x] Benchmark latency serta ukuran pada target node lokal.
+
+Implementasi lokal memakai AES-256-GCM, Scrypt + HKDF, nonce registry persisten,
+key rotation/revocation, Ed25519 DNA attestation, expiry, payload limit, serta
+audit hash-chain. Launcher dan `JayaCoreRuntime` sudah memakai service P13 pada
+jalur seal/open artifact. `JayaCapsuleCodec` memberi satu format biner dengan
+purpose/subject/kind yang terikat dan dapat diberi signature hybrid P16. Nilai
+executable saat ini 90%; rincian berada di
+[dashboard Selubung Keamanan](../SECURITY_ENVELOPE_PROGRESS.md).
 
 ## Exit criteria
 

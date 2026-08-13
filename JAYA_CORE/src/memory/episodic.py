@@ -9,18 +9,31 @@ import logging
 import sqlite3
 import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional, Protocol
 
 from .events import MemoryEvent
 
 logger = logging.getLogger(__name__)
 
 
+class EpisodicPayloadCodec(Protocol):
+    def encode_event(self, event: MemoryEvent) -> str:
+        ...
+
+    def decode_payload(self, stored: str, owner_id: str) -> dict[str, Any]:
+        ...
+
+
 class EpisodicMemoryStore:
     """Persistent, lightweight SQLite episodic memory with event idempotency."""
 
-    def __init__(self, db_path: Path | str = ":memory:") -> None:
+    def __init__(
+        self,
+        db_path: Path | str = ":memory:",
+        payload_codec: EpisodicPayloadCodec | None = None,
+    ) -> None:
         self.db_path = str(db_path)
+        self._payload_codec = payload_codec
         self._conn: Optional[sqlite3.Connection] = None
         self._lock = threading.RLock()
         self._init_db()
@@ -61,7 +74,11 @@ class EpisodicMemoryStore:
 
     def append_event(self, event: MemoryEvent) -> bool:
         """Appends event idempotently. Returns True if inserted, False if duplicate."""
-        payload_str = json.dumps(event.payload, sort_keys=True)
+        payload_str = (
+            self._payload_codec.encode_event(event)
+            if self._payload_codec is not None
+            else json.dumps(event.payload, sort_keys=True)
+        )
         try:
             with self._lock, self._get_connection() as conn:
                 conn.execute(
@@ -104,7 +121,7 @@ class EpisodicMemoryStore:
                 )
                 .fetchall()
             )
-        return [MemoryEvent.from_dict(dict(r)) for r in rows]
+        return [self._row_to_event(r) for r in rows]
 
     def query_by_goal(self, goal_id: str, limit: int = 50) -> List[MemoryEvent]:
         with self._lock:
@@ -123,7 +140,7 @@ class EpisodicMemoryStore:
                 )
                 .fetchall()
             )
-        return [MemoryEvent.from_dict(dict(r)) for r in rows]
+        return [self._row_to_event(r) for r in rows]
 
     def get_recent_events(self, limit: int = 20) -> List[MemoryEvent]:
         with self._lock:
@@ -141,9 +158,18 @@ class EpisodicMemoryStore:
                 )
                 .fetchall()
             )
-        events = [MemoryEvent.from_dict(dict(r)) for r in rows]
+        events = [self._row_to_event(r) for r in rows]
         events.reverse()
         return events
+
+    def _row_to_event(self, row: sqlite3.Row) -> MemoryEvent:
+        value = dict(row)
+        if self._payload_codec is not None:
+            value["payload"] = self._payload_codec.decode_payload(
+                str(value["payload"]),
+                str(value["session_id"]),
+            )
+        return MemoryEvent.from_dict(value)
 
     def health_check(self) -> bool:
         """Return storage readiness without mutating episodic state."""

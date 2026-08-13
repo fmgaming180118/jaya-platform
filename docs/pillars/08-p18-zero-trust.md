@@ -2,7 +2,7 @@
 
 - **ID pilar:** 18
 - **Tahap:** 2 — Fondasi kedaulatan
-- **Status saat audit:** NOT_IMPLEMENTED
+- **Status saat audit:** INTEGRATED (95%, bukti lokal)
 - **Pemilik:** SECURITY, RUNTIME
 
 ## Tujuan
@@ -25,12 +25,23 @@ Request/artifact → authenticate → authorize → validate → execute → aud
 
 ## Checklist implementasi
 
-- [ ] Tetapkan trust boundary dan threat model setiap modul.
-- [ ] Implementasikan short-lived credential, nonce, replay protection, dan ACL.
-- [ ] Verifikasi signature serta digest artifact sebelum digunakan.
-- [ ] Terapkan least privilege pada Core-Agent-OS dan puzzle packs.
-- [ ] Uji replay, spoofed node, tampered artifact, duplicate, dan clock skew.
-- [ ] Fail closed ketika verifier, clock, atau identity provider gagal.
+- [x] Tetapkan trust boundary untuk invocation puzzle kanonis.
+- [x] Implementasikan short-lived envelope, nonce, replay protection, dan ACL.
+- [x] Verifikasi DNA attestation, payload digest, dan puzzle artifact digest.
+- [x] Terapkan least privilege pada Core dan puzzle registry.
+- [x] Uji replay, spoofed node, tampered payload/artifact, expiry, dan revocation.
+- [x] Fail closed ketika identity/authority tidak tersedia pada mode wajib.
+
+## Bukti aktual
+
+- Registry hanya menjalankan puzzle setelah receipt Ethical Heart valid dan
+  envelope Zero Trust baru terikat brain, node, capability, payload, expiry,
+  nonce, serta DNA attestation.
+- `python scripts/demo_zero_trust.py --workspace <dir>` membuktikan allow,
+  replay deny, payload-tamper deny, restart persistence, audit chain, latency,
+  dan ukuran storage.
+- Sisa 5% adalah CA/key rotation, distributed clock, revocation propagation,
+  telemetry, dan recovery drill pada deployment live.
 
 ## Exit criteria
 

@@ -11,6 +11,7 @@ from src.core_service import DependencyStatus, create_app
 
 _API_KEY = "api-" + ("a" * 40)
 _SOUL_PASSWORD = "soul-" + ("b" * 40)
+_PRIVACY_SECRET = "privacy-" + ("p" * 40)
 
 
 def _environment(
@@ -32,6 +33,8 @@ def _environment(
         "JAYA_CORE_BIND_PORT": "8765",
         "JAYA_CORE_TRUSTED_HOSTS": "testserver",
     }
+    if runtime_environment == "production":
+        values["JAYA_PRIVACY_KEY_SECRET"] = _PRIVACY_SECRET
     return values, model_path, data_dir
 
 
@@ -90,6 +93,16 @@ def test_production_model_is_optional_until_model_puzzle_is_required(
     assert "missing:JAYA_MODEL_PATH" in str(captured.value)
 
 
+def test_production_requires_sovereign_privacy_secret(tmp_path: Path) -> None:
+    environment, _, _ = _environment(tmp_path, runtime_environment="production")
+    environment.pop("JAYA_PRIVACY_KEY_SECRET")
+
+    with pytest.raises(ConfigurationError) as captured:
+        CoreConfig.from_env(environment, core_dir=tmp_path)
+
+    assert "missing:JAYA_PRIVACY_KEY_SECRET" in str(captured.value)
+
+
 def test_identity_is_optional_but_required_mode_needs_secret_and_contained_path(
     tmp_path: Path,
 ) -> None:
@@ -110,6 +123,29 @@ def test_identity_is_optional_but_required_mode_needs_secret_and_contained_path(
     assert config.identity_required is True
     assert config.identity_dir == (data_dir / "identity").resolve()
     assert environment["JAYA_IDENTITY_KEY_SECRET"] not in repr(config)
+
+
+def test_zero_trust_requires_identity_and_privacy(tmp_path: Path) -> None:
+    environment, _, _ = _environment(tmp_path)
+    environment["JAYA_REQUIRE_ZERO_TRUST"] = "true"
+    with pytest.raises(ConfigurationError) as missing_dependencies:
+        CoreConfig.from_env(environment, core_dir=tmp_path)
+    message = str(missing_dependencies.value)
+    assert "invalid:JAYA_REQUIRE_ZERO_TRUST_REQUIRES_IDENTITY" in message
+    assert "invalid:JAYA_REQUIRE_ZERO_TRUST_REQUIRES_PRIVACY" in message
+
+    environment.update(
+        {
+            "JAYA_REQUIRE_IDENTITY": "true",
+            "JAYA_IDENTITY_KEY_SECRET": "identity-" + ("i" * 40),
+            "JAYA_REQUIRE_PRIVACY": "true",
+            "JAYA_PRIVACY_KEY_SECRET": _PRIVACY_SECRET,
+        }
+    )
+    config = CoreConfig.from_env(environment, core_dir=tmp_path)
+    assert config.zero_trust_required is True
+    assert config.privacy_required is True
+    assert config.identity_required is True
 
 
 @pytest.mark.parametrize(

@@ -19,6 +19,8 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
 
+from src.privacy_redaction import redact_private
+
 # Context variables for request tracing
 request_id_var: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 session_id_var: ContextVar[Optional[str]] = ContextVar("session_id", default=None)
@@ -30,6 +32,7 @@ span_id_var: ContextVar[Optional[str]] = ContextVar("span_id", default=None)
 @dataclass
 class LogContext:
     """Structured log context."""
+
     request_id: Optional[str] = None
     session_id: Optional[str] = None
     user_id: Optional[str] = None
@@ -54,16 +57,20 @@ class LogContext:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary, excluding None values."""
-        return {k: v for k, v in {
-            "request_id": self.request_id,
-            "session_id": self.session_id,
-            "user_id": self.user_id,
-            "trace_id": self.trace_id,
-            "span_id": self.span_id,
-            "component": self.component,
-            "operation": self.operation,
-            **self.extra,
-        }.items() if v is not None}
+        return {
+            k: v
+            for k, v in {
+                "request_id": self.request_id,
+                "session_id": self.session_id,
+                "user_id": self.user_id,
+                "trace_id": self.trace_id,
+                "span_id": self.span_id,
+                "component": self.component,
+                "operation": self.operation,
+                **self.extra,
+            }.items()
+            if v is not None
+        }
 
 
 class StructuredFormatter(logging.Formatter):
@@ -71,9 +78,19 @@ class StructuredFormatter(logging.Formatter):
 
     # Fields that should be redacted in logs
     SENSITIVE_FIELDS = {
-        "password", "secret", "api_key", "token", "credential",
-        "private_key", "ssn", "credit_card", "passport",
-        "authorization", "cookie", "session_id", "csrf",
+        "password",
+        "secret",
+        "api_key",
+        "token",
+        "credential",
+        "private_key",
+        "ssn",
+        "credit_card",
+        "passport",
+        "authorization",
+        "cookie",
+        "session_id",
+        "csrf",
     }
 
     def __init__(self, *args, **kwargs):
@@ -82,6 +99,7 @@ class StructuredFormatter(logging.Formatter):
 
     def _get_hostname(self) -> str:
         import socket
+
         try:
             return socket.gethostname()
         except Exception:
@@ -106,7 +124,7 @@ class StructuredFormatter(logging.Formatter):
                 ]
             else:
                 redacted[key] = value
-        return redacted
+        return redact_private(redacted)
 
     def format(self, record: logging.LogRecord) -> str:
         # Base log structure
@@ -114,7 +132,7 @@ class StructuredFormatter(logging.Formatter):
             "timestamp": self.formatTime(record, self.datefmt),
             "level": record.levelname,
             "logger": record.name,
-            "message": record.getMessage(),
+            "message": redact_private(record.getMessage()),
             "hostname": self.hostname,
             "process_id": record.process,
             "thread_id": record.thread,
@@ -131,9 +149,17 @@ class StructuredFormatter(logging.Formatter):
         # Add exception info if present
         if record.exc_info:
             log_entry["exception"] = {
-                "type": record.exc_info[0].__name__ if record.exc_info[0] else "Unknown",
-                "message": str(record.exc_info[1]) if record.exc_info[1] else "",
-                "traceback": traceback.format_exception(*record.exc_info),
+                "type": record.exc_info[0].__name__
+                if record.exc_info[0]
+                else "Unknown",
+                "message": (
+                    redact_private(str(record.exc_info[1]))
+                    if record.exc_info[1]
+                    else ""
+                ),
+                "traceback": redact_private(
+                    traceback.format_exception(*record.exc_info)
+                ),
             }
 
         # Add performance metrics if present
@@ -251,7 +277,7 @@ def setup_structured_logging(
         console_handler.setFormatter(
             logging.Formatter(
                 "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-                datefmt="%Y-%m-%d %H:%M:%S"
+                datefmt="%Y-%m-%d %H:%M:%S",
             )
         )
     root_logger.addHandler(console_handler)
@@ -276,8 +302,10 @@ def get_structured_logger(name: str, component: str = "") -> StructuredLogger:
 # Performance logging decorator
 def log_performance(logger: StructuredLogger, operation: str):
     """Decorator to log function performance."""
+
     def decorator(func):
         import functools
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             start_time = time.perf_counter()
@@ -304,7 +332,9 @@ def log_performance(logger: StructuredLogger, operation: str):
                     success=False,
                 )
                 raise
+
         return wrapper
+
     return decorator
 
 
@@ -312,6 +342,7 @@ def _get_memory_mb() -> float:
     """Get current process memory in MB."""
     try:
         import psutil
+
         process = psutil.Process()
         return process.memory_info().rss / 1024 / 1024
     except Exception:

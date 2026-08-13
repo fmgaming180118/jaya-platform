@@ -1,8 +1,8 @@
 import sys, os, requests, re
 from pathlib import Path
 
-JAYA_ROOT  = Path(r"d:\Kampus\coba-coba\jaya-research\JAYA_RESEARCH")
-PDF_FOLDER = Path(r"d:\Kampus\coba-coba\jaya-research\data-training\PDF-TugasAkhir")
+JAYA_ROOT  = Path(__file__).resolve().parents[1]
+PDF_FOLDER = Path(os.environ.get("JAYA_PDF_TRAINING_DIR", JAYA_ROOT.parent / "data-training" / "PDF-TugasAkhir")).expanduser().resolve()
 
 def load_dotenv(path):
     env = {}

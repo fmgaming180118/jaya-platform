@@ -83,18 +83,22 @@ def test_nlu_bridge_structured_json_with_mock_nlu():
     )
 
     cap_registry = CapabilityRegistry()
-    cap_registry.register(CapabilityManifest(
+    core_reason = CapabilityManifest(
         capability_id="core.reason",
         version="1.0",
         provider="built_in",
         execution_location="local",
-    ))
-    cap_registry.register(CapabilityManifest(
+    )
+    core_reason.health_status = "HEALTHY"
+    cap_registry.register(core_reason)
+    fs_read = CapabilityManifest(
         capability_id="fs.read",
         version="1.0",
         provider="built_in",
         execution_location="local",
-    ))
+    )
+    fs_read.health_status = "HEALTHY"
+    cap_registry.register(fs_read)
 
     symbolic_reasoner = SymbolicReasoner(
         htn_planner=GenericHierarchicalPlanner(),

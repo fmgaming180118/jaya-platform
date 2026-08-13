@@ -1,10 +1,14 @@
 # Progres Tahap 2 — Fondasi Kedaulatan
 
-**Status kanonis:** IN_PROGRESS  
-**Progres tahap:** 45%  
-**Fokus aktif:** P20 Sovereign Privacy (P11 dan P15 sudah INTEGRATED)  
-**Checkpoint:** P11 90%; P15 90%; lanjutkan dari threat model P20  
-**Terakhir diperbarui:** 10 Agustus 2026
+**Status kanonis:** IMPLEMENTED_LOCAL
+
+**Progres tahap:** 92,5%
+
+**Fokus aktif:** validasi deployment Fondasi Kedaulatan
+
+**Checkpoint:** P11 90%; P15 90%; P20 95%; P18 95%
+
+**Terakhir diperbarui:** 14 Agustus 2026
 
 Dokumen ini wajib diperbarui pada setiap sesi pengerjaan Tahap 2. Persentase
 hanya berasal dari gate berbobot yang mempunyai test, demo, atau receipt aktual.
@@ -17,9 +21,9 @@ mengandalkan riwayat percakapan.
 |---:|---|---|---:|---|
 | 1 | P11 DNA Anchor | INTEGRATED | 90% | Pondasi Logika VERIFIED |
 | 2 | P15 Ethical Heart | INTEGRATED | 90% | P11 minimal INTEGRATED |
-| 3 | P20 Sovereign Privacy | NOT_IMPLEMENTED | 0% | P11 + P15 minimal INTEGRATED |
-| 4 | P18 Zero Trust | NOT_IMPLEMENTED | 0% | P11 + P15 + P20 minimal INTEGRATED |
-|  | **Tahap 2** | **IN_PROGRESS** | **45%** | rata-rata empat pilar |
+| 3 | P20 Sovereign Privacy | INTEGRATED | 95% | P11 + P15 minimal INTEGRATED |
+| 4 | P18 Zero Trust | INTEGRATED | 95% | P11 + P15 + P20 minimal INTEGRATED |
+|  | **Tahap 2** | **IMPLEMENTED_LOCAL** | **92,5%** | rata-rata empat pilar |
 
 ## P11 DNA Anchor — gate berbobot 100
 
@@ -91,6 +95,73 @@ mengandalkan riwayat percakapan.
 - Gate P15 tidak menggantikan permission sandbox P18 maupun minimisasi data
   P20; seluruh gate harus lulus secara berurutan.
 
+## P20 Sovereign Privacy — gate berbobot 100
+
+- [x] **5% — Kontrak dibekukan:** classification, owner, subject, purpose,
+  destination, retention, consent, export, deletion, dan failure code.
+- [x] **10% — Consent integrity:** consent Ed25519 terikat owner, subject,
+  purpose, provider, data class, expiry, policy version, dan nonce.
+- [x] **15% — Purpose/provider gate:** data tidak dapat dipakai untuk purpose
+  atau provider di luar izin; default external sharing adalah deny.
+- [x] **15% — Encryption at rest:** memory/vault privat memakai AES-GCM dengan
+  secret yang diinjeksi dan plaintext tidak tersimpan di SQLite/backup.
+- [x] **10% — Retention/deletion:** expiry, revoke, owner deletion, dan tombstone
+  receipt bertahan setelah restart.
+- [x] **10% — Subject access/export:** hanya owner berotoritas dapat membaca dan
+  mengekspor data dengan manifest integrity.
+- [x] **10% — Redaction:** structured field, nested value, message, exception,
+  telemetry, dan provider error tidak membocorkan secret/data privat.
+- [x] **10% — Runtime integration:** episodic memory dan model/provider routing
+  melewati privacy gate pada launcher kanonis.
+- [x] **5% — Failure/security:** cross-owner, revoked/scoped consent, tamper,
+  wrong key, missing provider, backup, dan restart diuji fail-closed.
+- [x] **5% — Demo/measurement:** store → restart → access/export → revoke/
+  delete menghasilkan receipt aktual serta latency/storage terukur.
+- [ ] **5% — Observasi production:** key manager, retention scheduler, telemetry,
+  backup deletion, dan recovery drill terbukti pada deployment persisten.
+
+### Threat model P20
+
+- Prompt, memory, artifact, receipt, telemetry, log, backup, dan provider input
+  dianggap data sampai classification serta purpose-nya terbukti.
+- Keyword seperti `password` bukan classifier dan tidak dapat memberi jaminan
+  privacy; data privat tanpa keyword tetap harus terlindungi.
+- Enkripsi tidak menggantikan authorization, retention, deletion, atau consent.
+- Provider lokal maupun cloud tidak dipercaya hanya dari nama model/provider.
+- Backup wajib mempertahankan ciphertext dan deletion semantics yang terukur.
+
+## P18 Zero Trust — gate berbobot 100
+
+- [x] **5% — Kontrak dibekukan:** principal, node, role, capability ACL,
+  signed envelope, payload binding, issued/expiry, nonce, dan receipt.
+- [x] **10% — Principal registry:** enrollment/revocation persisten dan
+  tidak ada trusted source default atau mutable allowlist tanpa authority.
+- [x] **15% — Authentication/freshness:** DNA attestation, short-lived envelope,
+  clock skew, nonce, signature, serta replay diverifikasi fail-closed.
+- [x] **15% — Authorization/least privilege:** actor, node, capability, payload,
+  ACL, dan policy receipt harus cocok sebelum invocation.
+- [x] **10% — Artifact integrity:** puzzle artifact digest diverifikasi sebelum
+  load; artifact yang berubah ditolak sebelum import.
+- [x] **15% — Runtime boundary:** `CALL_CAPABILITY` dan direct registry pada
+  launcher kanonis melewati Ethical Heart lalu Zero Trust sebelum puzzle.
+- [x] **10% — Persistent audit:** keputusan membentuk integrity chain dan
+  corrupt/restart/provider failure menghentikan authority.
+- [x] **10% — Failure/security:** spoofed node, replay, expired,
+  tamper, duplicate, clock failure/skew, dan privilege escalation diuji.
+- [x] **5% — Demo/measurement:** signed request → allow/deny/replay/tamper
+  menghasilkan receipt aktual serta latency/storage terukur.
+- [ ] **5% — Observasi production:** CA/key rotation, distributed clock,
+  revocation propagation, telemetry, dan recovery drill terbukti live.
+
+### Threat model P18
+
+- `localhost`, nama proses, source label, possession of file, atau lolos regex
+  bukan bukti identitas maupun authority.
+- Setiap request dan artifact dianggap hostile sampai signature, freshness,
+  scope, payload digest, serta ACL terverifikasi.
+- Ethical decision P15 dan privacy decision P20 wajib ada tetapi tidak
+  menggantikan authentication P18.
+
 ## Temuan legacy yang harus dihapus dari jalur runtime
 
 - Hardware fingerprint dijadikan identitas otak sehingga otak tidak portabel.
@@ -128,10 +199,29 @@ enrollment, challenge, rotation, restart, migrasi, signed audit receipt lulus.
 menunjukkan allow, deny, approval-required, approval sah, adapter hanya dipanggil
 setelah izin, dan signed receipt chain valid.
 
-**Tindakan berikutnya:** bekukan data-classification, purpose limitation,
-retention, redaction, encryption-at-rest, dan acceptance test P20 Sovereign
-Privacy. P20 harus memakai identity serta policy receipt P11/P15 dan tidak boleh
-menyamarkan penyimpanan plaintext sebagai privacy.
+**P20 selesai lokal:** auditor gabungan `60 passed`; P20 `95% / INTEGRATED`;
+consent Ed25519, purpose/provider default-deny, vault dan memori AES-GCM,
+restart, export/delete, redaction, runtime model gate, serta demo terukur lulus.
+
+**P18 selesai lokal:** auditor gabungan `60 passed`; P18 `95% / INTEGRATED`;
+principal registry persisten, DNA-bound short-lived envelope, capability ACL,
+replay, expiry, node spoof, payload tamper, dual gate runtime, dan demo lulus.
+
+**Tindakan berikutnya:** 7,5% tersisa hanya gate deployment eksternal: secret
+manager/HSM, key rotation, retention scheduler, distributed clock, revocation
+propagation, telemetry persisten, backup deletion, dan recovery drill. Jangan
+menaikkan status menjadi `VERIFIED` atau `PRODUCTION` sebelum bukti itu ada.
+
+### Regression repository keseluruhan
+
+Perintah `python -m pytest -c NUL JAYA_CORE/tests -q` pada 14 Agustus 2026
+dijalankan dua kali dari proses baru. Keduanya menghasilkan `652 passed`,
+`0 failed`, dan `10 skipped`, masing-masing dalam 293,14 dan 287,75 detik.
+Batas memori runtime sekarang memakai RSS baseline + headroom tugas sehingga
+tidak bergantung pada posisi tes dalam suite. Verifier deployment memakai
+secret privasi ephemeral yang terisolasi untuk child process; ini membuktikan
+wiring lokal, bukan integrasi secret manager produksi. Repository lokal green,
+tetapi bukti deployment production tetap belum tersedia.
 
 ## Hubungan dengan sisa 5% Pondasi Logika
 

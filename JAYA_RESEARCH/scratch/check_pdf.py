@@ -1,13 +1,26 @@
 import sys, os
+from pathlib import Path
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 from research.enhanced_rag import EnhancedRAGClient
 
-rag = EnhancedRAGClient(vector_store_path="workspaces/test_qa_workspace/vector_store.json")
+JAYA_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = JAYA_ROOT.parent
+PDF_FOLDER = Path(
+    os.environ.get(
+        "JAYA_PDF_TRAINING_DIR",
+        REPOSITORY_ROOT / "data-training" / "PDF-TugasAkhir",
+    )
+).expanduser().resolve()
+
+rag = EnhancedRAGClient(
+    vector_store_path=str(JAYA_ROOT / "workspaces/test_qa_workspace/vector_store.json")
+)
 pdf_paths = [
-    r"d:\Kampus\coba-coba\jaya-research\data-training\PDF-TugasAkhir\1318029_Affifah Nasrillah Fajri_TA.pdf",
-    r"d:\Kampus\coba-coba\jaya-research\data-training\PDF-TugasAkhir\1319058_Ihsan Ali_TA.pdf",
-    r"d:\Kampus\coba-coba\jaya-research\data-training\PDF-TugasAkhir\Peraturan Direktur Nomor 02 Tahun 2021 tentang Penetapan Pedoman Tugas Akhir Politeknik STMI Jakarta Secure.pdf",
-    r"d:\Kampus\coba-coba\jaya-research\data-training\PDF-TugasAkhir\TA_1318001_Hanny-Kurnia-Putri_FINAL_SIDANG.pdf"
+    str(PDF_FOLDER / "1318029_Affifah Nasrillah Fajri_TA.pdf"),
+    str(PDF_FOLDER / "1319058_Ihsan Ali_TA.pdf"),
+    str(PDF_FOLDER / "Peraturan Direktur Nomor 02 Tahun 2021 tentang Penetapan Pedoman Tugas Akhir Politeknik STMI Jakarta Secure.pdf"),
+    str(PDF_FOLDER / "TA_1318001_Hanny-Kurnia-Putri_FINAL_SIDANG.pdf"),
 ]
 
 documents = []
