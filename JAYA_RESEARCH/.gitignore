@@ -1,0 +1,97 @@
+# === JAYA_RESEARCH MODULE GITIGNORE ===
+
+# ─── DOKUMENTASI & BLUEPRINT ─────────────────────────────────────────────────
+docs/
+**/docs/
+blueprint/
+blueprints/
+*.md
+!README.md
+*.markdown
+
+# ─── ENVIRONMENT & SECRETS ───────────────────────────────────────────────────
+.env
+.env.*
+*.env
+!.env.example
+secrets.yaml
+
+# ─── VIRTUAL ENVIRONMENTS ────────────────────────────────────────────────────
+.venv*/
+venv*/
+env*/
+ENV/
+
+# ─── PYTHON ARTIFACTS ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ─── DATA PRIBADI RUNTIME & USER UPLOADS ──────────────────────────────────────
+data/
+workspaces/
+logs/
+backups/
+experiments/
+sandbox_env/
+evolution/
+jurnal_pdf/
+scratch/
+
+# `src/experiments` and `src/evolution` are production source packages, not
+# runtime output. Keep them trackable even though similarly named runtime
+# directories remain ignored.
+!src/experiments/
+!src/experiments/**
+!src/evolution/
+!src/evolution/**
+
+# Database & Large Model Binaries
+*.db
+*.sqlite
+*.sqlite3
+*.jaypatch
+*.jay
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+*.gguf
+adapters/
+
+# ─── UI & FRONTEND ───────────────────────────────────────────────────────────
+ui/node_modules/
+ui/dist/
+ui/.vite/
+ui/build/
+ui/.env
+ui/.env.local
+!ui/.env.development
+!ui/.env.production
+
+# ─── OS & EDITOR ─────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# ─── LOGS & TEMP ─────────────────────────────────────────────────────────────
+.coverage
+htmlcov/
+.pytest_cache/
+.pytest_tmp_*/
+*.log
+*.tmp
+*.bak
+*.orig

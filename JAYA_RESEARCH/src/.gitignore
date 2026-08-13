@@ -1,0 +1,4 @@
+# Source packages are tracked; only generated Python bytecode is local.
+__pycache__/
+*.py[cod]
+*$py.class

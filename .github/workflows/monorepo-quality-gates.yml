@@ -1,0 +1,117 @@
+name: Monorepo Quality Gates
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jaya-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentation-and-static-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install quality tools
+        run: python -m pip install "ruff>=0.12,<1"
+      - name: Validate canonical documentation
+        run: python scripts/validate_docs.py
+      - name: Audit repository boundaries
+        run: python .github/tools/repo_layout_audit.py --fail-on-violations
+      - name: Audit Android security invariants
+        run: python scripts/audit_android_security.py
+      - name: Validate root tooling
+        run: |
+          python -m compileall -q scripts .github/tools/repo_layout_audit.py
+          ruff check scripts/run_test_matrix.py scripts/audit_android_security.py
+
+  python-components:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: core
+            requirements: JAYA_CORE/requirements-ci.txt
+            source: JAYA_CORE/src
+            tests: JAYA_CORE/tests
+          - component: agent
+            requirements: JAYA_AGENT/requirements-ci.txt
+            source: JAYA_AGENT/src
+            tests: JAYA_AGENT/tests
+          - component: os
+            requirements: JAYA_OS/requirements-ci.txt
+            source: JAYA_OS/src
+            tests: JAYA_OS/tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ matrix.requirements }}
+      - name: Install component test dependencies
+        run: python -m pip install -r "${{ matrix.requirements }}"
+      - name: Compile and lint runtime blockers
+        run: |
+          python -m compileall -q "${{ matrix.source }}"
+          python -m ruff check --select E9,F63,F7,F82 "${{ matrix.source }}" "${{ matrix.tests }}"
+      - name: Run isolated component suite
+        run: >-
+          python scripts/run_test_matrix.py
+          --component "${{ matrix.component }}"
+          --quiet
+
+  research-offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: JAYA_RESEARCH/requirements-ci.txt
+      - name: Install offline Research dependencies
+        run: python -m pip install -r JAYA_RESEARCH/requirements-ci.txt
+      - name: Compile and lint Research runtime blockers
+        run: |
+          python -m compileall -q JAYA_RESEARCH/src
+          python -m ruff check --select E9,F63,F7,F82 JAYA_RESEARCH/src JAYA_RESEARCH/tests
+      - name: Run isolated Research offline suite
+        run: python scripts/run_test_matrix.py --component research --quiet
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test and lint Android
+        working-directory: JAYA_ANDROID
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest lintDebug --no-daemon
+      - name: Upload Android lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-lint-report
+          path: JAYA_ANDROID/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore

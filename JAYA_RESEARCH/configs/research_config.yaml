@@ -1,0 +1,123 @@
+# JAYA Research Assistant Configuration
+
+research:
+  # Maximum number of research questions to generate
+  max_queries: 10
+  
+  # Maximum research iterations (for gap filling)
+  max_iterations: 3
+  
+  # Enable web search fallback
+  enable_web_search: true
+  
+  # Web search provider (tavily, serper, or none)
+  web_search_provider: "none"  # Set to tavily if you have API key
+
+models:
+  # Reasoning model for research planning and analysis
+  reasoning:
+    name: "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+    temperature: 0.7
+    max_tokens: 4096
+  
+  # Writing model for report generation
+  writing:
+    name: "nvidia/llama-3.3-70b-instruct"
+    temperature: 0.8
+    max_tokens: 8192
+  
+  # Embedding model for RAG
+  embedding:
+    name: "nvidia/nv-embedqa-e5-v5"
+    dimensions: 1024
+
+rag:
+  # Chunk size for document splitting
+  chunk_size: 512
+  
+  # Chunk overlap
+  chunk_overlap: 128
+  
+  # Top-k results to retrieve
+  top_k: 5
+  
+  # Enable reranking
+  rerank: true
+  
+  # Reranker model
+  reranker_model: "nvidia/nv-rerankqa-mistral-4b-v3"
+
+output:
+  # Output format (markdown, json, html)
+  format: "markdown"
+  
+  # Include citations
+  include_citations: true
+  
+  # Include confidence scores
+  include_confidence: false
+  
+  # Output directory
+  reports_dir: "reports"
+
+# Prompt templates
+prompts:
+  research_plan: |
+    You are a research assistant. Generate a comprehensive research plan for the following topic:
+    
+    Topic: {topic}
+    
+    Create 5-10 specific research questions that will help answer this topic thoroughly.
+    Focus on: {focus_areas}
+
+  agi_research_plan: |
+    You are an AGI Research Scientist focusing on Recursive Self-Improvement and Neural Compilation.
+    
+    Topic: {topic}
+    
+    Generate 5-10 deep technical research questions that explore:
+    1. Theoretical limits and bottlenecks
+    2. Novel algorithms for self-modification
+    3. Integration with JIT compilation and metaprogramming
+    4. Safety and stability in recursive systems
+    
+    Focus on finding actionable algorithms that can be implemented in Python/Numba.
+
+  meta_analysis: |
+    You are a Chief Scientist synthesizing knowledge from multiple research reports.
+    
+    Topic: {topic}
+    
+    Analyze the following research summaries and synthesize a "State of the Union" report:
+    
+    {summaries}
+    
+    Identify:
+    1. Recurring patterns and consensus
+    2. Contradictions or trade-offs
+    3. Most promising techniques for immediate implementation
+    4. Gaps in current knowledge
+    
+    Output a structured markdown report.
+
+    
+  report_writing: |
+    You are a technical writer. Synthesize the following research findings into a comprehensive report:
+    
+    Topic: {topic}
+    Findings: {findings}
+    
+    Write a detailed markdown report with proper sections, citations, and conclusions.
+    IMPORTANT: At the end of the report, you MUST include a section titled "Novel Hypothesis & Technology Blueprint" that proposes a brand new idea, technology, or scientific concept based on synthesizing the findings.
+
+  gap_detection: |
+    You are a strict, critical Scientific Peer Reviewer. Your goal is to force the research agent to dig deeper and invent new technologies.
+    
+    Topic: {topic}
+    
+    Current Research Report:
+    {report}
+    
+    Analyze the report and identify critical missing information, contradictions, or unexplored angles that are necessary to formulate a truly novel technological breakthrough. 
+    Output a list of 3 to 5 new, highly specific research queries to fill these gaps. 
+    Format your output strictly as a numbered list, one question per line, with no extra conversational text.

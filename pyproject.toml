@@ -1,0 +1,36 @@
+[project]
+name = "jaya-monorepo-control"
+version = "0.1.0"
+description = "Root tooling and quality-gate configuration for the JAYA monorepo."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+pythonpath = ["JAYA_RESEARCH/src", "JAYA_CORE/src", "JAYA_AGENT/src", "JAYA_OS/src", "JAYA_RESEARCH", "JAYA_CORE", "JAYA_AGENT", "JAYA_OS", "."]
+addopts = "--strict-markers --import-mode=importlib"
+markers = [
+  "integration: crosses a process, provider, model, or subsystem boundary",
+  "network: requires live network access",
+  "hardware: requires audio, GPU, camera, device, or other physical hardware",
+  "manual: requires explicit human observation or interaction",
+  "slow: intentionally long-running validation",
+]
+norecursedirs = [
+  ".git",
+  ".venv",
+  "docs/archive",
+  "JAYA_CORE/llama.cpp",
+  "blueprint*",
+  "blueprints*",
+  "node_modules",
+  "data",
+  "build",
+  "dist",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+

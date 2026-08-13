@@ -1,0 +1,243 @@
+# Status Implementasi
+
+**Snapshot:** 14 Agustus 2026 (KOREKSI SETELAH AUDIT REALISASI)
+**Fokus:** membedakan bukti software lokal dari bukti mutu ilmiah dan produksi
+
+**PERINGATAN: Status sebelumnya mengklaim tingkat kematangan yang tidak didukung oleh kode.**
+**Dokumen ini telah dikoreksi untuk mencerminkan kondisi AKTUAL kode (bukan aspirasi).**
+
+Dokumen ini adalah dashboard kondisi aktual. Urutan pengerjaan berada di
+[ROADMAP.md](ROADMAP.md), sedangkan gate ilmiah Phase A berada di
+[ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md).
+
+Untuk JAYA Core, audit 40 pilar per 14 Agustus 2026 mencatat 5 `VERIFIED`, 7
+`INTEGRATED`, 0 `IMPLEMENTED_LOCAL`, 4 `PROTOTYPE`, dan 24 `NOT_IMPLEMENTED`. Urutan dependency
+dan checklist pembangunan setiap pilar berada di
+[pusat pembangunan 40 pilar](pillars/README.md); status rinci tetap dimiliki
+[matriks implementasi](40_PILLARS_IMPLEMENTATION_MATRIX.md).
+
+Tahap Pondasi Logika berada pada **95% / VERIFIED** berdasarkan gate
+yang dapat dieksekusi. Rincian bobot, bukti, dan penghambat production berada di
+[dashboard Pondasi Logika](LOGICAL_FOUNDATION_PROGRESS.md).
+
+Tahap Fondasi Kedaulatan berada pada **92,5% / IMPLEMENTED_LOCAL**: P11 DNA
+Anchor dan P15 Ethical Heart **90%**, sedangkan P20 Sovereign Privacy dan P18
+Zero Trust **95%**; semuanya `INTEGRATED`. Sisa bukti adalah deployment live di
+secret manager/HSM, scheduler, distributed clock, telemetry, dan recovery drill.
+Checkpoint aktif berada di
+[dashboard Fondasi Kedaulatan](SOVEREIGN_FOUNDATION_PROGRESS.md).
+
+Tahap **Selubung Keamanan** telah mencapai **90% / INTEGRATED**. P13
+Cryptographic Skin **90% / INTEGRATED**, P14 Hardware Locked **85% /
+INTEGRATED**, P16 Quantum Resistant **95% / VERIFIED**, dan P12 Immune System
+**90% / INTEGRATED**. Seluruh jalur implementasi lokal selesai; TPM attestation,
+independent security review, anti-rollback hardware, dan bukti deployment
+berkelanjutan tetap memerlukan environment eksternal. Bukti serta gate kanonis
+ada di [dashboard Selubung Keamanan](SECURITY_ENVELOPE_PROGRESS.md).
+
+## Definisi kematangan
+
+| Status | Arti |
+|---|---|
+| IDEA | Konsep belum dijadwalkan |
+| PLANNED | Scope dan exit criteria sudah ditentukan |
+| PROTOTYPE | Ada kode/demo, tetapi masih memakai asumsi atau simulasi |
+| IMPLEMENTED_LOCAL | Jalur utama bekerja lokal dan memiliki tes nyata |
+| INTEGRATED | Terhubung end-to-end dengan dependency nyata |
+| VERIFIED | Exit criteria, benchmark, keamanan, dan risiko utama telah diverifikasi |
+| PRODUCTION | Verified, terobservasi, aman, terdokumentasi, dan memiliki rollback |
+
+Label bukti yang dipakai bersama status kematangan:
+
+| Label | Arti |
+|---|---|
+| `PASS_LOCAL` | Kontrak deterministik/offline lulus; tidak membuktikan mutu produksi |
+| `PASS_REPRESENTATIVE` | Evaluasi lulus pada dataset representatif yang disetujui dan dapat diaudit |
+| `BLOCKED_EXTERNAL` | Bukti memerlukan corpus, provider, reviewer, approval, compute, atau perangkat nyata |
+| `SMOKE_ONLY` | Fixture kecil untuk memeriksa wiring/kontrak; bukan benchmark kualitas |
+
+## Dashboard aktual (KOREKSI)
+
+### CEL Pipeline Status (Area Utama)
+
+| Area CEL | Status | Bukti aktif | Gap utama |
+|---|---|---|---|
+| Evidence acquisition | IMPLEMENTED / PASS_LOCAL | Ingestion, provenance, citation, source validation diuji offline | Dataset representatif dan corpus gold belum tersedia |
+| Provenance | IMPLEMENTED / PASS_LOCAL | Citation membawa source ID/URI, page/span, chunk hash, score, license | Audit entailment dan review manusia belum tersedia |
+| Knowledge gap detection | IMPLEMENTED / PASS_LOCAL | Offline acceptance contract menolak positive novelty tanpa evaluator | Corpus berlabel dan reviewer domain belum tersedia |
+| Novelty detection | IMPLEMENTED / PASS_LOCAL | Offline acceptance contract tersedia; simulasi/unverified dilabeli | Evaluasi novelty pada corpus berlabel belum dilakukan |
+| Hypothesis generation | IMPLEMENTED / PASS_LOCAL | Hipotesis grounded dengan evidence ID tersedia | Falsifiability review oleh manusia belum ada |
+| Experiment design | IMPLEMENTED / PASS_LOCAL | ExperimentDesigner dengan acceptance criteria tersedia | Eksperimen empiris nyata belum dijalankan |
+| Experiment execution | PROTOTYPE / BLOCKED_EXTERNAL | Sandbox runner dan ExperimentRunner tersedia | Data, etik/legal, compute, dan reproduksi nyata belum ada |
+| Reproducibility | PROTOTYPE / BLOCKED_EXTERNAL | Validasi receipts ada; pipeline reproduksi tersedia | Reproduksi independen nyata belum dilakukan |
+| Candidate artifact creation | IMPLEMENTED / PASS_LOCAL | `research_artifact.py` immutable, status CANDIDATE, `executable=false` | Artifact schema lengkap masih perlu provenance + benchmark nyata |
+| Promotion gate | PROTOTYPE / BLOCKED | Gate komponen tersedia; boundary candidate-only aktif | Gate integrasi, human approval, canary nyata belum diverifikasi |
+| Core integration | PROTOTYPE / BLOCKED | Boundary kontrak ada; direct mutation dilarang dan diuji | Kontrak versioned end-to-end belum ada |
+| Regression detection | PROTOTYPE | Komponen ada | Observability produksi belum tersedia |
+| Rollback | PROTOTYPE / BLOCKED | Konsep ada | Deployment drill rollback nyata belum diuji |
+| JARVIS end-to-end | IDEA | Arah roadmap | Belum ada bukti apapun |
+
+### Domain Adapter Status
+
+| Adapter | Status | Bukti aktif | Gap utama |
+|---|---|---|---|
+| Thesis Analysis | IMPLEMENTED / PASS_LOCAL | Source extraction, sesi persisten, status, checksum, output provider berlabel tidak terverifikasi | Validasi novelty/gap/sintesis pada corpus nyata dan reviewer domain |
+| Deep Research | IMPLEMENTED / PASS_LOCAL | Retrieval bounded, abstention, citation, job status diuji | Search provider nyata, audit kualitas, worker produksi |
+
+### Infrastruktur
+
+| Area | Status | Bukti aktif | Gap utama |
+|---|---|---|---|
+| Dokumentasi dan monorepo | VERIFIED | Dokumen kanonis di root, satu Git root, validator tersedia | Disiplin pembaruan pada setiap perubahan |
+| API Research Phase A | IMPLEMENTED / PASS_LOCAL | Suite API+E2E `100 passed` | Deployment, observability, dan provider nyata belum diverifikasi |
+| Knowledge graph | IMPLEMENTED | Graph dan tes komponen tersedia | Skala, migrasi schema, dan kualitas retrieval dunia nyata |
+| Auto-finetune/LoRA | **PROTOTYPE / NOT_IMPLEMENTED** | `EdgeLoRATrainer` hanya placeholder, TIDAK training nyata | Dataset, training, compute, evaluasi holdout, model card, approval nyata |
+| JAYA Core reasoning/JayaIR | VERIFIED_LOCAL_PROCESS | Pure Logic API+JayaIR puzzle, proof SQLite, ResourceProfile, homeostasis, metrics, backup/rollback/restart; audit 29 test dan 9 deployment check lulus | Pondasi 95%; observasi deployment berkelanjutan belum tersedia |
+| JAYA Agent | PROTOTYPE | API/tool boundary dan tes komponen tersedia | E2E dengan provider dan environment produksi |
+| JAYA OS | PROTOTYPE | Capability sandbox dan runtime komponen tersedia | Ownership kernel legacy dan deployment target |
+| JAYA Android | PROTOTYPE | Proyek, unit test, dan kontrol konfigurasi tersedia | Build APK, model, sync, dan perangkat fisik `BLOCKED_EXTERNAL` |
+
+### Komponen Kritis - Status Realisasi (KOREKSI)
+
+| Komponen | Status Sebelumnya | Status Aktual | Bukti |
+|---|---|---|---|
+| `EdgeLoRATrainer` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / NOT_IMPLEMENTED** | Hanya membuat file placeholder, loss hardcode 0.042, TIDAK ada forward/backward pass |
+| `PhysXSolverAdapter` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / MOCK** | Hanya aritmetika `force/mass`, komentar "mock FEA stress estimation" |
+| `MeshSyncEngine` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / LOCAL ONLY** | Tidak ada crypto/enkripsi, signature hanya prefix hash, tidak ada network transport |
+| `MissionNodeAutonomousRunner` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / SIMULATION** | Kembali segera dengan 3 keputusan hardcoded, tidak benar-benar 10 menit |
+| `PortableCognitiveKernelRunner` | IMPLEMENTED / PASS_LOCAL | **PROTOTYPE / SCAFFOLD** | Hanya mengukur RSS proses Python, 11 komponen hardcoded "READY" |
+| `run_jaya_production_daemon.py` | PRODUCTION | **PROTOTYPE / LABEL ONLY** | Set env var lokal, health server hardcoded "READY", memory hardcoded |
+| `verify_3d_design_e2e.py` | COMPLETE / VERIFIED | **PROTOTYPE** | Hardcoded, tidak memanggil Core/Agent/JayaIR, tidak ada approval user |
+| `CadBasicCapabilityPack` | COMPLETE | **IMPLEMENTED_LOCAL** | Generator teks USDA primitif saja, bukan sistem CAD penuh |
+
+## Bukti audit aktif — 1 Agustus 2026 (Dikoreksi 2 Agustus 2026)
+
+- Suite Research offline: `352 passed, 11 deselected`.
+- Acceptance suite Phase A terarah: `194 passed`.
+- Suite fokus API Phase A dan E2E: `100 passed`.
+- Suite kontrak UI: `12 passed`; `npm run lint` dan production build lulus;
+  `npm audit` melaporkan 0 vulnerability.
+- Deep Research UI tidak memiliki klaim automatic Core application: hasil
+  ditampilkan non-promotable, dengan provenance/citation dan identitas artefak
+  bila tersedia. API key hanya hidup di memori runtime dan gate memakai operasi
+  baca untuk verifikasi. Preview/download/export tetap terautentikasi, status
+  index tesis tidak dipalsukan, dan UI evolution aktif hanya sebagai boundary
+  `BLOCKED` tanpa transport mutasi. Renderer Electron memakai context isolation
+  dan sandbox tanpa Node integration.
+- Kontrak request, route audit, workspace containment, provider failure,
+  abstention, citation, PDF, tesis, dan artefak deep research tercakup dalam tes
+  lokal.
+- `JAYA_RESEARCH/evaluation/rag_smoke_v2.json` adalah dataset sintetis
+  `SMOKE_ONLY`; hasilnya hanya membuktikan harness dan memiliki
+  `production_gate_passed=false` secara kontraktual.
+- `rag_representative_v1.json` telah dihapus karena tidak memenuhi syarat
+  representativeness. Seluruh klaim metrik dari dataset tersebut telah ditarik
+  dan bukan bukti aktif.
+- [ACCEPTANCE_CRITERIA.md](ACCEPTANCE_CRITERIA.md) menetapkan software offline
+  sebagai `PASS_LOCAL`, sedangkan kesiapan ilmiah Phase A tetap
+  `BLOCKED_EXTERNAL`.
+
+**KOREKSI PENTING:** Angka tes di atas adalah snapshot dari working tree lokal,
+bukan pengganti CI bersih. **Status "COMPLETE"/"VERIFIED"/"PRODUCTION" pada
+dokumen sebelumnya TIDAK VALID karena tidak didukung implementasi nyata.**
+
+## Keputusan Phase A
+
+| Lapisan | Status | Keputusan |
+|---|---|---|
+| Kontrak software offline | `PASS_LOCAL` | Boleh menyatakan fondasi kode bekerja pada suite lokal |
+| Kontrak dan build UI | `PASS_LOCAL` | Suite kontrak 12 tes, lint, production build, dan audit dependency lokal lulus |
+| Browser E2E, deployment, provider live | `BLOCKED_EXTERNAL` | Belum ada bukti run browser terhadap API ter-deploy dan dependency nyata |
+| Harness RAG | `PASS_LOCAL / SMOKE_ONLY` | Boleh menguji wiring dan regresi kontrak, bukan mutu produksi |
+| Dataset dan QA representatif | `BLOCKED_EXTERNAL` | Dataset representatif yang disetujui belum tersedia |
+| Novelty/gap ilmiah | `BLOCKED_EXTERNAL` | Corpus berlabel dan reviewer domain belum tersedia |
+| PDF representatif | `BLOCKED_EXTERNAL` | Corpus gold dan evaluasi provider nyata belum tersedia |
+| Eksperimen empiris | `BLOCKED_EXTERNAL` | Data, etik/legal, compute, dan reproduksi nyata belum tersedia |
+| Sintesis/citation ilmiah | `BLOCKED_EXTERNAL` | Audit entailment serta review manusia belum tersedia |
+| Phase A keseluruhan | `IN PROGRESS / BLOCKED_EXTERNAL` | Belum boleh disebut selesai ilmiah, production-ready, atau publication-ready |
+
+## Risiko prioritas
+
+### P0 — klaim ilmiah melebihi bukti
+
+Nilai dari fixture sintetis, output LLM, persona ahli, self-score, atau simulasi
+tidak boleh diberi label representatif, empiris, verified, atau promotable.
+
+### P0 — Klaim lama dan script tidak konsisten dengan kode
+
+Dokumen duplikat yang mengulang klaim "COMPLETE"/"VERIFIED" telah dihapus pada
+10 Agustus 2026. Risiko masih ada pada script atau artifact lama yang memberi
+label selesai sementara implementasinya PROTOTYPE/SCAFFOLD/MOCK. Status kanonis
+di dokumen ini dan matriks 40 pilar harus selalu memenangkan konflik.
+
+### P0 — Otak JAYA masih rule-based/keyword
+
+`IntentEngine` menggunakan n-gram + TF-IDF (bukan model kognitif). Planner
+menggunakan template hardcoded. Model default hanya menghasilkan kalimat statis.
+`ModelRouter` hanya mendaftarkan model rule-based. **Tidak ada model kognitif nyata terintegrasi.**
+
+### P0 — LoRA training palsu
+
+`EdgeLoRATrainer` tidak melakukan training. Menulis string placeholder ke file,
+loss hardcode 0.042, label `EMPIRICAL_RESULT` palsu. Tes hanya memeriksa file
+ada, bukan model/optimizer/forward pass.
+
+### P0 — PhysX/Multiphysics palsu
+
+`PhysXSolverAdapter` tidak memanggil PhysX. Hanya `force/mass` dan rumus mock.
+Komentar source: "mock FEA stress estimation". Checklist menyebut "PhysX multiphysics solver".
+
+### P0 — Mesh "terenkripsi/ditandatangani" palsu
+
+`MeshSyncEngine` tidak punya crypto. Signature hanya prefix hash. Verifikasi
+hanya cek prefix. Tidak ada enkripsi. Docstring: "Encrypted / Signed Mesh".
+
+### P0 — Autonomous mission simulasi nama
+
+`MissionNodeAutonomousRunner` tidak jalan 10 menit. 3 keputusan hardcoded,
+langsung return, durasi simulasi 600 detik hardcoded.
+
+### P0 — Verifikasi 3D tidak end-to-end
+
+`verify_3d_design_e2e.py` tidak pakai Core/Agent/JayaIR. Hardcoded panggil
+`cad.basic.create_box` langsung. Preview cek string `#usda 1.0`. Tidak ada approval.
+
+### P0 — Production hanya label
+
+`run_jaya_production_daemon.py` set env var sendiri, health server hardcoded
+"READY"/"ACTIVE", memory hardcoded "~23.5 MB". Tidak ada readiness probe nyata.
+
+### P0 — Portable kernel hanya status READY
+
+`PortableCognitiveKernelRunner` tidak kompilasi 11 komponen. Baca RAM proses
+Python, hardcoded dictionary semua "READY". Belum dijalankan di Raspberry Pi.
+
+### P1 — dependency eksternal
+
+OCR, pencarian akademik, evaluator novelty, compute eksperimen, model target,
+dan perangkat nyata dapat unavailable. Sistem wajib mengembalikan status
+bertipe dan tidak menyimpan pesan error sebagai pengetahuan.
+
+### P1 — operasional produksi
+
+Sebagian kontrak job dan persistence telah ada, tetapi queue/worker terpisah,
+observability lintas proses, clean install, backup/restore, dan deployment drill
+belum menjadi bukti produksi.
+
+Browser E2E terhadap API ter-deploy, provider live, dan konfigurasi CORS target
+juga belum dijalankan. Kelulusan contract test, lint, build, dan audit dependency
+UI tetap merupakan bukti lokal, bukan bukti operasional produksi.
+
+## Aturan kenaikan status
+
+- PROTOTYPE → IMPLEMENTED: happy path dan failure path memiliki tes
+  deterministik.
+- IMPLEMENTED → INTEGRATED: dependency nyata terhubung end-to-end.
+- INTEGRATED → VERIFIED: exit criteria, benchmark representatif, keamanan, dan
+  reproduksi lulus.
+- VERIFIED → PRODUCTION: deployment terobservasi, runbook/rollback diuji, dan
+  maintainer menyetujui.
+
+`PASS_LOCAL` tidak pernah otomatis menaikkan status menjadi `VERIFIED`.
+Perubahan wajib dicatat juga di [ROADMAP.md](ROADMAP.md) dan
+[CHANGELOG.md](CHANGELOG.md).

@@ -1,0 +1,28 @@
+system:
+  vram_limit_mb: 1024
+  use_gpu: true
+  log_level: "INFO"
+
+teacher:
+  provider: "nvidia_nim"
+  api_base: "https://integrate.api.nvidia.com/v1"
+  reasoning_model: "nvidia/nemotron-super-120b"
+  chat_model: "nvidia/nemotron-super-120b"
+  coding_model: "nvidia/nemotron-super-120b"
+  vision_model: "nvidia/neva-22b"
+
+student:
+  framework: "tinygrad"
+  model_path: "models/micro_agi_v1.safetensors"
+  context_window: 2048
+  learning_rate: 0.0003
+
+nim_distillation:
+  api_base: "https://integrate.api.nvidia.com/v1"
+  model: "nvidia/nemotron-super-120b"
+  max_tokens: 4096
+  temperature: 0.2
+
+rag:
+  embedding_model: "nvidia/nv-embedqa-e5-v5"
+  rerank_model: "nvidia/nv-rerankqa-mistral-4b-v3"

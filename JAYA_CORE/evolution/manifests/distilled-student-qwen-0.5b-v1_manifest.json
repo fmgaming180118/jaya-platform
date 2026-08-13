@@ -1,0 +1,19 @@
+{
+  "baseline_ref": "phase1-closed-v0.1",
+  "candidate": {
+    "candidate_id": "distilled-student-qwen-0.5b-v1",
+    "candidate_payload": "{\"type\": \"distilled_student_model\", \"base_model\": \"Qwen/Qwen2.5-0.5B-Instruct\", \"teacher_model\": \"nvidia/nemotron-3-ultra-550b-a55b\", \"distillation_data\": \"student_training_data.jsonl (44 samples)\", \"epochs\": 3, \"lora_rank\": 8, \"lora_alpha\": 16, \"adapter_path\": \"..\\\\JAYA_RESEARCH\\\\data\\\\distillation\\\\student-qwen-0.5b\", \"target\": \"edge_deploy\", \"expected_vram_mb\": 500}",
+    "created_at": 1782707776.3158913,
+    "expected_perf_gain_pct": 132.60871465041026,
+    "key_id": "local",
+    "metadata": {},
+    "rollback_target": "stable-v1",
+    "signature": "30fa9d75c801f78cea7a4a6238f6d6b4afc10cb26e27003bbeeb8402fbea47ca",
+    "signature_alg": "HMAC-SHA256",
+    "source_hash": "nim-distillation-qwen2.5-0.5b-lora-r8"
+  },
+  "candidate_hash": "d51ed92ae09e84fe6658b33a465e485008900e1794e45312919945e3d8155098",
+  "created_at": 1782707940.352296,
+  "manifest_version": "0.1",
+  "notes": "Distilled student model: Qwen2.5-0.5B + LoRA (r=8), trained on Nemotron-3-Ultra distilled knowledge, 3 epochs, edge deploy target (~500MB VRAM)"
+}

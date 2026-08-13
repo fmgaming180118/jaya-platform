@@ -1,0 +1,53 @@
+import sys
+import asyncio
+sys.path.insert(0, '.')
+
+from src.os_kernel.ipc import (
+    IPCRouter, BrainIPCClient, KernelIPCServer, InProcessIPCChannel,
+    MessageType, IPCMessage, create_ipc_system
+)
+
+print('=== IPC System Debug Test ===')
+
+async def test_ipc():
+    channel = InProcessIPCChannel()
+    router = IPCRouter(channel)
+    client = BrainIPCClient(router)
+    server = KernelIPCServer(router)
+    
+    # Start router
+    await router.start()
+    
+    try:
+        # Test ping - send directly to router's broadcast queue
+        msg = IPCMessage.create(MessageType.PING, {}, source='brain_v2', target='os_kernel')
+        print(f'Sending message: {msg.message_id} to {msg.target}')
+        
+        # Put message directly in broadcast queue for router
+        await channel._broadcast_queue.put(msg)
+        print('Message put in broadcast queue')
+        
+        # Give router time to process
+        await asyncio.sleep(0.5)
+        
+        # Check if response is in brain_v2 queue
+        try:
+            response = await asyncio.wait_for(channel._queues['brain_v2'].get(), timeout=1.0)
+            print(f'Response received: {response.payload}')
+        except asyncio.TimeoutError:
+            print('No response in brain_v2 queue')
+        
+        # Also check os_kernel queue
+        try:
+            kernel_msg = await asyncio.wait_for(channel._queues['os_kernel'].get(), timeout=0.1)
+            print(f'Message in os_kernel queue: {kernel_msg.type.value}')
+        except asyncio.TimeoutError:
+            print('No message in os_kernel queue')
+            
+    finally:
+        await router.stop()
+
+asyncio.run(test_ipc())
+
+print()
+print('=== Debug Test COMPLETE ===')

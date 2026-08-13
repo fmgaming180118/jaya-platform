@@ -1,0 +1,18 @@
+{
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "standard",
+  "reportUnknownVariableType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportMissingTypeArgument": "none",
+  "reportMissingImports": "warning",
+  "reportUnusedImport": "error",
+  "reportUnusedVariable": "error",
+  "reportPrivateUsage": "warning",
+  "reportOptionalMemberAccess": "error",
+  "reportOptionalSubscript": "error",
+  "reportAttributeAccessIssue": "error",
+  "reportConstantRedefinition": "error",
+  "reportUnnecessaryComparison": "warning"
+}

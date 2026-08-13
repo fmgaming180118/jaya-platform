@@ -1,0 +1,166 @@
+# === JAYA RESEARCH AGENTIC ECOSYSTEM - GITIGNORE ===
+# Clean production gitignore. Protects sensitive user data & omits internal blueprints/AI docs.
+
+# ─── DOKUMENTASI & BLUEPRINT ────────────────────────────────────────────────
+# Dokumentasi aktif di /docs dilacak. Arsip dan referensi besar tetap lokal.
+docs/references/
+docs/archive/*
+!docs/archive/README.md
+JAYA_CORE/docs/
+JAYA_RESEARCH/docs/
+JAYA_AGENT/docs/
+JAYA_OS/docs/
+JAYA_ANDROID/docs/
+blueprint/
+blueprints/
+blueprint-*/
+.agents/
+
+# ─── ENVIRONMENT & SECRETS (JANGAN PERNAH COMMIT) ───────────────────────────
+.env
+.env.*
+*.env
+!**/.env.example
+*.key
+*.jay.key
+secrets.yaml
+configs/local_*.yaml
+nvidia_nim_config.yaml
+
+# ─── VIRTUAL ENVIRONMENTS & DEPENDENCIES ─────────────────────────────────────
+.venv/
+venv/
+ENV/
+.venv*/
+**/.venv*/
+**/venv*/
+node_modules/
+**/node_modules/
+
+# ─── PYTHON & BUILD ARTIFACTS ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.o
+*.obj
+*.iso
+*.exp
+*.lib
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+htmlcov/
+# Kotlin/Gradle incremental compiler state (for example JAYA_ANDROID/.kotlin).
+.kotlin/
+.coverage
+.pytest_cache/
+
+# ─── DATA PRIBADI, RUNTIME & DATABASE (Data User & Vector Store) ────────────
+data/
+**/data/
+# A package named `data` inside a source tree is code, not runtime user data.
+# Re-include only source-file extensions; databases/uploads remain ignored.
+!**/src/**/data/
+!**/src/**/data/**/*.py
+!**/src/**/data/**/*.kt
+!**/src/**/data/**/*.java
+!**/src/**/data/**/*.ts
+# Versioned bootstrap knowledge is source data, not user/runtime state.
+!JAYA_CORE/data/
+JAYA_CORE/data/**
+!JAYA_CORE/data/default_local_knowledge.json
+workspaces/
+**/workspaces/
+logs/
+**/logs/
+backups/
+**/backups/
+reports/
+**/reports/
+sandbox_env/
+**/sandbox_env/
+jurnal_pdf/
+**/jurnal_pdf/
+data-training/
+file-uji-coba/
+scratch/
+**/scratch/
+/temp/
+
+# Generated distillation/training outputs stay local. Training source code under
+# JAYA_RESEARCH/src/training remains trackable.
+/JAYA_RESEARCH/training/nim_distillation/*.json
+
+# Database files & patches
+*.db
+*.sqlite
+*.sqlite3
+*.jaypatch
+*.jay
+*.pdf
+
+# Generated bare-metal outputs and local build transcripts.
+JAYA_CORE/src/os_kernel/build_*.txt
+JAYA_CORE/src/os_kernel/user_error.txt
+JAYA_CORE/src/os_kernel/vbox_tail.txt
+
+# Required Android prompt assets are versioned application resources.
+!JAYA_ANDROID/app/src/main/assets/blueprints/
+!JAYA_ANDROID/app/src/main/assets/blueprints/**
+
+# ─── LARGE MODEL BINARIES & WEIGHT ADAPTERS ──────────────────────────────────
+*.pt
+*.pth
+*.bin
+*.onnx
+*.safetensors
+*.gguf
+adapters/
+**/adapters/
+
+# ─── TEST SCRIPTS & TEST ARTIFACTS ───────────────────────────────────────────
+check_duplicates.py
+cleanup_duplicates.py
+temp_*.txt
+*.tmp
+test_output_*.txt
+
+# ─── UI & FRONTEND BUILD ─────────────────────────────────────────────────────
+ui/dist/
+ui/.vite/
+ui/build/
+ui/dist-electron/
+ui/.output/
+dist-electron/
+
+# Vite mode configuration contains no credentials and is versioned source.
+!JAYA_RESEARCH/ui/.env.development
+!JAYA_RESEARCH/ui/.env.production
+
+# ─── TEMP FILES, LOGS & SCRATCH SCRIPTS ──────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.orig
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Ignore temporary root test logs
+approved_log*.txt
+final_*.txt
+jaya_data_list.txt
+pip_install_log.txt
+run_*.txt
+sample_run.txt
+verify_*.txt
+tmp_*.py
