@@ -1,0 +1,146 @@
+[project]
+name = "jaya-monorepo"
+version = "0.1.0"
+description = "JAYA AI Research Monorepo - Core, Agent, OS, and Research Platform"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+    "packages/jaya-core",
+    "packages/jaya-agent",
+    "packages/jaya-os",
+    "packages/jaya-research",
+]
+
+[tool.uv.sources]
+jaya-core = {workspace = true}
+jaya-agent = {workspace = true}
+jaya-os = {workspace = true}
+jaya-research = {workspace = true}
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "packages/jaya-core/src",
+    "packages/jaya-agent/src",
+    "packages/jaya-os/src",
+    "packages/jaya-research/src",
+    "tests",
+]
+addopts = "--strict-markers --import-mode=importlib -v"
+markers = [
+    "unit: fast isolated tests",
+    "integration: crosses a process, provider, model, or subsystem boundary",
+    "network: requires live network access",
+    "hardware: requires audio, GPU, camera, device, or other physical hardware",
+    "manual: requires explicit human observation or interaction",
+    "slow: intentionally long-running validation",
+    "e2e: end-to-end system tests",
+    "performance: performance benchmarks",
+    "chaos: chaos engineering tests",
+]
+norecursedirs = [
+    ".git",
+    ".venv",
+    "docs/archive",
+    "packages/jaya-core/llama.cpp",
+    "blueprint*",
+    "blueprints*",
+    "node_modules",
+    "data",
+    "build",
+    "dist",
+    "**/__pycache__",
+    "**/.pytest_tmp*",
+    "outputs",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["packages/jaya-core/src", "packages/jaya-agent/src", "packages/jaya-os/src", "packages/jaya-research/src", "tests", "scripts", "tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "T20", "W", "N", "D", "PL", "TRY", "PTH", "ERA", "NPY", "PERF", "RET"]
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D107", "S101", "T201", "T203"]
+preview = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*" = ["S101", "D100", "D101", "D102", "D103", "T201", "T203"]
+"scripts/**/*" = ["S101", "T201", "T203"]
+"tools/**/*" = ["S101", "T201", "T203"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true
+mypy_path = "packages/jaya-core/src:packages/jaya-agent/src:packages/jaya-os/src:packages/jaya-research/src"
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "scripts.*"
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = [
+    "packages/jaya-core/src",
+    "packages/jaya-agent/src",
+    "packages/jaya-os/src",
+    "packages/jaya-research/src",
+]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/.pytest_tmp*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv", "build", "dist"]
+skips = ["B101", "B601"]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+pythonVersion = "3.11"
+venvPath = "."
+venv = ".venv"
+extraPaths = [
+    "packages/jaya-core/src",
+    "packages/jaya-agent/src",
+    "packages/jaya-os/src",
+    "packages/jaya-research/src",
+]
+reportMissingImports = true
+reportMissingModuleSource = false

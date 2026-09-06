@@ -1,0 +1,12 @@
+{
+  "candidate_id": "qlora-language-adapter-v2",
+  "source_hash": "nemotron-dataset-qwen-base-3epoch",
+  "created_at": 1782665525.1809764,
+  "candidate_payload": "{\"type\": \"qlora_adapter\", \"base_model\": \"Qwen/Qwen3-4B-Instruct-2507\", \"dataset\": \"language_policy_nemotron_dataset.jsonl\", \"epochs\": 3, \"adapter_path\": \"..\\\\JAYA_RESEARCH\\\\data\\\\qlora\\\\adapter-qwen-from-nemotron-v2\", \"eval_report\": \"..\\\\JAYA_RESEARCH\\\\data\\\\qlora\\\\eval_report.json\"}",
+  "expected_perf_gain_pct": 132.60871465041026,
+  "rollback_target": "stable-v1",
+  "key_id": "local",
+  "signature_alg": "HMAC-SHA256",
+  "signature": "f681a76dc3002bd7abbc680e577702a6b96704d536a2f728c3b43bb57df69d06",
+  "metadata": {}
+}

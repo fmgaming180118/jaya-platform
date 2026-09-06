@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "profile_id": "p14-windows-dpapi-hardware-locked-v1",
+  "scope": "Windows DPAPI LOCAL_MACHINE node authority with explicit enrollment, signed binding and audit state, restart authorization, fail-closed clone checks, atomic owner migration and revocation, P13 encrypted-brain portability after rewrap, SQLite recovery, concurrent boot authorization, and bounded representative workload on one Windows workstation; TPM and cross-machine attestation are excluded",
+  "supported_os": "Windows",
+  "workload": {
+    "provider_roundtrips": 100,
+    "boot_authorizations": 100,
+    "concurrent_workers": 4,
+    "operations_per_worker": 10,
+    "payload_bytes": 4096,
+    "max_provider_mean_latency_ms": 100.0,
+    "max_boot_mean_latency_ms": 500.0,
+    "max_boot_p95_latency_ms": 750.0,
+    "max_migration_latency_ms": 1000.0,
+    "max_recovery_latency_ms": 2000.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 67108864,
+    "max_storage_bytes_per_operation": 131072
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/protection/hardware.py",
+    "packages/jaya-core/src/jaya_core/security/cryptographic_skin.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/core_config.py",
+    "packages/jaya-core/src/jaya_core/verification/hardware_locked.py",
+    "packages/jaya-core/tests/test_hardware_binding.py",
+    "packages/jaya-core/verification/p14_windows_dpapi_hardware_locked_v1.json",
+    "scripts/run_jaya_core_server.py",
+    "scripts/demo_hardware_binding.py",
+    "scripts/verify_hardware_locked.py"
+  ]
+}

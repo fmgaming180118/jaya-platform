@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "profile_id": "p35-windows-activation-sparsity-v1",
+  "scope": "activation sparsity execution with CPU-indexed skip compute, top-k and magnitude threshold gating, skipped operation count verification, dense baseline quality budgeting, SQLite WAL persistence, tamper-evident receipts, and Windows EMI energy profiling",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_HARDWARE_CAPABILITY_PROBE",
+      "G03_INDEXED_SPARSE_KERNEL_EXECUTION",
+      "G04_MEASURABLE_COMPUTE_REDUCTION",
+      "G05_DENSE_BASELINE_QUALITY_GATING",
+      "G06_MAGNITUDE_THRESHOLD_GATING",
+      "G07_EXTREME_THRESHOLDS_AND_ALL_ZERO",
+      "G08_NAN_INF_AND_MALFORMED_INPUT",
+      "G09_UNSUPPORTED_OPERATION_REJECTION",
+      "G10_DETERMINISTIC_REPLAY_AND_DIGEST",
+      "G11_SQLITE_WAL_PERSISTENCE",
+      "G12_TAMPER_EVIDENT_RECEIPT_INTEGRITY",
+      "G13_RESTART_DURABILITY",
+      "G14_RUNTIME_AND_MANIFEST_DISPATCH",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 50.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 10.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/activation_sparsity.py",
+    "packages/jaya-core/src/jaya_core/pillars/foundation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/activation_sparsity.py",
+    "packages/jaya-core/verification/p35_windows_activation_sparsity_v1.json",
+    "packages/jaya-core/tests/test_activation_sparsity.py",
+    "packages/jaya-core/tests/test_sparse_moe_local_pillars.py",
+    "scripts/verify_activation_sparsity.py",
+    "scripts/demo_activation_sparsity.py",
+    "scripts/benchmark/benchmark_p35_activation_sparsity.py"
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "request_id": "demo-foundation-1",
+  "facts": [
+    "node.identity.known",
+    "resource.profile.available"
+  ],
+  "rules": [
+    {
+      "id": "runtime-awareness",
+      "if": [
+        "node.identity.known",
+        "resource.profile.available"
+      ],
+      "then": "runtime.context.known"
+    },
+    {
+      "id": "safe-reasoning",
+      "if": ["runtime.context.known"],
+      "then": "reasoning.allowed"
+    }
+  ],
+  "query": "reasoning.allowed"
+}

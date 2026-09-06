@@ -1,0 +1,74 @@
+# ==============================================================================
+# NVIDIA NIM API Centralized Configuration File
+# Location: Root Workspace (nvidia_nim_config.yaml)
+# ==============================================================================
+# Gunakan file ini untuk mengonfigurasi endpoint, model, dan parameter NVIDIA NIM
+# tanpa perlu mengubah kode program. Seluruh modul JAYA akan secara otomatis
+# membaca konfigurasi dari file ini.
+# ==============================================================================
+
+api_settings:
+  # Base API URL untuk NVIDIA NIM API
+  base_url: "https://integrate.api.nvidia.com/v1"
+  vlm_endpoint: "https://integrate.api.nvidia.com/v1/chat/completions"
+  
+  # Default Parameters
+  temperature: 0.2
+  top_p: 0.95
+  max_tokens: 4096
+
+models:
+  # ----------------------------------------------------------------------------
+  # 1. Chat Completion & Reasoning Models (LLM)
+  # ----------------------------------------------------------------------------
+  # Model utama untuk penalaran mendalam, analisis tesis, & generasi hipotesis
+  reasoning_model: "nvidia/nemotron-super-120b"
+  chat_model: "nvidia/nemotron-super-120b"
+  coding_model: "nvidia/nemotron-super-120b"
+  fallback_model: "nvidia/nemotron-4-340b-instruct"
+
+  # ----------------------------------------------------------------------------
+  # 2. Vision & Multimodal Models (VLM)
+  # ----------------------------------------------------------------------------
+  # Model untuk analisis gambar, diagram arsitektur PDF, & chart
+  vision_model: "nvidia/neva-22b"
+  deplot_model: "google/deplot"
+
+  # ----------------------------------------------------------------------------
+  # 3. Image Generation Models (GenAI / Diffusion)
+  # ----------------------------------------------------------------------------
+  # Model untuk generasi ilustrasi & diagram visual
+  image_gen_model: "black-forest-labs/flux.1-dev"
+
+  # ----------------------------------------------------------------------------
+  # 4. Video Analytics Models (VSS)
+  # ----------------------------------------------------------------------------
+  # Model untuk analisis, pencarian, & ringkasan video riset
+  video_summary_model: "nvidia/video-search-and-summarization"
+
+  # ----------------------------------------------------------------------------
+  # 5. Speech & Voice AI Models (Riva TTS & STT)
+  # ----------------------------------------------------------------------------
+  # Model untuk agen suara JARVIS Voice Agent
+  tts_model: "nvidia/riva-tts-fastpitch"
+  stt_model: "nvidia/parakeet-ctc-0.6b"
+
+  # ----------------------------------------------------------------------------
+  # 6. Vector Embeddings & Reranking Models (RAG)
+  # ----------------------------------------------------------------------------
+  # Model untuk pengindeksan FAISS RAG & perankingan ulang chunk dokumen
+  embedding_model: "nvidia/nv-embedqa-e5-v5"
+  rerank_model: "nvidia/nv-rerankqa-mistral-4b-v3"
+
+  # ----------------------------------------------------------------------------
+  # 7. Document Ingest & Guardrails Safety Models
+  # ----------------------------------------------------------------------------
+  ingest_model: "nvidia/nv-ingest-pdf"
+  guardrails_model: "nvidia/llama-guard-3-8b"
+
+rag_settings:
+  chunk_size: 512
+  chunk_overlap: 128
+  embed_batch_size: 32
+  embed_dimension: 1024
+  rerank_enabled: false

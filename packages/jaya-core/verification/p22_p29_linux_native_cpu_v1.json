@@ -1,0 +1,107 @@
+{
+  "claims": {
+    "gpu_provider": null,
+    "hardware_acceleration": false,
+    "linux_x86_64_native_verified": true,
+    "windows_native_verified": false
+  },
+  "created_at": "2026-08-31T05:46:03.216829+00:00",
+  "environment": {
+    "cpu_logical": 4,
+    "cpu_physical": 2,
+    "energy_measurement": "UNAVAILABLE_NOT_CLAIMED",
+    "machine": "x86_64",
+    "memory_total_bytes": 4106866688,
+    "numpy": "1.26.4",
+    "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.36",
+    "processor": "12th Gen Intel(R) Core(TM) i5-12450HX",
+    "python": "3.11.16",
+    "rss_after_bytes": 55111680,
+    "rss_before_bytes": 55111680,
+    "rss_delta_bytes": 0,
+    "toolchain": {
+      "cargo": "cargo 1.65.0",
+      "cmake": "cmake version 3.25.1",
+      "cxx": "c++ (Debian 12.2.0-14+deb12u1) 12.2.0",
+      "rustc": "rustc 1.63.0"
+    }
+  },
+  "p22_ternary_linear": {
+    "input_shape": [
+      16,
+      64
+    ],
+    "max_absolute_error": 6.67572021484375e-06,
+    "median_speed_ratio_reference_over_native": 1.5670112094652855,
+    "native": {
+      "max_ns": 101396,
+      "median_ns": 91619,
+      "min_ns": 80865,
+      "p95_ns": 99718,
+      "samples": 25
+    },
+    "reference": {
+      "max_ns": 173011,
+      "median_ns": 143568,
+      "min_ns": 135200,
+      "p95_ns": 169960,
+      "samples": 25
+    },
+    "weight_shape": [
+      64,
+      512
+    ]
+  },
+  "p29_binary_dot": {
+    "expected_dot_product": 15602,
+    "length": 65536,
+    "median_speed_ratio_reference_over_native": 1.7158618539559374,
+    "native": {
+      "max_ns": 11413151,
+      "median_ns": 7621152,
+      "min_ns": 7175007,
+      "p95_ns": 9262686,
+      "samples": 25
+    },
+    "native_dot_product": 15602,
+    "reference": {
+      "max_ns": 15426703,
+      "median_ns": 13076844,
+      "min_ns": 12358935,
+      "p95_ns": 14403363,
+      "samples": 25
+    }
+  },
+  "providers": {
+    "compute": {
+      "accelerator_provider": null,
+      "contract_version": 1,
+      "hardware_accelerated": false,
+      "library_path": "/workspace/native/build/lib/libjaya_compute.so",
+      "machine": "x86_64",
+      "native_available": true,
+      "requested_provider": "native-cpu",
+      "selected_provider": "jaya-cpp20-cpu-v1"
+    },
+    "compute_library": {
+      "path": "/workspace/native/build/lib/libjaya_compute.so",
+      "sha256": "sha256:b78cfcb88aa8a38c81684ec9eeb65b91611845deba1106e38cc1c151eaaf391f",
+      "size_bytes": 15696
+    },
+    "trusted": {
+      "contract_version": 1,
+      "library_path": "/workspace/native/build/lib/libjaya_trusted.so",
+      "native_available": true,
+      "requested_provider": "trusted-rust",
+      "selected_provider": "jaya-rust-trusted-v1"
+    },
+    "trusted_library": {
+      "path": "/workspace/native/build/lib/libjaya_trusted.so",
+      "sha256": "sha256:cd67abe6a5f2b4537991d3edc466bb31b59380c8c124a083e7e6f28c66df3106",
+      "size_bytes": 268456
+    }
+  },
+  "run_id": "native-benchmark-2fe77ebb5d664dbba8e6536937cfa4ac",
+  "schema_version": 1,
+  "status": "PASS"
+}

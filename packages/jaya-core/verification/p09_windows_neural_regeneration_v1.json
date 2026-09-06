@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "profile_id": "p09-windows-neural-regeneration-v1",
+  "scope": "encrypted local recovery with AES-GCM envelopes, HMAC-SHA256 manifest signatures, transactional SQLite catalog/ledger, path confinement, canary verification, quarantine history, and atomic state restoration",
+  "supported_os": "Windows",
+  "matrix": {
+    "encryption": "AESGCM-256",
+    "signature": "HMAC-SHA256",
+    "catalog": "sqlite3",
+    "canaries": [
+      "SQLITE_QUICK_CHECK",
+      "JSON_SYNTAX"
+    ],
+    "schema_version": 1
+  },
+  "soak": {
+    "iterations": 200,
+    "max_mean_restore_latency_ms": 25.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 8192,
+    "max_package_joules_per_record": 0.5
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/maintenance_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/neural_regeneration.py",
+    "packages/jaya-core/verification/p09_windows_neural_regeneration_v1.json",
+    "packages/jaya-core/tests/test_neural_regeneration.py",
+    "packages/jaya-core/tests/test_maintenance_local_pillars.py",
+    "scripts/verify_neural_regeneration.py",
+    "scripts/demo_neural_regeneration.py",
+    "scripts/benchmark/benchmark_p09_neural_regeneration.py"
+  ]
+}

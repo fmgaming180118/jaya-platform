@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "profile_id": "p13-windows-authenticated-crypto-skin-v1",
+  "scope": "AES-256-GCM and Ed25519 DNA-attested envelopes with Scrypt and HKDF key derivation, strict metadata binding, bounded clock and payload handling, persistent unique nonces, keyed SQLite state authentication, rotation/revocation/restart, canonical P11/P18/P20 launcher dependencies, non-quantum P13 capsules for all four boundary kinds, secure SQLite backup, concurrent local writers, and bounded representative workload on one Windows workstation",
+  "supported_os": "Windows",
+  "workload": {
+    "seal_open_operations": 100,
+    "payload_bytes": 4096,
+    "concurrent_writers": 2,
+    "operations_per_writer": 10,
+    "max_clock_skew_seconds": 5.0,
+    "minimum_elapsed_seconds": 1.0,
+    "max_mean_latency_ms": 500.0,
+    "max_p95_latency_ms": 750.0,
+    "min_operations_per_second": 2.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_storage_bytes_per_operation": 32768,
+    "max_envelope_overhead_bytes": 4096
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/security/cryptographic_skin.py",
+    "packages/jaya-core/src/jaya_core/security/capsule.py",
+    "packages/jaya-core/src/jaya_core/memory/backup.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/core_config.py",
+    "packages/jaya-core/src/jaya_core/verification/cryptographic_skin.py",
+    "packages/jaya-core/tests/test_cryptographic_skin.py",
+    "packages/jaya-core/tests/test_cryptographic_skin_lifecycle.py",
+    "packages/jaya-core/verification/p13_windows_authenticated_crypto_skin_v1.json",
+    "scripts/run_jaya_core_server.py",
+    "scripts/demo_cryptographic_skin.py",
+    "scripts/verify_cryptographic_skin.py"
+  ]
+}

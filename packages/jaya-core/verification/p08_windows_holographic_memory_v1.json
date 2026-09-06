@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile_id": "p08-windows-holographic-memory-v1",
+  "scope": "persistent episodic SQLite holographic memory with multi-index retrieval (session, goal, event_type, semantic, entity, task, procedure), strict provenance, conflict detection, self-healing index reconstruction, compaction, export, and sovereign privacy deletion",
+  "supported_os": "Windows",
+  "matrix": {
+    "index_types": ["session", "goal", "event_type", "semantic", "entity", "task", "procedure"],
+    "policies": ["PRIVATE", "RESTRICTED", "INTERNAL", "PUBLIC"]
+  },
+  "soak": {
+    "iterations": 1000,
+    "minimum_elapsed_seconds": 0.5,
+    "max_mean_append_latency_ms": 15.0,
+    "max_query_latency_ms": 20.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 4096
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/memory/episodic.py",
+    "packages/jaya-core/src/jaya_core/pillars/foundation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/holographic_memory.py",
+    "packages/jaya-core/verification/p08_windows_holographic_memory_v1.json",
+    "packages/jaya-core/tests/test_holographic_memory_verification.py",
+    "packages/jaya-core/tests/test_foundation_local_pillars.py",
+    "packages/jaya-core/tests/test_integrated_memory_cycle.py",
+    "scripts/verify_holographic_memory.py",
+    "scripts/demo_holographic_memory.py",
+    "scripts/benchmark/benchmark_p08_holographic_memory.py"
+  ]
+}

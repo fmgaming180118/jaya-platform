@@ -1,0 +1,68 @@
+JAYA PROPRIETARY SOURCE NOTICE AND RESTRICTED-USE TERMS
+
+Copyright (c) 2026 JAYA Sovereign AI Team (fmgaming180118).
+All rights reserved.
+
+1. Ownership
+
+The source code, documentation, designs, models, data schemas, interfaces,
+assets, and all other original material in this repository (collectively,
+"JAYA") are proprietary works owned by the copyright holder. JAYA is not
+open-source software and is not distributed under an open-source license.
+
+2. No General License Grant
+
+Except for the limited rights that GitHub's Terms of Service require solely to
+operate GitHub features for a repository made visible through GitHub, no
+license or permission is granted, whether expressly, by implication, estoppel,
+or otherwise.
+
+3. Prohibited Activities
+
+Without prior written permission from the copyright holder, you may not:
+
+- clone, download, copy, or reproduce JAYA outside the GitHub functionality
+  expressly permitted by GitHub's Terms of Service;
+- use, execute, compile, deploy, test, benchmark, or evaluate JAYA locally or
+  on any remote system;
+- modify, adapt, translate, reverse engineer, decompile, or create derivative
+  works from JAYA;
+- publish, distribute, sublicense, sell, rent, lease, host, mirror, or otherwise
+  make JAYA available to another person or system;
+- use JAYA or its contents for a commercial purpose, competing product,
+  dataset, machine-learning training, model evaluation, or automated code
+  generation; or
+- remove or alter any copyright, ownership, or restriction notice.
+
+4. Viewing on GitHub
+
+When this repository is public, its contents may be viewed and may be forked
+within GitHub only to the extent GitHub's Terms of Service require. That limited
+platform permission does not grant permission to modify, run, redistribute, or
+use JAYA outside those mandatory GitHub platform rights.
+
+5. Contributions
+
+Unsolicited code contributions are not accepted. No pull request, issue,
+comment, suggestion, or other submission transfers ownership or grants the
+submitter permission to use JAYA. A contribution may be accepted only under a
+separate written agreement signed or explicitly approved by the copyright
+holder.
+
+6. Third-Party Components
+
+Third-party components retain their respective licenses and copyright notices.
+This notice applies only to original JAYA material and does not replace or
+restrict rights granted by a third-party license for that third-party material.
+
+7. No Warranty
+
+JAYA is provided for viewing "AS IS", without warranty of any kind, express or
+implied. To the maximum extent permitted by applicable law, the copyright
+holder is not liable for any claim, damage, or other liability arising from
+access to or use of JAYA.
+
+8. Permission Requests
+
+Any permission must be obtained in writing from the repository owner before
+the proposed activity begins.

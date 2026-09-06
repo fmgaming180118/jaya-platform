@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "profile_id": "p28-windows-self-bootstrapping-v1",
+  "scope": "bounded declarative capability bootstrapping with RAG evidence grounding, deterministic dependency planning, cycle detection, offline policy enforcement, sandbox acceptance validation, cryptographic owner approval signatures, atomic staging, canary execution, runtime invocation, and safe rollback retirement",
+  "supported_os": "Windows",
+  "matrix": {
+    "operators": [
+      "SUM",
+      "MEAN",
+      "MAX",
+      "MIN"
+    ],
+    "signature_algorithm": "hmac_sha256",
+    "storage_backend": "sqlite3",
+    "offline_policy": "DEFAULT_DENY",
+    "schema_version": 1
+  },
+  "soak": {
+    "iterations": 200,
+    "max_mean_invoke_latency_ms": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 8192,
+    "max_package_joules_per_record": 0.5
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/maintenance_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/self_bootstrapping.py",
+    "packages/jaya-core/verification/p28_windows_self_bootstrapping_v1.json",
+    "packages/jaya-core/tests/test_self_bootstrapping.py",
+    "packages/jaya-core/tests/test_maintenance_local_pillars.py",
+    "scripts/verify_self_bootstrapping.py",
+    "scripts/demo_self_bootstrapping.py",
+    "scripts/benchmark/benchmark_p28_self_bootstrapping.py"
+  ]
+}

@@ -1,0 +1,14 @@
+# Core API and deterministic local-brain dependencies.
+# Heavy model backends (Torch/Transformers/llama.cpp) are installed separately
+# for a reviewed target platform and never implied by this base environment.
+cryptography>=43,<47
+fastapi>=0.115,<1
+msgpack>=1.1,<2
+numpy>=1.26,<3
+psutil>=6,<8
+pycryptodome>=3.21,<4
+pywin32>=312; sys_platform == "win32"
+pydantic>=2.10,<3
+python-dotenv>=1.0,<2
+requests>=2.32,<3
+uvicorn>=0.27,<1

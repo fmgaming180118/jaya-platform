@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile_id": "p27-windows-temporal-policy-v1",
+  "scope": "bounded local SQLite temporal policy for explicit UTC timestamps, evidence digests, supersession, expiry, retention metadata, and append-only legal-hold events",
+  "supported_os": "Windows",
+  "matrix": {
+    "domains": ["software_release", "policy_rule", "model_card"],
+    "decay_rate": 0.05
+  },
+  "soak": {
+    "iterations": 5000,
+    "minimum_elapsed_seconds": 2.0,
+    "max_mean_add_latency_ms": 20.0,
+    "max_rank_latency_ms": 1000.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 4096,
+    "max_package_joules_per_record": 0.5
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/foundation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/observability/energy_meter.py",
+    "packages/jaya-core/src/jaya_core/verification/temporal_weighting.py",
+    "packages/jaya-core/verification/p27_windows_temporal_policy_v1.json",
+    "packages/jaya-core/tests/test_semantic_temporal_local_pillars.py",
+    "packages/jaya-core/tests/test_foundation_local_pillars.py",
+    "packages/jaya-core/tests/test_integrated_memory_cycle.py",
+    "scripts/verify_temporal_weighting.py",
+    "scripts/demo_temporal_weighting.py"
+  ]
+}

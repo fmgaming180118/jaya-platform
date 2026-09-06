@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "profile_id": "p06-windows-stochastic-spontaneity-v1",
+  "scope": "bounded stochastic spontaneity exploration engine with explicit caller authorization gating, cognitive silence and privacy boundary checks, deterministic seeded PRNG candidate reproduction, non-executable HYPOTHESIS/UNVERIFIED labeling, socratic/safety action rejection, quantitative novelty/diversity metrics, and tamper-evident SQLite receipt persistence",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_EXPLICIT_AUTHORIZATION_GATING",
+      "G03_COGNITIVE_SILENCE_GATING",
+      "G04_PRIVACY_BOUNDARY_GATING",
+      "G05_RESOURCE_EXHAUSTION_GATING",
+      "G06_OWNER_OPT_OUT_GATING",
+      "G07_MODEL_NOT_CONFIGURED_GATING",
+      "G08_PROVIDER_UNAVAILABLE_OR_TIMEOUT",
+      "G09_DETERMINISTIC_SEEDED_REPLAY",
+      "G10_HYPOTHESIS_LABELING_AND_NON_PROMOTION",
+      "G11_SAFETY_REVIEW_REJECTION",
+      "G12_QUANTITATIVE_NOVELTY_AND_DIVERSITY",
+      "G13_PERSISTENCE_TRANSACTION_WAL_INTEGRITY",
+      "G14_CANONICAL_RUNTIME_WIRING",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "supported_next_steps": [
+      "research",
+      "simulate",
+      "review"
+    ],
+    "max_candidates": 8,
+    "max_tokens": 2048,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 15.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 2.0,
+    "min_acceptance_rate": 0.5,
+    "min_novelty_score": 0.5
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/spontaneity.py",
+    "packages/jaya-core/src/jaya_core/pillars/regulation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/stochastic_spontaneity.py",
+    "packages/jaya-core/verification/p06_windows_stochastic_spontaneity_v1.json",
+    "packages/jaya-core/tests/test_stochastic_spontaneity.py",
+    "packages/jaya-core/tests/test_integrated_regulation_cycle.py",
+    "scripts/verify_stochastic_spontaneity.py",
+    "scripts/demo_stochastic_spontaneity.py",
+    "scripts/benchmark/benchmark_p06_stochastic_spontaneity.py"
+  ]
+}

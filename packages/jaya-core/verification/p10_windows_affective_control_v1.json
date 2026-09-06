@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "profile_id": "p10-windows-affective-control-v1",
+  "scope": "bounded rule-based runtime control for explicit task, resource, safety, and user-confirmed signals; no human-emotion inference",
+  "supported_os": "Windows",
+  "expected_baseline": {
+    "urgency": 0.2,
+    "caution": 0.5,
+    "patience": 0.7,
+    "escalation": 0.0
+  },
+  "matrix": {
+    "sources": ["TASK", "RESOURCE", "SAFETY", "USER_CONFIRMED"],
+    "dimensions": ["urgency", "caution", "patience", "escalation"],
+    "delta_values": [-2.0, -0.25, 0.0, 0.25, 2.0],
+    "max_delta_per_signal": 0.25,
+    "numeric_tolerance": 0.00001
+  },
+  "soak": {
+    "iterations": 200000,
+    "minimum_elapsed_seconds": 4.0,
+    "max_mean_latency_ms": 0.2,
+    "max_rss_growth_bytes": 16777216,
+    "max_package_joules_per_operation": 0.005
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/organism/affective_metabolism.py",
+    "packages/jaya-core/src/jaya_core/pillars/regulation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/observability/energy_meter.py",
+    "packages/jaya-core/src/jaya_core/verification/affective_control.py",
+    "packages/jaya-core/verification/p10_windows_affective_control_v1.json",
+    "packages/jaya-core/tests/test_affective_metabolism.py",
+    "scripts/verify_affective_control.py",
+    "scripts/demo_affective_metabolism.py",
+    "scripts/benchmark/benchmark_p10_affective_metabolism.py"
+  ]
+}

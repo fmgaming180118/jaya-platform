@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "profile_id": "p11-windows-encrypted-file-identity-v1",
+  "scope": "Portable Ed25519 brain identity, AES-GCM and scrypt encrypted file keystore, SQLite audit lineage, rotation, revocation, migration, restart, runtime fail-closed behavior, and bounded challenge load on one Windows workstation",
+  "supported_os": "Windows",
+  "purposes": [
+    "runtime.boot",
+    "artifact.sign",
+    "narrative.event"
+  ],
+  "rotations": 2,
+  "resource_limits": {
+    "max_outstanding_challenges": 2,
+    "storage_timeout_seconds": 0.05,
+    "max_lock_elapsed_seconds": 1.0
+  },
+  "soak": {
+    "iterations": 5000,
+    "minimum_elapsed_seconds": 3.0,
+    "max_mean_roundtrip_latency_ms": 15.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_storage_bytes_per_roundtrip": 4096,
+    "max_package_joules_per_roundtrip": 0.4
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/protection/dna_anchor.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/core_config.py",
+    "packages/jaya-core/src/jaya_core/observability/energy_meter.py",
+    "packages/jaya-core/src/jaya_core/verification/dna_anchor.py",
+    "packages/jaya-core/tests/test_sovereign_foundation.py",
+    "packages/jaya-core/verification/p11_windows_encrypted_file_identity_v1.json",
+    "scripts/demo_sovereign_foundation.py",
+    "scripts/manage_jaya_identity.py",
+    "scripts/run_jaya_core_server.py",
+    "scripts/verify_dna_anchor.py"
+  ]
+}

@@ -1,0 +1,27 @@
+* text=auto
+
+*.py text eol=lf
+*.pyi text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.sh text eol=lf
+*.cmake text eol=lf
+CMakeLists.txt text eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.db binary
+*.dll binary
+*.exe binary
+*.jar binary
+*.png binary
+*.webp binary
+*.ico binary

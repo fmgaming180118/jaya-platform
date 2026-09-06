@@ -1,0 +1,156 @@
+name: JAYA Native Providers
+
+on:
+  pull_request:
+    paths:
+      - "native/**"
+      - "packages/jaya-core/src/jaya_core/providers/**"
+      - "packages/jaya-core/src/jaya_core/pillars/binary_cortex.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/model/**"
+      - "packages/jaya-core/src/jaya_core/brain_v2/soul/ethical_heart.py"
+      - "packages/jaya-core/src/jaya_core/security/sovereign_privacy.py"
+      - "packages/jaya-core/src/jaya_core/security/cryptographic_skin.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/protection/zero_trust.py"
+      - "packages/jaya-core/tests/test_native_provider_contract.py"
+      - "packages/jaya-core/tests/test_policy_provider.py"
+      - "packages/jaya-core/tests/test_privacy_provider.py"
+      - "packages/jaya-core/tests/test_zero_trust_provider.py"
+      - "packages/jaya-core/tests/test_cryptographic_skin_provider.py"
+      - "packages/jaya-core/tests/test_cryptographic_skin.py"
+      - "packages/jaya-core/tests/test_cryptographic_skin_lifecycle.py"
+      - ".github/workflows/native-providers.yml"
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "packages/jaya-core/src/jaya_core/providers/**"
+      - "packages/jaya-core/src/jaya_core/pillars/binary_cortex.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/model/**"
+      - "packages/jaya-core/src/jaya_core/brain_v2/soul/ethical_heart.py"
+      - "packages/jaya-core/src/jaya_core/security/sovereign_privacy.py"
+      - "packages/jaya-core/src/jaya_core/security/cryptographic_skin.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/protection/zero_trust.py"
+
+permissions:
+  contents: read
+
+jobs:
+  linux-native-cpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JAYA_NATIVE_LIBRARY_DIR: ${{ github.workspace }}/native/build/lib
+      JAYA_COMPUTE_PROVIDER: native-cpu
+      JAYA_TRUSTED_PROVIDER: trusted-rust
+      JAYA_POLICY_PROVIDER: trusted-rust
+      JAYA_PRIVACY_PROVIDER: trusted-rust
+      JAYA_ZERO_TRUST_PROVIDER: trusted-rust
+      JAYA_CRYPTOGRAPHIC_SKIN_PROVIDER: trusted-rust
+      JAYA_NATIVE_TEST_REQUIRED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Configure native providers
+        run: >-
+          cmake -S native -B native/build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build C++ and Rust providers
+        run: cmake --build native/build
+
+      - name: Run Rust contract tests
+        env:
+          CARGO_TARGET_DIR: native/build/cargo
+        run: cargo test --manifest-path native/trusted/Cargo.toml --release
+
+      - name: Check Rust formatting
+        run: cargo fmt --manifest-path native/trusted/Cargo.toml -- --check
+
+      - name: Install JAYA Core test dependencies
+        run: python -m pip install -e "packages/jaya-core[dev]"
+
+      - name: Run strict native integration tests
+        run: >-
+          python -m pytest
+          packages/jaya-core/tests/test_native_provider_contract.py
+          packages/jaya-core/tests/test_policy_provider.py
+          packages/jaya-core/tests/test_privacy_provider.py
+          packages/jaya-core/tests/test_zero_trust_provider.py
+          packages/jaya-core/tests/test_cryptographic_skin_provider.py
+          packages/jaya-core/tests/test_cryptographic_skin.py
+          packages/jaya-core/tests/test_cryptographic_skin_lifecycle.py
+          packages/jaya-core/tests/test_binary_cortex.py
+          packages/jaya-core/tests/test_v18_nano.py
+          packages/jaya-core/tests/test_core_model_readiness.py
+          packages/jaya-core/tests/test_ternary_precision_integration.py
+          packages/jaya-core/tests/test_sovereign_privacy.py
+          packages/jaya-core/tests/test_zero_trust_lifecycle.py
+          -q -p no:cacheprovider --basetemp=/tmp/jaya-native-tests
+
+      - name: Upload native libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: jaya-native-linux-x86_64
+          path: native/build/lib/*
+          if-no-files-found: error
+          retention-days: 7
+
+  windows-native-cpu:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      JAYA_NATIVE_LIBRARY_DIR: ${{ github.workspace }}\native\build-windows\lib
+      JAYA_COMPUTE_PROVIDER: native-cpu
+      JAYA_TRUSTED_PROVIDER: trusted-rust
+      JAYA_POLICY_PROVIDER: trusted-rust
+      JAYA_PRIVACY_PROVIDER: trusted-rust
+      JAYA_ZERO_TRUST_PROVIDER: trusted-rust
+      JAYA_CRYPTOGRAPHIC_SKIN_PROVIDER: trusted-rust
+      JAYA_NATIVE_TEST_REQUIRED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Configure Windows native providers
+        run: >-
+          cmake -S native -B native/build-windows -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build C++ and Rust Windows providers
+        run: cmake --build native/build-windows
+
+      - name: Install JAYA Core test dependencies
+        run: python -m pip install -e "packages/jaya-core[dev]"
+
+      - name: Run strict Windows native integration tests
+        run: >-
+          python -m pytest
+          packages/jaya-core/tests/test_native_provider_contract.py
+          packages/jaya-core/tests/test_policy_provider.py
+          packages/jaya-core/tests/test_privacy_provider.py
+          packages/jaya-core/tests/test_zero_trust_provider.py
+          packages/jaya-core/tests/test_cryptographic_skin_provider.py
+          packages/jaya-core/tests/test_cryptographic_skin.py
+          packages/jaya-core/tests/test_cryptographic_skin_lifecycle.py
+          packages/jaya-core/tests/test_binary_cortex.py
+          packages/jaya-core/tests/test_v18_nano.py
+          packages/jaya-core/tests/test_sovereign_privacy.py
+          packages/jaya-core/tests/test_zero_trust_lifecycle.py
+          -q -p no:cacheprovider
+
+      - name: Upload Windows native libraries
+        uses: actions/upload-artifact@v4
+        with:
+          name: jaya-native-windows-x86_64
+          path: native/build-windows/lib/*
+          if-no-files-found: error
+          retention-days: 7

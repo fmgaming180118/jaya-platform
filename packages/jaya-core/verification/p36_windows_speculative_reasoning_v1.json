@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "profile_id": "p36-windows-speculative-reasoning-v1",
+  "scope": "bounded multi-candidate speculative reasoning engine with independent citation existence checks, sandboxed AST constraint verification, safety policy gating, evaluator disagreement resolution, verifiable non-self-score candidate ranking, structured failure without synthetic promotion, tamper-evident SQLite WAL persistence, and deterministic replay",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_RESOURCE_AND_BUDGET_CAP_GATING",
+      "G03_SAFETY_AND_DESTRUCTIVE_ACTION_GATING",
+      "G04_INDEPENDENT_CITATION_VERIFICATION",
+      "G05_INDEPENDENT_SANDBOX_CONSTRAINT_VERIFICATION",
+      "G06_EVALUATOR_DISAGREEMENT_HANDLING",
+      "G07_MULTI_CANDIDATE_RANKING_AND_NON_SELF_SCORE",
+      "G08_NO_VALID_CANDIDATE_STRUCTURED_FAILURE",
+      "G09_REQUEST_ID_DETERMINISTIC_REPLAY",
+      "G10_REJECTED_CANDIDATES_ARCHIVE_PERSISTENCE",
+      "G11_TAMPER_EVIDENT_WAL_PERSISTENCE",
+      "G12_TIMEOUT_AND_RESOURCE_LIMIT_ENFORCED",
+      "G13_COMPARATIVE_SINGLE_PATH_BASELINE",
+      "G14_CANONICAL_CORE_RUNTIME_WIRING",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "max_candidates": 32,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 250.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 8.0,
+    "min_acceptance_rate": 0.2
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/reasoning_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/speculative_reasoning.py",
+    "packages/jaya-core/verification/p36_windows_speculative_reasoning_v1.json",
+    "packages/jaya-core/tests/test_reasoning_local_pillars.py",
+    "scripts/verify_speculative_reasoning.py",
+    "scripts/demo_speculative_reasoning.py",
+    "scripts/benchmark/benchmark_p36_speculative_reasoning.py"
+  ]
+}

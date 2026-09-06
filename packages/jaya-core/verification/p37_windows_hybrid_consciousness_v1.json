@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "profile_id": "p37-windows-hybrid-consciousness-v1",
+  "scope": "hybrid cognitive execution routing across rule-based, retrieval, local model, remote model, and tool adapters with explicit source labeling, sovereign privacy egress gating, offline enforcement, transparent failover lineage, provider health TTL, SQLite WAL persistence, and tamper-evident state receipts",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_EXPLICIT_SOURCE_LABELING",
+      "G03_RULE_BASED_EXECUTION",
+      "G04_GROUNDED_RETRIEVAL_ROUTE",
+      "G05_LOCAL_MODEL_ROUTE",
+      "G06_REMOTE_MODEL_INTEGRATION",
+      "G07_PRIVACY_DATA_EGRESS_GATING",
+      "G08_OFFLINE_MODE_ENFORCEMENT",
+      "G09_TOOL_OBSERVATION_ROUTE",
+      "G10_CAPABLE_FAILOVER_CHAIN",
+      "G11_PROVIDER_HEALTH_AND_TTL",
+      "G12_PROVENANCE_AND_CITATION_PRESERVATION",
+      "G13_OBJECTIVE_CONTEXT_ALIGNMENT",
+      "G14_TAMPER_EVIDENT_WAL_PERSISTENCE",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 50.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 10.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/control_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/hybrid_routing.py",
+    "packages/jaya-core/verification/p37_windows_hybrid_consciousness_v1.json",
+    "packages/jaya-core/tests/test_hybrid_routing.py",
+    "scripts/verify_hybrid_routing.py",
+    "scripts/demo_hybrid_routing.py",
+    "scripts/benchmark/benchmark_p37_hybrid_routing.py"
+  ]
+}

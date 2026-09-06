@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "profile_id": "p30-windows-twin-protocol-v1",
+  "scope": "twin migration protocol over TCP loopback with AES-256-GCM chunk encryption, HMAC-SHA256 frame authentication, transactional cursor resume, anti-split-brain authority lease gating, replay/clock-skew gates, and Windows EMI energy profiling",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_PEER_ALLOWLIST_AUTHENTICATION",
+      "G03_AES_GCM_ENCRYPTED_CHUNKING",
+      "G04_TRANSACTIONAL_CURSOR_RESUME",
+      "G05_ATOMIC_BATCH_AND_DIGEST_VERIFY",
+      "G06_SPLIT_BRAIN_AUTHORITY_LEASE",
+      "G07_REPLAY_ATTACK_REJECTION",
+      "G08_CLOCK_SKEW_REJECTION",
+      "G09_CORRUPTED_CHUNK_TAMPER_REJECTION",
+      "G10_PATH_CONFINEMENT_PERMISSION_DENIED",
+      "G11_METADATA_CONFLICT_HANDLING",
+      "G12_RECEIPT_SIGNATURE_AND_LINEAGE",
+      "G13_BOTH_NODES_RESTART_DURABILITY",
+      "G14_RUNTIME_AND_MANIFEST_DISPATCH",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 25,
+    "max_mean_latency_ms": 100.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 15.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/distributed_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/twin_protocol.py",
+    "packages/jaya-core/verification/p30_windows_twin_protocol_v1.json",
+    "packages/jaya-core/tests/test_twin_protocol.py",
+    "packages/jaya-core/tests/test_distributed_local_pillars.py",
+    "scripts/verify_twin_protocol.py",
+    "scripts/demo_twin_protocol.py",
+    "scripts/benchmark/benchmark_p30_twin_protocol.py"
+  ]
+}

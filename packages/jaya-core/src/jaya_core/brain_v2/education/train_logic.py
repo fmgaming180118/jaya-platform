@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Deterministic experimental trainer for small ternary logic networks.
+
+This module is a bounded research utility; it is not the production JAYA model
+backend and does not participate in model-readiness decisions.
+"""
+
+from __future__ import annotations
+
+import argparse
+from dataclasses import dataclass
+from typing import Literal
+
+import numpy as np
+from numpy.typing import NDArray
+
+GateName = Literal["XOR", "AND", "OR"]
+
+_GATE_TARGETS: dict[GateName, NDArray[np.float32]] = {
+    "XOR": np.array([0, 1, 1, 0], dtype=np.float32),
+    "AND": np.array([0, 0, 0, 1], dtype=np.float32),
+    "OR": np.array([0, 1, 1, 1], dtype=np.float32),
+}
+_GATE_INPUTS = np.array(
+    [[0, 0], [0, 1], [1, 0], [1, 1]],
+    dtype=np.float32,
+)
+
+
+class TernaryLinear:
+    """Minimal mutable ternary layer used only by this experiment."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        *,
+        rng: np.random.Generator,
+    ) -> None:
+        if input_dim < 1 or output_dim < 1:
+            raise ValueError("layer dimensions must be positive")
+        self.input_dim = input_dim
+        self.output_dim = output_dim
+        self.weights: NDArray[np.int8] = rng.integers(
+            -1,
+            2,
+            size=(input_dim, output_dim),
+            dtype=np.int8,
+        )
+
+    def forward(self, inputs: NDArray[np.float32]) -> NDArray[np.float32]:
+        values = np.asarray(inputs, dtype=np.float32)
+        if values.shape != (self.input_dim,):
+            raise ValueError(
+                f"expected input shape {(self.input_dim,)}, got {values.shape}"
+            )
+        return values @ self.weights.astype(np.float32)
+
+
+@dataclass(frozen=True)
+class Mutation:
+    layer: TernaryLinear
+    row: int
+    column: int
+    previous_value: int
+
+
+class LogicTrainer:
+    """Run a reproducible micro-evolution experiment on Boolean gates."""
+
+    def __init__(self, *, seed: int = 0) -> None:
+        self._rng = np.random.default_rng(seed)
+        self.l1 = TernaryLinear(2, 4, rng=self._rng)
+        self.l2 = TernaryLinear(4, 1, rng=self._rng)
+
+    def forward(self, inputs: NDArray[np.float32]) -> float:
+        hidden = np.tanh(self.l1.forward(inputs)).astype(np.float32)
+        output = self.l2.forward(hidden)
+        return float(output[0])
+
+    def compute_loss(
+        self,
+        data: NDArray[np.float32],
+        labels: NDArray[np.float32],
+    ) -> float:
+        if len(data) != len(labels):
+            raise ValueError("data and labels must have equal length")
+        squared_error = sum(
+            (self.forward(inputs) - float(label)) ** 2
+            for inputs, label in zip(data, labels, strict=True)
+        )
+        return float(squared_error)
+
+    def mutate(self, amount: int = 1) -> list[Mutation]:
+        """Flip one or more unique weights and return a reversible change set."""
+        layers = (self.l1, self.l2)
+        total_weights = sum(layer.weights.size for layer in layers)
+        if amount < 1 or amount > total_weights:
+            raise ValueError(f"amount must be between 1 and {total_weights}")
+
+        selected = self._rng.choice(total_weights, size=amount, replace=False)
+        mutations: list[Mutation] = []
+        for flat_index in np.atleast_1d(selected):
+            remaining = int(flat_index)
+            for layer in layers:
+                if remaining < layer.weights.size:
+                    row, column = np.unravel_index(remaining, layer.weights.shape)
+                    previous = int(layer.weights[row, column])
+                    alternatives = tuple(
+                        value for value in (-1, 0, 1) if value != previous
+                    )
+                    layer.weights[row, column] = self._rng.choice(alternatives)
+                    mutations.append(
+                        Mutation(
+                            layer=layer,
+                            row=int(row),
+                            column=int(column),
+                            previous_value=previous,
+                        )
+                    )
+                    break
+                remaining -= layer.weights.size
+        return mutations
+
+    @staticmethod
+    def revert(mutations: list[Mutation]) -> None:
+        for mutation in reversed(mutations):
+            mutation.layer.weights[mutation.row, mutation.column] = (
+                mutation.previous_value
+            )
+
+    def train(self, gate_name: GateName = "XOR", *, steps: int = 1000) -> float:
+        """Minimize squared error for one supported Boolean gate."""
+        if gate_name not in _GATE_TARGETS:
+            raise ValueError(f"unsupported gate: {gate_name}")
+        if steps < 1:
+            raise ValueError("steps must be positive")
+
+        targets = _GATE_TARGETS[gate_name]
+        best_loss = self.compute_loss(_GATE_INPUTS, targets)
+        for _ in range(steps):
+            mutations = self.mutate()
+            new_loss = self.compute_loss(_GATE_INPUTS, targets)
+            if new_loss < best_loss:
+                best_loss = new_loss
+            else:
+                self.revert(mutations)
+            if best_loss < 0.1:
+                break
+        return best_loss
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run the bounded experimental ternary logic trainer."
+    )
+    parser.add_argument(
+        "--gate",
+        action="append",
+        choices=tuple(_GATE_TARGETS),
+        help="gate to train; may be repeated (default: OR, AND, XOR)",
+    )
+    parser.add_argument("--steps", type=int, default=1000)
+    parser.add_argument("--seed", type=int, default=0)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    gates = args.gate or ["OR", "AND", "XOR"]
+    try:
+        for gate in gates:
+            trainer = LogicTrainer(seed=args.seed)
+            loss = trainer.train(gate, steps=args.steps)
+            print(f"{gate}: final_loss={loss:.6f}")
+    except ValueError as exc:
+        print(f"training configuration failed: {exc}")
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

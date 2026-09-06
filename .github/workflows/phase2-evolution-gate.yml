@@ -1,0 +1,99 @@
+name: Phase 2 Evolution Gate
+
+on:
+  push:
+    paths:
+      - "packages/jaya-core/src/jaya_core/brain_v2/engine/evolution_*.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/engine/_evolution_*.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/engine/canary/**"
+      - "packages/jaya-core/scripts/generate_evidence.py"
+      - "packages/jaya-core/scripts/promote_orchestrator.py"
+      - "packages/jaya-core/tests/test_phase2_*.py"
+      - "packages/jaya-core/tests/test_evolution_*.py"
+      - ".github/workflows/phase2-evolution-gate.yml"
+  pull_request:
+    paths:
+      - "packages/jaya-core/src/jaya_core/brain_v2/engine/evolution_*.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/engine/_evolution_*.py"
+      - "packages/jaya-core/src/jaya_core/brain_v2/engine/canary/**"
+      - "packages/jaya-core/scripts/generate_evidence.py"
+      - "packages/jaya-core/scripts/promote_orchestrator.py"
+      - "packages/jaya-core/tests/test_phase2_*.py"
+      - "packages/jaya-core/tests/test_evolution_*.py"
+      - ".github/workflows/phase2-evolution-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  phase2-evolution-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: packages/jaya-core
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: packages/jaya-core/requirements.txt
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest pytest-asyncio numpy
+
+      - name: Run signed evidence and installer gates
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m pytest \
+            tests/test_phase2_evolution_gate.py \
+            tests/test_phase2_manifest.py \
+            tests/test_phase2_rollback.py \
+            tests/test_evolution_manifest_v1_install.py \
+            tests/test_core_evolution_sandbox.py \
+            -q -p no:cacheprovider
+
+      - name: Run Phase 2 action loop integration
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m pytest \
+            tests/test_real_action_loop_unit.py \
+            tests/test_acceptance_real_action_loop.py \
+            -q -p no:cacheprovider
+
+      - name: Run Phase 1 regression contracts
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m pytest \
+            tests/test_phase1_jaya_ir.py \
+            tests/test_phase1_architecture_boundary.py \
+            -q -p no:cacheprovider
+
+      - name: Run strict benchmark gate
+        run: |
+          python scripts/benchmark_phase1_ir.py \
+            --rounds 40 \
+            --gate \
+            --fail-on-gate \
+            --max-warm-p50-ms 0.05 \
+            --max-warm-p95-ms 0.10 \
+            --min-hit-rate 0.95 \
+            --json-out ../../outputs/reports/benchmarks/phase1_benchmark_latest.json
+
+      - name: Upload benchmark snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-benchmark-snapshot
+          path: outputs/reports/benchmarks/phase1_benchmark_latest.json
+          retention-days: 30

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "profile_id": "p19-windows-legacy-protocol-v1",
+  "scope": "isolated one-way legacy schema migration with format/compatibility probing, bounded input enforcement, encrypted source backup, pre-commit equivalence validation, AES-GCM-256 current capsule encapsulation, cryptographic owner approval signatures, transactional ledger auditing, and tamper-resistant rollback quarantine",
+  "supported_os": "Windows",
+  "matrix": {
+    "supported_legacy_formats": [
+      "JAYA_LEGACY_V1"
+    ],
+    "target_capsule_format": "JAYA_CURRENT_V2",
+    "encryption_algorithm": "aes_gcm_256",
+    "signature_algorithm": "hmac_sha256",
+    "storage_backend": "sqlite3",
+    "max_payload_size_bytes": 10485760,
+    "schema_versions": {
+      "legacy": 1,
+      "current": 2
+    }
+  },
+  "soak": {
+    "iterations": 200,
+    "max_mean_migration_latency_ms": 30.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 8192,
+    "max_package_joules_per_record": 1.0,
+    "required_fidelity_ratio": 1.0
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/maintenance_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/legacy_protocol.py",
+    "packages/jaya-core/verification/p19_windows_legacy_protocol_v1.json",
+    "packages/jaya-core/tests/test_legacy_protocol.py",
+    "packages/jaya-core/tests/test_maintenance_local_pillars.py",
+    "scripts/verify_legacy_protocol.py",
+    "scripts/demo_legacy_protocol.py",
+    "scripts/benchmark/benchmark_p19_legacy_protocol.py"
+  ]
+}

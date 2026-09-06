@@ -1,0 +1,12 @@
+{
+  "request_id": "demo-logical-001",
+  "facts": ["parent.tom.bob", "parent.bob.ann"],
+  "rules": [
+    {
+      "id": "rule.grandparent",
+      "if": ["parent.tom.bob", "parent.bob.ann"],
+      "then": "grandparent.tom.ann"
+    }
+  ],
+  "query": "grandparent.tom.ann"
+}

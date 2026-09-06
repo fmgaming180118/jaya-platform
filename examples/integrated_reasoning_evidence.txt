@@ -1,0 +1,6 @@
+artifact:Integrated_Cycle -supports-> concept:Traceable_Reasoning. A bounded reasoning cycle is
+considered traceable when retrieval evidence is persisted before a hypothesis is generated, every
+generated candidate cites retrieved evidence, and executable constraints run inside an allowlisted
+sandbox. A selected hypothesis remains UNVERIFIED until an independent empirical experiment
+produces reproducible measurements. Owner objectives must remain immutable unless a separately
+authenticated and bounded approval changes their priority weights.

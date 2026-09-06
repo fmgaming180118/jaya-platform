@@ -1,0 +1,20 @@
+schema_version: 1
+manifest_version: "1.0.0"
+name: adaptive-evidence-candidate
+pillars:
+  - id: 41
+    name: Adaptive Evidence Calibration
+    layer: TRANSCENDENTAL
+    architectural_owners:
+      - MODEL
+      - RUNTIME
+      - RESEARCH
+    status: PLANNED
+    dependencies:
+      - 1
+      - 33
+    description: Calibrates evidence sufficiency using measured retrieval and evaluation results.
+    model_role:
+      - estimate_evidence_sufficiency
+    runtime_role:
+      - enforce_evidence_threshold

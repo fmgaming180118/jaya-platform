@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "profile_id": "p03-windows-active-dreaming-v1",
+  "scope": "grounded counterfactual hypothesis generator in an isolated sandbox with explicit evidence bounding, non-executable HYPOTHESIS/UNVERIFIED labeling, sandboxed constraint verification, deterministic seeded replay, safety filtering, quantitative novelty/diversity metrics, and tamper-evident SQLite persistence",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_GOAL_SAFETY_AND_ETHICAL_GATING",
+      "G03_NO_EVIDENCE_INSUFFICIENCY_GATING",
+      "G04_SANDBOXED_CONSTRAINT_CHECK",
+      "G05_RESOURCE_AND_BUDGET_CAP_GATING",
+      "G06_MODEL_NOT_CONFIGURED_GATING",
+      "G07_PROVIDER_UNAVAILABLE_OR_TIMEOUT",
+      "G08_DETERMINISTIC_SEEDED_CANDIDATE_REPRODUCTION",
+      "G09_REQUEST_ID_DETERMINISTIC_REPLAY",
+      "G10_HYPOTHESIS_LABELING_AND_NON_PROMOTION",
+      "G11_QUANTITATIVE_NOVELTY_AND_DIVERSITY",
+      "G12_TAMPER_EVIDENT_WAL_PERSISTENCE",
+      "G13_CONFLICTING_EVIDENCE_HANDLING",
+      "G14_CANONICAL_RUNTIME_WIRING",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "supported_next_steps": [
+      "falsification_test",
+      "sandbox_simulation",
+      "socratic_critique"
+    ],
+    "max_candidates": 8,
+    "max_constraints": 16,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 150.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 5.0,
+    "min_acceptance_rate": 0.5,
+    "min_novelty_score": 0.5
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/reasoning_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/active_dreaming.py",
+    "packages/jaya-core/verification/p03_windows_active_dreaming_v1.json",
+    "packages/jaya-core/tests/test_reasoning_local_pillars.py",
+    "scripts/verify_active_dreaming.py",
+    "scripts/demo_active_dreaming.py",
+    "scripts/benchmark/benchmark_p03_active_dreaming.py"
+  ]
+}

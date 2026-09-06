@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "profile_id": "p24-windows-morphic-kernel-v1",
+  "pillar": 24,
+  "pillar_name": "Morphic Kernel",
+  "scope": "Evolution installer lifecycle orchestration, HMAC-SHA256 candidate/manifest/receipt verification, isolated staging, atomic publish copy with directory fsync, canary validation, transactional rollback, crash recovery without half-installed state, storage full ENOSPC protection, replay and revocation enforcement, and content-addressed audit receipts on Windows x86_64",
+  "supported_os": "Windows",
+  "matrix": {
+    "allowed_runtimes": ["JAYA_CORE"],
+    "allowed_media_types": ["application/vnd.safetensors", "application/json"],
+    "max_manifest_bytes": 65536,
+    "max_canary_receipt_bytes": 65536
+  },
+  "workload": {
+    "benchmark_iterations": 50,
+    "max_manifest_verify_latency_ms": 10.0,
+    "max_atomic_publish_latency_ms": 50.0,
+    "max_canary_eval_latency_ms": 50.0,
+    "max_rollback_latency_ms": 50.0,
+    "max_rss_growth_bytes": 67108864
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/evolution_installer.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/_evolution_install_storage.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/evolution_manifest_v1.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/_evolution_manifest_security.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/evolution_evidence.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/evolution_gate.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/canary/__init__.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/canary/registry.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/canary/runners.py",
+    "packages/jaya-core/scripts/promote_orchestrator.py",
+    "packages/jaya-core/tests/test_promotion_pipeline_security.py",
+    "packages/jaya-core/tests/test_promotion_rollback.py",
+    "packages/jaya-core/verification/p24_windows_morphic_kernel_v1.json",
+    "packages/jaya-core/src/jaya_core/verification/morphic_kernel.py",
+    "scripts/verify_morphic_kernel.py",
+    "scripts/benchmark/benchmark_p24_morphic_kernel.py"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "profile_id": "p07-windows-cognitive-silence-v1",
+  "scope": "durable Cognitive Silence control plane with deterministic decision taxonomy (ANSWER, WAIT, ASK, DECLINE, SAFE_STOP), strict zero-model-invocation gating, hysteresis against flapping, bounded expiry timeouts, fail-closed service allowlist, and SQLite tamper-evident persistence",
+  "supported_os": "Windows",
+  "matrix": {
+    "actions": ["ANSWER", "WAIT", "ASK", "DECLINE", "SAFE_STOP"],
+    "silence_reasons": ["OWNER_STOP", "RESOURCE_PRESSURE", "PRIVACY_BOUNDARY", "PERMISSION_REVOKED", "IDLE", "SAFETY_VIOLATION", "INSUFFICIENT_EVIDENCE", "AMBIGUOUS_REQUEST", "PROVIDER_UNAVAILABLE"],
+    "wake_sources": ["OWNER_REQUEST", "RESOURCE_RECOVERED", "PRIVACY_RELEASED", "PERMISSION_RESTORED", "TASK_RECEIVED"],
+    "allowed_services": ["audit", "cancellation", "checkpoint", "healthcheck", "resource_monitor"],
+    "forbidden_services": ["model_generation", "network", "tool_execution", "proactive_scheduler"]
+  },
+  "soak": {
+    "iterations": 500,
+    "minimum_elapsed_seconds": 0.5,
+    "max_mean_decision_latency_ms": 5.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_decision": 2048,
+    "max_package_joules_per_decision": 0.05
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/organism/cognitive_silence.py",
+    "packages/jaya-core/src/jaya_core/pillars/regulation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/cognitive_silence.py",
+    "packages/jaya-core/verification/p07_windows_cognitive_silence_v1.json",
+    "packages/jaya-core/tests/test_cognitive_silence.py",
+    "packages/jaya-core/tests/test_integrated_regulation_cycle.py",
+    "scripts/verify_cognitive_silence.py",
+    "scripts/demo_cognitive_silence.py",
+    "scripts/benchmark/benchmark_p07_cognitive_silence.py"
+  ]
+}

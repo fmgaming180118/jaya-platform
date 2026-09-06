@@ -1,0 +1,66 @@
+{
+  "claims": {
+    "full_policy_engine_in_rust": false,
+    "memory_safe_rule_parser": true,
+    "performance_improvement": false
+  },
+  "correctness": {
+    "decision_equal": true
+  },
+  "created_at": "2026-08-31T21:06:31.029780+07:00",
+  "environment": {
+    "machine": "AMD64",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+    "python": "3.14.7"
+  },
+  "library": {
+    "path": "D:\\Projects\\Jaya-Project\\Jaya-Project\\jaya-platform\\native\\build-windows\\lib\\libjaya_trusted.dll",
+    "sha256": "f21c735b7699040ef3837a6e93ddcb0d860bae9dfa99a239eeef9fa47f9ddeb4",
+    "size_bytes": 241152
+  },
+  "native": {
+    "decision": {
+      "effect": 1,
+      "rule_index": 1
+    },
+    "iterations_per_sample": 1000,
+    "median_ns_per_decision": 7875,
+    "p95_ns_per_decision": 9811,
+    "provider": {
+      "contract_version": 1,
+      "library_path": "D:\\Projects\\Jaya-Project\\Jaya-Project\\jaya-platform\\native\\build-windows\\lib\\libjaya_trusted.dll",
+      "native_available": true,
+      "requested_provider": "trusted-rust",
+      "selected_provider": "jaya-rust-trusted-v1"
+    },
+    "samples": 25,
+    "total_decisions": 25000
+  },
+  "native_to_reference_latency_ratio": 3.4448818897637796,
+  "reference": {
+    "decision": {
+      "effect": 1,
+      "rule_index": 1
+    },
+    "iterations_per_sample": 1000,
+    "median_ns_per_decision": 2286,
+    "p95_ns_per_decision": 3632,
+    "provider": {
+      "contract_version": 1,
+      "library_path": null,
+      "native_available": false,
+      "requested_provider": "python-reference",
+      "selected_provider": "python-policy-reference-v1"
+    },
+    "samples": 25,
+    "total_decisions": 25000
+  },
+  "schema_version": 1,
+  "status": "PASS",
+  "workload": {
+    "capability": "core.logic.evaluate",
+    "risk_code": 0,
+    "rules": 3
+  }
+}

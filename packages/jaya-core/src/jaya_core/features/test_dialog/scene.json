@@ -1,0 +1,157 @@
+{
+  "version": "0.1",
+  "id": "a5c70b8d-f01b-4e9e-a758-f53a777c7708",
+  "name": "Feature: {\n  \"version\": \"0.1\",\n  \"id\": \"aa983f44-28b0-452f-",
+  "description": "Auto-generated feature for: {\n  \"version\": \"0.1\",\n  \"id\": \"aa983f44-28b0-452f-88ac-32cf4bed1618\",\n  \"name\": \"Test Dialog\",\n  \"description\": \"Test dialog\",\n  \"root\": {\n    \"id\": \"caa749c4-e4cc-4e07-bcaa-8d0c4d655e8a\",\n    \"type\": \"window\",\n    \"label\": \"Test\",\n    \"placeholder\": \"\",\n    \"value\": null,\n    \"options\": [],\n    \"children\": [\n      {\n        \"id\": \"44595e29-de4e-49d2-ab7a-f2e8565bee5f\",\n        \"type\": \"panel\",\n        \"label\": \"\",\n        \"placeholder\": \"\",\n        \"value\": null,\n        \"options\": [],\n        \"children\": [\n          {\n            \"id\": \"9601a0ed-f4e0-43a5-9dc6-6ccd3f523340\",\n            \"type\": \"label\",\n            \"label\": \"Hello World\",\n            \"placeholder\": \"\",\n            \"value\": null,\n            \"options\": [],\n            \"children\": [],\n            \"style\": {},\n            \"layout\": null,\n            \"rect\": null,\n            \"events\": [],\n            \"bindings\": [],\n            \"visible\": true,\n            \"enabled\": true,\n            \"metadata\": {}\n          }\n        ],\n        \"style\": {},\n        \"layout\": \"flex_col\",\n        \"rect\": null,\n        \"events\": [],\n        \"bindings\": [],\n        \"visible\": true,\n        \"enabled\": true,\n        \"metadata\": {}\n      }\n    ],\n    \"style\": {},\n    \"layout\": \"flex_col\",\n    \"rect\": {\n      \"x\": {\n        \"value\": 0,\n        \"unit\": \"px\"\n      },\n      \"y\": {\n        \"value\": 0,\n        \"unit\": \"px\"\n      },\n      \"width\": {\n        \"value\": 300.0,\n        \"unit\": \"px\"\n      },\n      \"height\": {\n        \"value\": 200.0,\n        \"unit\": \"px\"\n      }\n    },\n    \"events\": [],\n    \"bindings\": [],\n    \"visible\": true,\n    \"enabled\": true,\n    \"metadata\": {}\n  },\n  \"styles\": {\n    \"color_primary\": \"#0066CC\",\n    \"color_secondary\": \"#6C757D\",\n    \"color_success\": \"#28A745\",\n    \"color_warning\": \"#FFC107\",\n    \"color_danger\": \"#DC3545\",\n    \"color_background\": \"#FFFFFF\",\n    \"color_surface\": \"#F8F9FA\",\n    \"color_text\": \"#212529\",\n    \"color_text_muted\": \"#6C757D\",\n    \"color_border\": \"#DEE2E6\",\n    \"spacing_xs\": \"4px\",\n    \"spacing_sm\": \"8px\",\n    \"spacing_md\": \"16px\",\n    \"spacing_lg\": \"24px\",\n    \"spacing_xl\": \"32px\",\n    \"font_family\": \"system-ui, -apple-system, sans-serif\",\n    \"font_size_sm\": \"12px\",\n    \"font_size_md\": \"14px\",\n    \"font_size_lg\": \"18px\",\n    \"font_size_xl\": \"24px\",\n    \"font_weight_normal\": 400,\n    \"font_weight_medium\": 500,\n    \"font_weight_bold\": 700,\n    \"border_radius_sm\": \"4px\",\n    \"border_radius_md\": \"8px\",\n    \"border_radius_lg\": \"12px\",\n    \"border_width\": \"1px\",\n    \"shadow_sm\": \"0 1px 2px rgba(0,0,0,0.05)\",\n    \"shadow_md\": \"0 4px 6px rgba(0,0,0,0.1)\",\n    \"shadow_lg\": \"0 10px 15px rgba(0,0,0,0.1)\",\n    \"transition_fast\": \"150ms ease\",\n    \"transition_normal\": \"250ms ease\",\n    \"transition_slow\": \"350ms ease\"\n  },\n  \"global_state\": {},\n  \"metadata\": {}\n}",
+  "root": {
+    "id": "2b0dd559-8f79-4243-91ec-66df007d5d5e",
+    "type": "window",
+    "label": "JAYA Feature: {\n  \"version\": \"0.1\",\n  \"id\": \"aa983f44-",
+    "placeholder": "",
+    "value": null,
+    "options": [],
+    "children": [
+      {
+        "id": "0dabd7d1-58dc-4f3a-9adf-ef0875300f02",
+        "type": "panel",
+        "label": "",
+        "placeholder": "",
+        "value": null,
+        "options": [],
+        "children": [
+          {
+            "id": "cb93af7a-440f-4bdd-8741-f73056f1c337",
+            "type": "label",
+            "label": "Feature for: {\n  \"version\": \"0.1\",\n  \"id\": \"aa983f44-28b0-452f-88ac-32cf4bed1618\",\n  \"name\": \"Test Dialog\",\n  \"description\": \"Test dialog\",\n  \"root\": {\n    \"id\": \"caa749c4-e4cc-4e07-bcaa-8d0c4d655e8a\",\n    \"type\": \"window\",\n    \"label\": \"Test\",\n    \"placeholder\": \"\",\n    \"value\": null,\n    \"options\": [],\n    \"children\": [\n      {\n        \"id\": \"44595e29-de4e-49d2-ab7a-f2e8565bee5f\",\n        \"type\": \"panel\",\n        \"label\": \"\",\n        \"placeholder\": \"\",\n        \"value\": null,\n        \"options\": [],\n        \"children\": [\n          {\n            \"id\": \"9601a0ed-f4e0-43a5-9dc6-6ccd3f523340\",\n            \"type\": \"label\",\n            \"label\": \"Hello World\",\n            \"placeholder\": \"\",\n            \"value\": null,\n            \"options\": [],\n            \"children\": [],\n            \"style\": {},\n            \"layout\": null,\n            \"rect\": null,\n            \"events\": [],\n            \"bindings\": [],\n            \"visible\": true,\n            \"enabled\": true,\n            \"metadata\": {}\n          }\n        ],\n        \"style\": {},\n        \"layout\": \"flex_col\",\n        \"rect\": null,\n        \"events\": [],\n        \"bindings\": [],\n        \"visible\": true,\n        \"enabled\": true,\n        \"metadata\": {}\n      }\n    ],\n    \"style\": {},\n    \"layout\": \"flex_col\",\n    \"rect\": {\n      \"x\": {\n        \"value\": 0,\n        \"unit\": \"px\"\n      },\n      \"y\": {\n        \"value\": 0,\n        \"unit\": \"px\"\n      },\n      \"width\": {\n        \"value\": 300.0,\n        \"unit\": \"px\"\n      },\n      \"height\": {\n        \"value\": 200.0,\n        \"unit\": \"px\"\n      }\n    },\n    \"events\": [],\n    \"bindings\": [],\n    \"visible\": true,\n    \"enabled\": true,\n    \"metadata\": {}\n  },\n  \"styles\": {\n    \"color_primary\": \"#0066CC\",\n    \"color_secondary\": \"#6C757D\",\n    \"color_success\": \"#28A745\",\n    \"color_warning\": \"#FFC107\",\n    \"color_danger\": \"#DC3545\",\n    \"color_background\": \"#FFFFFF\",\n    \"color_surface\": \"#F8F9FA\",\n    \"color_text\": \"#212529\",\n    \"color_text_muted\": \"#6C757D\",\n    \"color_border\": \"#DEE2E6\",\n    \"spacing_xs\": \"4px\",\n    \"spacing_sm\": \"8px\",\n    \"spacing_md\": \"16px\",\n    \"spacing_lg\": \"24px\",\n    \"spacing_xl\": \"32px\",\n    \"font_family\": \"system-ui, -apple-system, sans-serif\",\n    \"font_size_sm\": \"12px\",\n    \"font_size_md\": \"14px\",\n    \"font_size_lg\": \"18px\",\n    \"font_size_xl\": \"24px\",\n    \"font_weight_normal\": 400,\n    \"font_weight_medium\": 500,\n    \"font_weight_bold\": 700,\n    \"border_radius_sm\": \"4px\",\n    \"border_radius_md\": \"8px\",\n    \"border_radius_lg\": \"12px\",\n    \"border_width\": \"1px\",\n    \"shadow_sm\": \"0 1px 2px rgba(0,0,0,0.05)\",\n    \"shadow_md\": \"0 4px 6px rgba(0,0,0,0.1)\",\n    \"shadow_lg\": \"0 10px 15px rgba(0,0,0,0.1)\",\n    \"transition_fast\": \"150ms ease\",\n    \"transition_normal\": \"250ms ease\",\n    \"transition_slow\": \"350ms ease\"\n  },\n  \"global_state\": {},\n  \"metadata\": {}\n}",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {}
+          },
+          {
+            "id": "9ade3105-38fe-40a1-8635-cb56f9a877fa",
+            "type": "label",
+            "label": "This feature was auto-generated from your intent.",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {}
+          },
+          {
+            "id": "1e85fee6-e2fd-455a-ad08-db4a1072d991",
+            "type": "button",
+            "label": "Close",
+            "placeholder": "",
+            "value": null,
+            "options": [],
+            "children": [],
+            "style": {},
+            "layout": null,
+            "rect": null,
+            "events": [
+              {
+                "event": "click",
+                "action": "jaya:close_dialog",
+                "payload": {},
+                "debounce_ms": 0,
+                "once": false
+              }
+            ],
+            "bindings": [],
+            "visible": true,
+            "enabled": true,
+            "metadata": {
+              "variant": "secondary"
+            }
+          }
+        ],
+        "style": {},
+        "layout": "flex_col",
+        "rect": null,
+        "events": [],
+        "bindings": [],
+        "visible": true,
+        "enabled": true,
+        "metadata": {}
+      }
+    ],
+    "style": {},
+    "layout": "flex_col",
+    "rect": {
+      "x": {
+        "value": 0,
+        "unit": "px"
+      },
+      "y": {
+        "value": 0,
+        "unit": "px"
+      },
+      "width": {
+        "value": 600.0,
+        "unit": "px"
+      },
+      "height": {
+        "value": 400.0,
+        "unit": "px"
+      }
+    },
+    "events": [],
+    "bindings": [],
+    "visible": true,
+    "enabled": true,
+    "metadata": {}
+  },
+  "styles": {
+    "color_primary": "#0066CC",
+    "color_secondary": "#6C757D",
+    "color_success": "#28A745",
+    "color_warning": "#FFC107",
+    "color_danger": "#DC3545",
+    "color_background": "#FFFFFF",
+    "color_surface": "#F8F9FA",
+    "color_text": "#212529",
+    "color_text_muted": "#6C757D",
+    "color_border": "#DEE2E6",
+    "spacing_xs": "4px",
+    "spacing_sm": "8px",
+    "spacing_md": "16px",
+    "spacing_lg": "24px",
+    "spacing_xl": "32px",
+    "font_family": "system-ui, -apple-system, sans-serif",
+    "font_size_sm": "12px",
+    "font_size_md": "14px",
+    "font_size_lg": "18px",
+    "font_size_xl": "24px",
+    "font_weight_normal": 400,
+    "font_weight_medium": 500,
+    "font_weight_bold": 700,
+    "border_radius_sm": "4px",
+    "border_radius_md": "8px",
+    "border_radius_lg": "12px",
+    "border_width": "1px",
+    "shadow_sm": "0 1px 2px rgba(0,0,0,0.05)",
+    "shadow_md": "0 4px 6px rgba(0,0,0,0.1)",
+    "shadow_lg": "0 10px 15px rgba(0,0,0,0.1)",
+    "transition_fast": "150ms ease",
+    "transition_normal": "250ms ease",
+    "transition_slow": "350ms ease"
+  },
+  "global_state": {},
+  "metadata": {}
+}

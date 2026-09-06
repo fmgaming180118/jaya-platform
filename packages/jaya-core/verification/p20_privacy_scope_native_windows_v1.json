@@ -1,0 +1,74 @@
+{
+  "claims": {
+    "full_privacy_broker_in_rust": false,
+    "memory_safe_scope_parser": true,
+    "performance_improvement": false,
+    "plaintext_crosses_ffi": false,
+    "secret_material_crosses_ffi": false
+  },
+  "correctness": {
+    "decision_equal": true
+  },
+  "created_at": "2026-08-31T21:06:32.867077+07:00",
+  "environment": {
+    "machine": "AMD64",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+    "python": "3.14.7"
+  },
+  "library": {
+    "path": "D:\\Projects\\Jaya-Project\\Jaya-Project\\jaya-platform\\native\\build-windows\\lib\\libjaya_trusted.dll",
+    "sha256": "f21c735b7699040ef3837a6e93ddcb0d860bae9dfa99a239eeef9fa47f9ddeb4",
+    "size_bytes": 241152
+  },
+  "native": {
+    "decision": {
+      "effect": 1,
+      "reason_code": "SIGNED_CONSENT_ALLOWED"
+    },
+    "iterations_per_sample": 1000,
+    "median_ns_per_decision": 16992,
+    "p95_ns_per_decision": 19069,
+    "provider": {
+      "contract_version": 1,
+      "library_path": "D:\\Projects\\Jaya-Project\\Jaya-Project\\jaya-platform\\native\\build-windows\\lib\\libjaya_trusted.dll",
+      "native_available": true,
+      "receives_plaintext": false,
+      "receives_secret_material": false,
+      "requested_provider": "trusted-rust",
+      "selected_provider": "jaya-rust-trusted-v1"
+    },
+    "samples": 25,
+    "total_decisions": 25000
+  },
+  "native_to_reference_latency_ratio": 1.4888285288705863,
+  "reference": {
+    "decision": {
+      "effect": 1,
+      "reason_code": "SIGNED_CONSENT_ALLOWED"
+    },
+    "iterations_per_sample": 1000,
+    "median_ns_per_decision": 11413,
+    "p95_ns_per_decision": 14701,
+    "provider": {
+      "contract_version": 1,
+      "library_path": null,
+      "native_available": false,
+      "receives_plaintext": false,
+      "receives_secret_material": false,
+      "requested_provider": "python-reference",
+      "selected_provider": "python-privacy-reference-v1"
+    },
+    "samples": 25,
+    "total_decisions": 25000
+  },
+  "schema_version": 1,
+  "status": "PASS",
+  "workload": {
+    "classification": "CONFIDENTIAL",
+    "destination": "EXTERNAL_PROVIDER",
+    "providers": 1,
+    "purpose": "MODEL_INFERENCE",
+    "verified_consent": true
+  }
+}

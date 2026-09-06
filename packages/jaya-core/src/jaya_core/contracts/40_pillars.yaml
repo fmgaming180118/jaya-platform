@@ -1,0 +1,473 @@
+- id: 1
+  name: Pure Logic
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.PURE_LOGIC
+  capability_id: core.logic.evaluate
+- id: 2
+  name: Resource Aware
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.RESOURCE_AWARE
+- id: 3
+  name: Active Dreaming
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.ACTIVE_DREAMING
+  capability_id: core.reasoning.dream
+  verification_profile: packages/jaya-core/verification/p03_windows_active_dreaming_v1.json
+  dependencies:
+  - 15
+  - 23
+  - 8
+  - 33
+- id: 4
+  name: Multimodal Reflex
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.MULTIMODAL_REFLEX
+  capability_id: core.media.observe
+  dependencies:
+  - 2
+  - 18
+  - 23
+  - 26
+  verification_profile: p04_windows_multimodal_reflex_v1.json
+- id: 5
+  name: Logical Homeostasis
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.LOGICAL_HOMEOSTASIS
+- id: 6
+  name: Stochastic Spontaneity
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.STOCHASTIC_SPONTANEITY
+  capability_id: core.exploration.spontaneous
+  verification_profile: packages/jaya-core/verification/p06_windows_stochastic_spontaneity_v1.json
+  dependencies:
+  - 7
+  - 17
+  - 33
+- id: 7
+  name: Cognitive Silence
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.COGNITIVE_SILENCE
+  capability_id: core.cognition.silence
+  dependencies:
+  - 2
+  - 5
+  - 21
+- id: 8
+  name: Holographic Memory
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.HOLOGRAPHIC_MEMORY
+  capability_id: core.memory.holographic
+  dependencies:
+  - 18
+  - 20
+  - 26
+  - 27
+- id: 9
+  name: Neural Regeneration
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.NEURAL_REGENERATION
+  capability_id: core.recovery.regenerate
+  dependencies:
+  - 8
+  - 12
+  - 25
+- id: 10
+  name: Affective Metabolism
+  layer: BIOLOGICAL_SOUL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.AFFECTIVE_METABOLISM
+  capability_id: core.control.affective
+  dependencies:
+  - 5
+  - 15
+  - 21
+- id: 11
+  name: DNA Anchor
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.DNA_ANCHOR
+- id: 12
+  name: Immune System
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.IMMUNE_SYSTEM
+- id: 13
+  name: Cryptographic Skin
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.CRYPTOGRAPHIC_SKIN
+- id: 14
+  name: Hardware Locked
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.HARDWARE_LOCKED
+- id: 15
+  name: Ethical Heart
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.ETHICAL_HEART
+- id: 16
+  name: Quantum Resistant
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.QUANTUM_RESISTANT
+- id: 17
+  name: Socratic Mirror
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.SOCRATIC_MIRROR
+  capability_id: core.reasoning.socratic
+  dependencies:
+  - 1
+  - 15
+  - 20
+- id: 18
+  name: Zero Trust
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.ZERO_TRUST
+- id: 19
+  name: Legacy Protocol
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.LEGACY_PROTOCOL
+  capability_id: core.migration.legacy
+  dependencies:
+  - 11
+  - 13
+  - 20
+  - 25
+  - 28
+- id: 20
+  name: Sovereign Privacy
+  layer: SOVEREIGN_ARMOR
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.SOVEREIGN_PRIVACY
+- id: 21
+  name: Lingua Logica
+  layer: IRON_ENGINE
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.LINGUA_LOGICA
+- id: 22
+  name: Ternary Precision
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.TERNARY_PRECISION
+  capability_id: core.model.ternary-transition
+  dependencies:
+  - 2
+  - 5
+  - 21
+- id: 23
+  name: Sandboxed Imagination
+  layer: IRON_ENGINE
+  architectural_owners:
+  - SECURITY
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.SANDBOXED_IMAGINATION
+  capability_id: core.sandbox.expression
+  dependencies:
+  - 15
+  - 18
+  - 20
+  - 21
+- id: 24
+  name: Morphic Kernel
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.MORPHIC_KERNEL
+- id: 25
+  name: Digital Epigenetics
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.DIGITAL_EPIGENETICS
+  capability_id: core.epigenetics.lineage
+  dependencies:
+  - 11
+  - 16
+  - 20
+- id: 26
+  name: Semantic Bridge
+  layer: IRON_ENGINE
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.SEMANTIC_BRIDGE
+  capability_id: core.semantic.bridge
+  dependencies:
+  - 1
+  - 21
+  - 23
+- id: 27
+  name: Temporal Weighting
+  layer: IRON_ENGINE
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.TEMPORAL_WEIGHTING
+  capability_id: core.memory.temporal
+  dependencies:
+  - 5
+  - 26
+- id: 28
+  name: Self Bootstrapping
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.SELF_BOOTSTRAPPING
+  capability_id: core.bootstrap.declarative
+  dependencies:
+  - 12
+  - 16
+  - 24
+  - 9
+- id: 29
+  name: Binary Cortex
+  layer: IRON_ENGINE
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.BINARY_CORTEX
+  capability_id: core.binary.dot
+  dependencies:
+  - 2
+  - 13
+  - 21
+- id: 30
+  name: Twin Protocol
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.TWIN_PROTOCOL
+  capability_id: core.twin.sync
+  verification_profile: packages/jaya-core/verification/p30_windows_twin_protocol_v1.json
+  dependencies:
+  - 11
+  - 13
+  - 20
+  - 25
+  - 19
+  - 37
+- id: 31
+  name: Narrative Continuity
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.NARRATIVE_CONTINUITY
+  capability_id: core.narrative.context
+  dependencies:
+  - 11
+  - 18
+  - 8
+- id: 32
+  name: Collective Pulse
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.COLLECTIVE_PULSE
+  capability_id: core.collective.pulse
+  verification_profile: packages/jaya-core/verification/p32_windows_collective_pulse_v1.json
+  dependencies:
+  - 18
+  - 20
+  - 33
+  - 30
+- id: 33
+  name: Agentic RAG
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.AGENTIC_RAG
+  capability_id: core.retrieval.agentic
+  model_role:
+  - detect_information_need
+  - retrieval_query_generation
+  - evidence_sufficiency
+  runtime_role:
+  - execute_catalog_search
+  - validate_evidence_ids
+  dependencies:
+  - 21
+  - 26
+  - 27
+  - 18
+  - 20
+  - 8
+  - 4
+  verification_profile: p33_windows_agentic_rag_v1.json
+- id: 34
+  name: Dynamic Sparsity MoE
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.DYNAMIC_SPARSITY_MOE
+  capability_id: core.model.sparse_moe
+  dependencies:
+  - 2
+  - 13
+  - 37
+  verification_profile: packages/jaya-core/verification/p34_windows_sparse_moe_v1.json
+- id: 35
+  name: Activation Sparsity
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.ACTIVATION_SPARSITY
+  capability_id: core.activation.sparse
+  dependencies:
+  - 2
+  - 5
+  - 34
+  verification_profile: packages/jaya-core/verification/p35_windows_activation_sparsity_v1.json
+- id: 36
+  name: Speculative Reasoning
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.SPECULATIVE_REASONING
+  capability_id: core.reasoning.speculative
+  dependencies:
+  - 1
+  - 5
+  - 15
+  - 23
+  - 3
+  verification_profile: p36_windows_speculative_reasoning_v1.json
+- id: 37
+  name: Hybrid Consciousness
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.HYBRID_CONSCIOUSNESS
+  capability_id: core.routing.hybrid
+  dependencies:
+  - 2
+  - 20
+  - 33
+  - 39
+  verification_profile: packages/jaya-core/verification/p37_windows_hybrid_consciousness_v1.json
+- id: 38
+  name: Meta Cognitive Planning
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.META_COGNITIVE_PLANNING
+  capability_id: core.planning.meta
+  dependencies:
+  - 17
+  - 18
+  - 21
+  - 33
+  - 36
+  verification_profile: packages/jaya-core/verification/p38_windows_meta_planning_v1.json
+- id: 39
+  name: Dynamic Objective
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  - RUNTIME
+  status: VERIFIED
+  source_flag: JayaFlags.DYNAMIC_OBJECTIVE
+  capability_id: core.objective.dynamic
+  dependencies:
+  - 5
+  - 6
+  - 15
+  - 38
+  - 40
+  verification_profile: packages/jaya-core/verification/p39_windows_dynamic_objective_v1.json
+- id: 40
+  name: Intent Extrapolation
+  layer: TRANSCENDENTAL
+  architectural_owners:
+  - MODEL
+  status: VERIFIED
+  source_flag: JayaFlags.INTENT_EXTRAPOLATION
+  capability_id: core.intent.extrapolate
+  dependencies:
+  - 21
+  - 4
+  - 33
+  - 38
+  verification_profile: packages/jaya-core/verification/p40_windows_intent_extrapolation_v1.json

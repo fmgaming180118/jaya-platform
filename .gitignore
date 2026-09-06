@@ -1,0 +1,233 @@
+# === JAYA RESEARCH AGENTIC ECOSYSTEM - GITIGNORE ===
+# Clean production gitignore. Protects sensitive user data & omits internal blueprints/AI docs.
+
+# ─── DOKUMENTASI & BLUEPRINT ────────────────────────────────────────────────
+# Dokumentasi aktif di /docs dilacak. Arsip dan referensi besar tetap lokal.
+docs/references/
+docs/archive/*
+!docs/archive/README.md
+packages/jaya-core/docs/
+packages/jaya-research/docs/
+packages/jaya-agent/docs/
+packages/jaya-os/docs/
+packages/jaya-android/docs/
+blueprint/
+blueprints/
+blueprint-*/
+.agents/
+
+# ─── ENVIRONMENT & SECRETS (JANGAN PERNAH COMMIT) ───────────────────────────
+.env
+.env.*
+*.env
+!**/.env.example
+*.key
+*.jay.key
+secrets.yaml
+configs/local_*.yaml
+nvidia_nim_config.yaml
+
+# ─── VIRTUAL ENVIRONMENTS & DEPENDENCIES ─────────────────────────────────────
+.venv/
+venv/
+ENV/
+.venv*/
+**/.venv*/
+**/venv*/
+node_modules/
+**/node_modules/
+
+# ─── PYTHON & BUILD ARTIFACTS ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.pyd
+*.o
+*.obj
+*.iso
+*.exp
+*.lib
+*.pdb
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+htmlcov/
+# Kotlin/Gradle incremental compiler state (for example packages/jaya-android/.kotlin).
+.kotlin/
+.coverage
+.pytest_cache/
+/.pytest_tmp_*/
+target/
+build-*/
+
+# ─── DATA PRIBADI, RUNTIME & DATABASE (Data User & Vector Store) ────────────
+data/
+**/data/
+# A package named `data` inside a source tree is code, not runtime user data.
+# Re-include only source-file extensions; databases/uploads remain ignored.
+!**/src/**/data/
+!**/src/**/data/**/*.py
+!**/src/**/data/**/*.kt
+!**/src/**/data/**/*.java
+!**/src/**/data/**/*.ts
+# Versioned bootstrap knowledge lives in packages/jaya-core/src/jaya_core/resources.
+workspaces/
+**/workspaces/
+logs/
+**/logs/
+backups/
+**/backups/
+reports/
+**/reports/
+sandbox_env/
+**/sandbox_env/
+jurnal_pdf/
+**/jurnal_pdf/
+data-training/
+file-uji-coba/
+scratch/
+**/scratch/
+/temp/
+/var/
+
+# Local security identity and runtime receipts are never source material.
+/identity/
+/artifacts/
+/temp_test_acceptance/
+/.jaya-local-pillars/
+/inventory_receipt.json
+/inventory_script.py
+
+# Generated distillation/training outputs stay local. Training source code under
+# packages/jaya-research/src/jaya_research/training remains trackable.
+/packages/jaya-research/training/nim_distillation/*.json
+
+# Database files & patches
+*.db
+*.sqlite
+*.sqlite3
+*.jaypatch
+*.jay
+*.pdf
+
+# Generated bare-metal outputs and local build transcripts.
+packages/jaya-core/src/jaya_core/os_kernel/build_*.txt
+packages/jaya-core/src/jaya_core/os_kernel/user_error.txt
+packages/jaya-core/src/jaya_core/os_kernel/vbox_tail.txt
+
+# Required Android prompt assets are versioned application resources.
+!packages/jaya-android/app/src/main/assets/blueprints/
+!packages/jaya-android/app/src/main/assets/blueprints/**
+
+# ─── LARGE MODEL BINARIES & WEIGHT ADAPTERS ──────────────────────────────────
+*.pt
+*.pth
+*.bin
+ui/.output/
+dist-electron/
+
+# Vite mode configuration contains no credentials and is versioned source.
+!packages/jaya-research/ui/.env.development
+!packages/jaya-research/ui/.env.production
+
+# ─── TEMP FILES, LOGS & SCRATCH SCRIPTS ──────────────────────────────────────
+*.log
+*.tmp
+*.bak
+*.orig
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Ignore temporary root test logs
+approved_log*.txt
+final_*.txt
+jaya_data_list.txt
+pip_install_log.txt
+run_*.txt
+sample_run.txt
+verify_*.txt
+tmp_*.py
+
+# Keep the professional repository skeleton in Git while all runtime contents
+# inside these directories remain ignored.
+!/data/
+/data/*
+!/data/raw/
+/data/raw/*
+!/data/raw/.gitkeep
+!/data/processed/
+/data/processed/*
+!/data/processed/.gitkeep
+!/data/models/
+/data/models/*
+!/data/models/.gitkeep
+!/data/datasets/
+/data/datasets/*
+!/data/datasets/.gitkeep
+!/data/cache/
+/data/cache/*
+!/data/cache/.gitkeep
+
+!/logs/
+/logs/*
+!/logs/.gitkeep
+
+!/outputs/
+/outputs/*
+!/outputs/artifacts/
+/outputs/artifacts/*
+!/outputs/artifacts/.gitkeep
+!/outputs/reports/
+/outputs/reports/*
+!/outputs/reports/.gitkeep
+!/outputs/checkpoints/
+/outputs/checkpoints/*
+!/outputs/checkpoints/.gitkeep
+
+
+# ==============================================================================
+# JAYA Security & Privacy Rules - Never Commit Secrets or User Data
+# ==============================================================================
+.env
+.env.*
+!.env.example
+!.env.development
+!.env.production
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+identity/
+data/**/*.db
+data/**/*.sqlite*
+data/**/*.json
+!data/**/.gitkeep
+artifacts/
+logs/
+outputs/
+scratch/
+temp/
+temp_test_acceptance/
+.jaya-local-pillars/
+local.properties
+.idea/
+.kotlin/
+build/
+dist/
+node_modules/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pytest_tmp*
+target/

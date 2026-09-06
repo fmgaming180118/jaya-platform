@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile_id": "p17-windows-socratic-mirror-v1",
+  "scope": "bounded evidence-grounded and Pure Logic falsification gate for high-impact candidate decisions, with model-critique INFERENCE labeling, Ethical Heart policy enforcement, duplicate replay, corrupt audit detection, and restart persistence",
+  "supported_os": "Windows",
+  "matrix": {
+    "verdicts": ["ACCEPT", "REVISE", "REJECT", "INSUFFICIENT_EVIDENCE", "TIMEOUT"],
+    "triggers": ["risk", "uncertainty", "novelty", "impact"],
+    "logic_statuses": ["PROVED", "DISPROVED", "UNKNOWN"]
+  },
+  "soak": {
+    "iterations": 500,
+    "minimum_elapsed_seconds": 1.0,
+    "max_mean_review_latency_ms": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_review": 2048,
+    "max_package_joules_per_review": 0.05
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/soul/socratic.py",
+    "packages/jaya-core/src/jaya_core/pillars/regulation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/socratic_mirror.py",
+    "packages/jaya-core/verification/p17_windows_socratic_mirror_v1.json",
+    "packages/jaya-core/tests/test_socratic_mirror.py",
+    "packages/jaya-core/tests/test_integrated_regulation_cycle.py",
+    "scripts/verify_socratic_mirror.py",
+    "scripts/demo_socratic_mirror.py",
+    "scripts/benchmark/benchmark_p17_socratic_mirror.py"
+  ]
+}

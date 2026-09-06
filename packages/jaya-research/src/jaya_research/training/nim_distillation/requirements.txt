@@ -1,0 +1,7 @@
+# Lightweight dependencies for NIM API distillation
+requests>=2.25.1
+tqdm>=4.62.0
+numpy>=1.21.0
+pyyaml>=5.4.1
+# Optional: if we want to use HuggingFace tokenizers for preprocessing
+tokenizers>=0.13.0

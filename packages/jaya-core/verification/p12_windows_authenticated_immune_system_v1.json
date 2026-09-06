@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile_id": "p12-windows-authenticated-immune-system-v1",
+  "scope": "DNA-attested integrity targets, incident/circuit/audit state authentication, bounded P13 encrypted quarantine, persistent safe-stop, bounded dependency health probes, restart and verified recovery, concurrent scan idempotency, SQLite backup recovery, and representative workload on one Windows workstation; live telemetry export and sustained production observation are excluded",
+  "supported_os": "Windows",
+  "workload": {
+    "healthy_scan_operations": 100,
+    "artifact_bytes": 4096,
+    "concurrent_scans": 8,
+    "probe_timeout_seconds": 0.05,
+    "max_scan_mean_latency_ms": 100.0,
+    "max_scan_p95_latency_ms": 250.0,
+    "max_quarantine_latency_ms": 2000.0,
+    "max_recovery_latency_ms": 2000.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 67108864,
+    "max_storage_bytes_per_operation": 262144
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/security/immune_system.py",
+    "packages/jaya-core/src/jaya_core/security/cryptographic_skin.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/core_config.py",
+    "packages/jaya-core/src/jaya_core/verification/immune_system.py",
+    "packages/jaya-core/tests/test_immune_system.py",
+    "packages/jaya-core/verification/p12_windows_authenticated_immune_system_v1.json",
+    "scripts/run_jaya_core_server.py",
+    "scripts/demo_immune_system.py",
+    "scripts/verify_immune_system.py"
+  ]
+}

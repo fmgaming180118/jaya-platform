@@ -1,0 +1,19 @@
+{
+  "model": "nemotron-3-super-120b-a12b",
+  "distilled_at": "2026-07-24T10:00:00Z",
+  "prompts": [
+    {
+      "prompt": "What is the capital of France?",
+      "response": "The capital of France is Paris."
+    },
+    {
+      "prompt": "Explain the theory of relativity in simple terms.",
+      "response": "The theory of relativity, developed by Albert Einstein, describes how space and time are interconnected and how gravity affects them."
+    }
+  ],
+  "metadata": {
+    "num_prompts": 2,
+    "distillation_method": "knowledge_distillation",
+    "source": "NVIDIA NIM"
+  }
+}

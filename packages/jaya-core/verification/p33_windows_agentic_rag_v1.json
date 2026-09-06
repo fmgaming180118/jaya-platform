@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "profile_id": "p33-windows-agentic-rag-v1",
+  "scope": "grounded persistent retrieval loop with deterministic SHA-256 evidence chunking and provenance, information-need detection, bounded multi-round search, sufficiency and conflict analysis gate, strict citation span validation, fail-closed hallucination rejection, deterministic extractive CPU fallback, and transactional SQLite receipt persistence",
+  "supported_os": "Windows",
+  "matrix": {
+    "supported_providers": [
+      "LOCAL_MODEL",
+      "EXTRACTIVE_LOCAL",
+      "TEST_IMPLEMENTATION"
+    ],
+    "supported_actions": [
+      "ingest",
+      "ask",
+      "retrieve",
+      "detect_need",
+      "evaluate_sufficiency",
+      "validate_citations",
+      "status"
+    ],
+    "max_source_bytes": 1048576,
+    "max_query_rounds": 3,
+    "max_top_k": 20,
+    "chunk_max_chars": 1200,
+    "chunk_overlap_chars": 120
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_retrieval_latency_ms": 50.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_chunk": 16384,
+    "max_package_joules_per_record": 2.0,
+    "required_citation_precision": 1.0,
+    "required_groundedness": 0.9
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/agentic_rag_capability.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/agentic_rag.py",
+    "packages/jaya-core/verification/p33_windows_agentic_rag_v1.json",
+    "packages/jaya-core/tests/test_agentic_rag_local_pillar.py",
+    "packages/jaya-core/tests/test_agentic_rag.py",
+    "scripts/verify_agentic_rag.py",
+    "scripts/demo_agentic_rag.py",
+    "scripts/benchmark/benchmark_p33_agentic_rag.py"
+  ]
+}

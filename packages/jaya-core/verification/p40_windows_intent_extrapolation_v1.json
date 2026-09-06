@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "profile_id": "p40-windows-intent-extrapolation-v1",
+  "scope": "local intent transition extrapolation with explicit expiring consent gating, opt-out enforcement, sovereign deletion, inference labeling, side-effect prohibition, feedback adaptation, stale context decay, SQLite WAL durability, and tamper-evident integrity",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_EXPLICIT_EXPIRING_CONSENT",
+      "G03_CONSENT_EXPIRY_AND_REVOCATION",
+      "G04_PROFILING_OPT_OUT_ENFORCEMENT",
+      "G05_SOVEREIGN_DATA_PURGE",
+      "G06_REAL_TRANSITION_OBSERVATION",
+      "G07_INFERENCE_LABELING_AND_CONTRACT",
+      "G08_SIDE_EFFECT_PROHIBITION",
+      "G09_INSUFFICIENT_HISTORY_HANDLING",
+      "G10_AMBIGUOUS_INTENT_GATING",
+      "G11_STALE_CONTEXT_DECAY",
+      "G12_DETERMINISTIC_FEEDBACK_ADAPTATION",
+      "G13_RESTART_DURABILITY_AND_WAL",
+      "G14_TAMPER_EVIDENT_STATE_INTEGRITY",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 100.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 10.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/control_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/intent_extrapolation.py",
+    "packages/jaya-core/verification/p40_windows_intent_extrapolation_v1.json",
+    "packages/jaya-core/tests/test_intent_extrapolation.py",
+    "scripts/verify_intent_extrapolation.py",
+    "scripts/demo_intent_extrapolation.py",
+    "scripts/benchmark/benchmark_p40_intent_extrapolation.py"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "profile_id": "p18-windows-dynamic-zero-trust-v1",
+  "scope": "Zero Trust authority with encrypted-file DNA identity, dynamic principal state, current-key enforcement, least-privilege ACL, payload and upstream-receipt binding, bounded clock skew, atomic replay storage, persistent audit reconciliation, artifact digest validation, canonical launcher integration, and bounded local workload on one Windows workstation",
+  "supported_os": "Windows",
+  "workload": {
+    "authorizations": 150,
+    "replay_attempts": 100,
+    "max_clock_skew_seconds": 5.0,
+    "minimum_elapsed_seconds": 0.5,
+    "max_mean_latency_ms": 250.0,
+    "max_p95_latency_ms": 400.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_storage_bytes_per_decision": 16384,
+    "min_replay_attempts_per_second": 5.0
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/protection/zero_trust.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/protection/dna_anchor.py",
+    "packages/jaya-core/src/jaya_core/capabilities/puzzle.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/core_config.py",
+    "packages/jaya-core/src/jaya_core/verification/zero_trust.py",
+    "packages/jaya-core/tests/test_zero_trust_authority.py",
+    "packages/jaya-core/tests/test_zero_trust_lifecycle.py",
+    "packages/jaya-core/verification/p18_windows_dynamic_zero_trust_v1.json",
+    "scripts/run_jaya_core_server.py",
+    "scripts/demo_zero_trust.py",
+    "scripts/verify_zero_trust.py"
+  ]
+}

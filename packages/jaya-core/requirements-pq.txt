@@ -1,0 +1,4 @@
+-r requirements.txt
+# Optional reviewed P16 provider. The Python wrapper is MIT licensed; its first
+# import requires a compatible liboqs installation or a local C build toolchain.
+liboqs-python==0.16.0

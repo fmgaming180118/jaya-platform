@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "id": "6d22e96a-c6ce-4f0a-97e9-e09a2d8c0481",
+  "name": "Test Dialog",
+  "description": "Test dialog for compiler",
+  "protocol_version": "1.0",
+  "entry_point": "test_dialog.run_feature",
+  "capabilities": [
+    "ui",
+    "events",
+    "state",
+    "jaya_actions"
+  ],
+  "permissions": [
+    "ui_mount",
+    "state_read",
+    "state_write",
+    "api_call"
+  ],
+  "dependencies": {},
+  "metadata": {}
+}

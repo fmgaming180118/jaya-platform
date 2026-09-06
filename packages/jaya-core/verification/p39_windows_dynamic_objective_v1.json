@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "profile_id": "p39-windows-dynamic-objective-v1",
+  "scope": "immutable owner goal and invariant preservation, bounded dynamic subgoal weight reprioritization, cryptographic owner approval verification, anti-oscillation dampening, evidence-grounded proposals, append-only rollback lineage, meta-planning consumption, SQLite WAL durability, and tamper-evident state receipts",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_OWNER_GOAL_IMMUTABILITY",
+      "G03_INVARIANT_SAFETY_GATING",
+      "G04_BOUNDED_WEIGHT_NORMALIZATION",
+      "G05_LEARNING_RATE_CLAMPING",
+      "G06_EVIDENCE_GROUNDING",
+      "G07_POLICY_DECISION_GATING",
+      "G08_OWNER_APPROVAL_SIGNATURE",
+      "G09_FORGED_AND_REPLAYED_APPROVAL_REJECTION",
+      "G10_PROPOSAL_EXPIRATION",
+      "G11_ANTI_OSCILLATION_DAMPENING",
+      "G12_APPEND_ONLY_ROLLBACK_LINEAGE",
+      "G13_META_PLANNER_CONSUMPTION",
+      "G14_TAMPER_EVIDENT_WAL_PERSISTENCE",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 50.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 10.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/control_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/dynamic_objective.py",
+    "packages/jaya-core/verification/p39_windows_dynamic_objective_v1.json",
+    "packages/jaya-core/tests/test_dynamic_objective.py",
+    "scripts/verify_dynamic_objective.py",
+    "scripts/demo_dynamic_objective.py",
+    "scripts/benchmark/benchmark_p39_dynamic_objective.py"
+  ]
+}

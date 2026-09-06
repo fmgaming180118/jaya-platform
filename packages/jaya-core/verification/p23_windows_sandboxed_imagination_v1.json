@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "profile_id": "p23-windows-sandboxed-imagination-v1",
+  "scope": "isolated bounded subprocess execution with strict AST allowlist, resource bounds, memory/depth limits, dual-gate security wiring, ephemeral workspace cleanup, and honest simulation labeling",
+  "supported_os": "Windows",
+  "matrix": {
+    "supported_types": ["int", "float", "bool", "str", "list", "dict"],
+    "max_input_length": 4096,
+    "max_depth": 32,
+    "max_nodes": 256
+  },
+  "soak": {
+    "iterations": 100,
+    "minimum_elapsed_seconds": 1.0,
+    "max_mean_eval_latency_ms": 250.0,
+    "max_rss_growth_bytes": 33554432
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/foundation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/sandboxed_imagination.py",
+    "packages/jaya-core/verification/p23_windows_sandboxed_imagination_v1.json",
+    "packages/jaya-core/tests/test_sandboxed_imagination.py",
+    "packages/jaya-core/tests/test_foundation_local_pillars.py",
+    "packages/jaya-core/scripts/verify_p23_sandboxed_imagination.py",
+    "scripts/demo_sandboxed_imagination.py"
+  ]
+}

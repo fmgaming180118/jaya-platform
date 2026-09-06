@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "id": "a2e27860-47c7-4a3b-babe-ebedd5b73e3d",
+  "name": "Settings",
+  "description": "Application settings and preferences",
+  "protocol_version": "1.0",
+  "entry_point": "settings_dialog.run_feature",
+  "capabilities": [
+    "ui",
+    "events",
+    "state",
+    "jaya_actions"
+  ],
+  "permissions": [
+    "ui_mount",
+    "state_read",
+    "state_write",
+    "api_call"
+  ],
+  "dependencies": {},
+  "metadata": {}
+}

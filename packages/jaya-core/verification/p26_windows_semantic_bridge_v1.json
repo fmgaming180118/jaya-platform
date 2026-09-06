@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "profile_id": "p26-windows-semantic-bridge-v1",
+  "scope": "bounded local SQLite semantic bridge for typed tokens, exact citation spans, SHA-256 provenance, epistemic status labeling (FACT, INFERENCE, UNVERIFIED), cross-source entity linking, and memory cycle integration",
+  "supported_os": "Windows",
+  "matrix": {
+    "domains": ["machine_learning", "knowledge_graphs", "scientific_evidence"],
+    "epistemic_statuses": ["FACT", "INFERENCE", "UNVERIFIED"]
+  },
+  "soak": {
+    "iterations": 2000,
+    "minimum_elapsed_seconds": 1.0,
+    "max_mean_ingest_latency_ms": 15.0,
+    "max_query_latency_ms": 20.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 4096
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/semantic_bridge.py",
+    "packages/jaya-core/src/jaya_core/pillars/foundation_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/semantic_bridge.py",
+    "packages/jaya-core/verification/p26_windows_semantic_bridge_v1.json",
+    "packages/jaya-core/tests/test_semantic_bridge_verification.py",
+    "packages/jaya-core/tests/test_semantic_temporal_local_pillars.py",
+    "packages/jaya-core/tests/test_integrated_memory_cycle.py",
+    "scripts/verify_semantic_bridge.py",
+    "scripts/demo_semantic_bridge.py",
+    "scripts/benchmark/benchmark_p26_semantic_bridge.py"
+  ]
+}

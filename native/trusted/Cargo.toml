@@ -1,0 +1,18 @@
+[package]
+name = "jaya-trusted"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Memory-safe validation boundary for JAYA native artifacts"
+publish = false
+
+[lib]
+name = "jaya_trusted"
+crate-type = ["cdylib"]
+
+[profile.release]
+codegen-units = 1
+lto = true
+panic = "abort"
+strip = true
+

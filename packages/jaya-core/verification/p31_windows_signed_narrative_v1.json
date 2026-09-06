@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "profile_id": "p31-windows-signed-narrative-v1",
+  "scope": "DNA-signed append-only continuity for typed events, evidence-bound facts, corrections, commitments, snapshots, rollback receipts, migration, and restart on one Windows workstation",
+  "supported_os": "Windows",
+  "soak": {
+    "iterations": 5000,
+    "minimum_elapsed_seconds": 3.0,
+    "max_mean_append_latency_ms": 10.0,
+    "max_full_integrity_seconds": 20.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_event": 8192,
+    "max_package_joules_per_event": 0.25
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/narrative_continuity.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/protection/dna_anchor.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/observability/energy_meter.py",
+    "packages/jaya-core/src/jaya_core/verification/narrative_continuity.py",
+    "packages/jaya-core/verification/p31_windows_signed_narrative_v1.json",
+    "scripts/verify_narrative_continuity.py"
+  ]
+}

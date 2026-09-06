@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "profile_id": "p20-windows-encrypted-privacy-v1",
+  "scope": "Sovereign Privacy with AES-GCM encrypted SQLite storage, recovery-signed dynamic consent trust, owner export and deletion, bounded retention batches, explicitly managed SQLite backup deletion, restart, tamper and wrong-key rejection, leak scanning, and bounded local workload on one Windows workstation",
+  "supported_os": "Windows",
+  "workload": {
+    "records": 250,
+    "retention_records": 100,
+    "minimum_elapsed_seconds": 0.1,
+    "max_mean_latency_ms": 100.0,
+    "max_p95_latency_ms": 200.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_storage_bytes_per_record": 32768,
+    "min_retention_records_per_second": 10.0
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/security/sovereign_privacy.py",
+    "packages/jaya-core/src/jaya_core/security/approval_trust.py",
+    "packages/jaya-core/src/jaya_core/privacy_redaction.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/memory/episodic.py",
+    "packages/jaya-core/src/jaya_core/verification/sovereign_privacy.py",
+    "packages/jaya-core/tests/test_sovereign_privacy.py",
+    "packages/jaya-core/tests/test_privacy_consent_trust.py",
+    "packages/jaya-core/verification/p20_windows_encrypted_privacy_v1.json",
+    "scripts/demo_sovereign_privacy.py",
+    "scripts/verify_sovereign_privacy.py"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "profile_id": "p04-windows-multimodal-reflex-v1",
+  "scope": "bounded multi-modal media ingestion with magic byte MIME detection, decompression bomb prevention, stream and container inspection via host ffprobe, deterministic evidence span extraction for Semantic Bridge (P26), fail-closed semantic model dispatch, transactional SQLite ledger durability, and resource profile gating",
+  "supported_os": "Windows",
+  "matrix": {
+    "supported_modalities": [
+      "AUDIO",
+      "IMAGE",
+      "VIDEO",
+      "DOCUMENT"
+    ],
+    "supported_containers": [
+      "wav",
+      "mp3",
+      "flac",
+      "ogg",
+      "png",
+      "jpeg",
+      "bmp",
+      "gif",
+      "webp",
+      "mp4",
+      "webm",
+      "mkv",
+      "pdf",
+      "txt"
+    ],
+    "primary_inspector": "FFPROBE",
+    "primary_extractor": "DETERMINISTIC_EVIDENCE_EXTRACTOR",
+    "max_dimension_edge": 16384,
+    "max_pixel_count": 268435456,
+    "max_payload_size_bytes": 67108864
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_observation_latency_ms": 50.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 2.0,
+    "required_evidence_fidelity": 1.0
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/media_capability.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/verification/multimodal_reflex.py",
+    "packages/jaya-core/verification/p04_windows_multimodal_reflex_v1.json",
+    "packages/jaya-core/tests/test_media_local_pillar.py",
+    "packages/jaya-core/tests/test_multimodal_reflex.py",
+    "scripts/verify_multimodal_reflex.py",
+    "scripts/demo_multimodal_reflex.py",
+    "scripts/benchmark/benchmark_p04_multimodal_reflex.py"
+  ]
+}

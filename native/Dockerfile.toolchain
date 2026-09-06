@@ -1,0 +1,21 @@
+ARG JAYA_TOOLCHAIN_BASE=python:3.11-slim-bookworm
+FROM ${JAYA_TOOLCHAIN_BASE}
+
+USER root
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        build-essential \
+        cargo \
+        cmake \
+        g++-mingw-w64-x86-64 \
+        libstd-rust-dev-windows \
+        ninja-build \
+        rustc \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends rustfmt \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace

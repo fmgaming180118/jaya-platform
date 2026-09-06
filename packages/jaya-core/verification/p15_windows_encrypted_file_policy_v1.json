@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "profile_id": "p15-windows-encrypted-file-policy-v1",
+  "scope": "Deterministic Ethical Heart policy enforcement, dynamic recovery-signed owner trust registry, encrypted-file owner signing keys, JayaIR capability gating, rotation, revocation, recovery, restart, tamper detection, and bounded approval soak on one Windows workstation",
+  "supported_os": "Windows",
+  "soak": {
+    "iterations": 250,
+    "minimum_elapsed_seconds": 1.0,
+    "max_mean_latency_ms": 250.0,
+    "max_p95_latency_ms": 400.0,
+    "max_full_audit_seconds": 10.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_storage_bytes_per_decision": 8192
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/soul/ethical_heart.py",
+    "packages/jaya-core/src/jaya_core/security/approval_trust.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/brain_v2/engine/jaya_ir_exec.py",
+    "packages/jaya-core/src/jaya_core/capabilities/puzzle.py",
+    "packages/jaya-core/src/jaya_core/verification/ethical_heart.py",
+    "packages/jaya-core/tests/test_approval_trust.py",
+    "packages/jaya-core/tests/test_sovereign_foundation.py",
+    "packages/jaya-core/verification/p15_windows_encrypted_file_policy_v1.json",
+    "scripts/demo_ethical_heart.py",
+    "scripts/verify_ethical_heart.py"
+  ]
+}

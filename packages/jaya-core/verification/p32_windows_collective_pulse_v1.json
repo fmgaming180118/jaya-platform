@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "profile_id": "p32-windows-collective-pulse-v1",
+  "scope": "signed consent-bound peer evidence aggregation with robust statistics, poisoning guards, privacy budget enforcement, replay rejection, revocation lifecycle, and Windows EMI energy profiling",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_PEER_ALLOWLIST_ENFORCEMENT",
+      "G03_HMAC_SIGNATURE_VERIFICATION",
+      "G04_EVIDENCE_CATALOG_LINKAGE",
+      "G05_CONSENT_LIFECYCLE_AND_BUDGET",
+      "G06_REPLAY_ATTACK_REJECTION",
+      "G07_CLOCK_SKEW_REJECTION",
+      "G08_POISONING_AND_QUALITY_GUARD",
+      "G09_INSUFFICIENT_PEERS_QUORUM",
+      "G10_ROBUST_MEDIAN_AGGREGATION",
+      "G11_CONFLICT_SPREAD_DETECTION",
+      "G12_LOCAL_AUTHORITY_PRESERVATION",
+      "G13_PERSISTENT_REVOCATION_LIFECYCLE",
+      "G14_DUAL_NODE_RESTART_DURABILITY",
+      "G15_RUNTIME_AND_MANIFEST_DISPATCH",
+      "G16_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 25,
+    "max_mean_latency_ms": 100.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 15.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/distributed_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/collective_pulse.py",
+    "packages/jaya-core/verification/p32_windows_collective_pulse_v1.json",
+    "packages/jaya-core/tests/test_collective_pulse.py",
+    "packages/jaya-core/tests/test_distributed_local_pillars.py",
+    "scripts/verify_collective_pulse.py",
+    "scripts/demo_collective_pulse.py",
+    "scripts/benchmark/benchmark_p32_collective_pulse.py"
+  ]
+}

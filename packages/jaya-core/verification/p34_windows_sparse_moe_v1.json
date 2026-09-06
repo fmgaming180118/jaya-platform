@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "profile_id": "p34-windows-sparse-moe-v1",
+  "scope": "dynamic sparsity mixture-of-experts runtime with HMAC-SHA256 signed expert verification, multi-expert top-k cosine/softmax routing, capacity overflow rerouting, dense baseline quality regression budgeting, SQLite WAL persistence, tamper-evident receipts, and Windows EMI energy profiling",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_EXPERT_SIGNATURE_VERIFICATION",
+      "G03_MULTIPLE_OBSERVABLY_DIFFERENT_EXPERTS",
+      "G04_TOP_K_SPARSE_ROUTING",
+      "G05_DENSE_BASELINE_QUALITY_GATING",
+      "G06_CAPACITY_AND_OVERFLOW_REROUTING",
+      "G07_EXPERT_UNAVAILABLE_AND_INCOMPATIBLE",
+      "G08_CORRUPT_WEIGHTS_AND_SHAPES",
+      "G09_COLLAPSED_ROUTING_DETECTION",
+      "G10_INPUT_VALIDATION_AND_BOUNDS",
+      "G11_UTILIZATION_METRICS_TRACKING",
+      "G12_PROVENANCE_AND_OUTPUT_DIGEST",
+      "G13_RESTART_DURABILITY_AND_WAL",
+      "G14_TAMPER_EVIDENT_RECEIPT_INTEGRITY",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 50.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 10.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/moe_capability.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/sparse_moe.py",
+    "packages/jaya-core/verification/p34_windows_sparse_moe_v1.json",
+    "packages/jaya-core/tests/test_dynamic_sparsity_moe.py",
+    "packages/jaya-core/tests/test_sparse_moe_local_pillars.py",
+    "scripts/verify_sparse_moe.py",
+    "scripts/demo_sparse_moe.py",
+    "scripts/benchmark/benchmark_p34_sparse_moe.py"
+  ]
+}

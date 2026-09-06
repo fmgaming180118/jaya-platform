@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "profile_id": "p38-windows-meta-planning-v1",
+  "scope": "meta-cognitive planning engine with authority separation, invariant safety gating, loop and no-progress detection, bounded dynamic replanning, cooperative cancellation, restart durability, tamper-evident SQLite WAL persistence, and deterministic replay",
+  "supported_os": "Windows",
+  "matrix": {
+    "gates": [
+      "G01_MANIFEST_INTEGRITY",
+      "G02_INVARIANT_SAFETY_GATING",
+      "G03_AUTHORITY_SEPARATION_AND_PERMISSION",
+      "G04_OBJECTIVE_IMMUTABILITY_AND_HIJACK_PREVENTION",
+      "G05_LOOP_AND_CYCLE_DETECTION",
+      "G06_NO_PROGRESS_DETECTION",
+      "G07_DYNAMIC_REPLAN_AND_RECOVERY",
+      "G08_BUDGET_AND_TIMEOUT_ENFORCEMENT",
+      "G09_COOPERATIVE_CANCELLATION",
+      "G10_RESTART_DURABILITY_AND_RESUME",
+      "G11_TAMPER_EVIDENT_WAL_PERSISTENCE",
+      "G12_DETERMINISTIC_REPLAY_BY_REQUEST_ID",
+      "G13_COMPARATIVE_RECOVERY_BASELINE",
+      "G14_CANONICAL_CORE_RUNTIME_WIRING",
+      "G15_SOAK_PERFORMANCE_AND_ENERGY"
+    ],
+    "maximum_steps": 64,
+    "max_timeout_seconds": 300.0
+  },
+  "soak": {
+    "iterations": 100,
+    "max_mean_latency_ms": 350.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_database_bytes_per_record": 16384,
+    "max_package_joules_per_record": 10.0,
+    "min_completion_rate": 0.95
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/reasoning_capabilities.py",
+    "packages/jaya-core/src/jaya_core/pillars/advanced_capabilities.py",
+    "packages/jaya-core/src/jaya_core/verification/meta_planning.py",
+    "packages/jaya-core/verification/p38_windows_meta_planning_v1.json",
+    "packages/jaya-core/tests/test_meta_planning.py",
+    "scripts/verify_meta_planning.py",
+    "scripts/demo_meta_planning.py",
+    "scripts/benchmark/benchmark_p38_meta_planning.py"
+  ]
+}

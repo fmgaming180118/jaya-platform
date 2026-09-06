@@ -1,0 +1,96 @@
+[project]
+name = "jaya-core"
+version = "0.1.0"
+description = "JAYA Core Framework - Cognitive Architecture, Agents, and Runtime"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "cryptography>=43,<47",
+    "fastapi>=0.115,<1",
+    "msgpack>=1.1,<2",
+    "numpy>=1.26,<3",
+    "psutil>=6,<8",
+    "pycryptodome>=3.21,<4",
+    "pywin32>=312; sys_platform == 'win32'",
+    "pydantic>=2.10,<3",
+    "python-dotenv>=1.0,<2",
+    "pyyaml>=6,<7",
+    "requests>=2.32,<3",
+    "uvicorn>=0.27,<1",
+]
+
+[project.scripts]
+jaya-pillars = "jaya_core.pillars.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "pytest-mock>=3.12",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pyright>=1.1",
+    "bandit>=1.7",
+    "pre-commit>=3.6",
+]
+torch = [
+    "torch>=2.3",
+    "transformers>=4.40",
+    "accelerate>=0.30",
+]
+llama = [
+    "llama-cpp-python>=0.2.70",
+]
+full = [
+    "torch>=2.3",
+    "transformers>=4.40",
+    "accelerate>=0.30",
+    "llama-cpp-python>=0.2.70",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../../packages/jaya-agent/src",
+    "../../packages/jaya-os/src",
+    "../../packages/jaya-research/src",
+    "../..",
+]
+addopts = "--strict-markers --import-mode=importlib -v"
+testpaths = ["tests"]
+norecursedirs = ["fixtures"]
+markers = [
+    "unit: fast isolated tests",
+    "integration: crosses a process, provider, model, or subsystem boundary",
+    "network: requires live network access",
+    "hardware: requires audio, GPU, camera, device, or other physical hardware",
+    "manual: requires explicit human observation or interaction",
+    "slow: intentionally long-running validation",
+    "e2e: end-to-end system tests",
+    "performance: performance benchmarks",
+    "chaos: chaos engineering tests",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+show_error_codes = true
+namespace_packages = true
+explicit_package_bases = true

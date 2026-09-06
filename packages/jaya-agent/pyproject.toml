@@ -1,0 +1,48 @@
+[project]
+name = "jaya-agent"
+version = "0.1.0"
+description = "JAYA Agent Runtime - Multi-Agent Coordination and Execution"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2.10,<3",
+    "psutil>=6,<8",
+    "uvicorn>=0.27,<1",
+    "jaya-core>=0.1.0",
+    "jaya-os>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "pytest-mock>=3.12",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pyright>=1.1",
+    "bandit>=1.7",
+    "pre-commit>=3.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+addopts = "--strict-markers --import-mode=importlib -v"
+testpaths = ["tests"]
+markers = [
+    "unit: fast isolated tests",
+    "integration: crosses a process, provider, model, or subsystem boundary",
+    "network: requires live network access",
+    "hardware: requires audio, GPU, camera, device, or other physical hardware",
+    "manual: requires explicit human observation or interaction",
+    "slow: intentionally long-running validation",
+    "e2e: end-to-end system tests",
+    "performance: performance benchmarks",
+    "chaos: chaos engineering tests",
+]

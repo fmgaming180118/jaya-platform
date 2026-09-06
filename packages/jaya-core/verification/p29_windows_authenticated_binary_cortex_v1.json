@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "profile_id": "p29-windows-authenticated-binary-cortex-v1",
+  "scope": "P13-authenticated binary weight artifacts, CPython integer XNOR/popcount execution, explicit dense fallback, restart, concurrent inference, receipts, recovery, and representative performance on one Windows workstation; native SIMD/GPU/NPU acceleration, target-device energy, and sustained production observation are excluded",
+  "supported_os": "Windows",
+  "workload": {
+    "input_features": 4097,
+    "output_units": 32,
+    "inference_operations": 20,
+    "concurrent_operations": 16,
+    "benchmark_iterations": 100,
+    "max_inference_mean_latency_ms": 250.0,
+    "max_inference_p95_latency_ms": 500.0,
+    "max_install_latency_ms": 5000.0,
+    "min_storage_compression_ratio": 31.0,
+    "min_kernel_speedup_excluding_pack": 1.0,
+    "max_rss_growth_bytes": 134217728,
+    "max_storage_bytes_per_operation": 524288
+  },
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/pillars/binary_cortex.py",
+    "packages/jaya-core/src/jaya_core/pillars/local_types.py",
+    "packages/jaya-core/src/jaya_core/pillars/local_capabilities.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/security/cryptographic_skin.py",
+    "packages/jaya-core/tests/test_binary_cortex.py",
+    "packages/jaya-core/tests/test_implemented_local_pillars.py",
+    "packages/jaya-core/verification/p29_windows_authenticated_binary_cortex_v1.json",
+    "scripts/demo_binary_cortex.py",
+    "scripts/verify_binary_cortex.py"
+  ]
+}

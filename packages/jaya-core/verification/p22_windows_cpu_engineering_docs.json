@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "profile_id": "p22-windows-cpu-engineering-docs-v1",
+  "scope": "next-token prediction for JAYA engineering documentation; not a general-purpose language model",
+  "supported_os": "Windows",
+  "training_glob": "docs/pillars/*.md",
+  "training_exclude": [
+    "13-p22-ternary-precision.md",
+    "README.md"
+  ],
+  "evaluation_glob": "docs/*.md",
+  "training": {
+    "max_vocab": 768,
+    "holdout_ratio": 0.2,
+    "smoothing": 1.5,
+    "max_perplexity_ratio": 2.0,
+    "max_top1_accuracy_drop": 0.2
+  },
+  "evaluation_gates": {
+    "minimum_sources": 20,
+    "minimum_pairs": 20000,
+    "max_perplexity_ratio": 2.5,
+    "max_top1_accuracy_drop": 0.05
+  },
+  "runtime_benchmark": {
+    "text": "runtime ternary memproses dokumentasi engineering",
+    "top_k": 5,
+    "iterations": 10000,
+    "timeout_seconds": 30.0
+  },
+  "soak": {
+    "text": "model ternary digunakan untuk inferensi lokal",
+    "top_k": 5,
+    "iterations": 100000,
+    "minimum_elapsed_seconds": 5.0,
+    "max_mean_latency_ms": 1.0,
+    "max_rss_growth_bytes": 33554432,
+    "max_package_joules_per_inference": 0.02
+  },
+  "artifact_max_bytes": 1048576,
+  "source_files": [
+    "packages/jaya-core/src/jaya_core/brain_v2/model/ternary_transition.py",
+    "packages/jaya-core/src/jaya_core/observability/energy_meter.py",
+    "packages/jaya-core/src/jaya_core/pillars/ternary_capability.py",
+    "packages/jaya-core/src/jaya_core/verification/ternary_precision.py",
+    "packages/jaya-core/src/jaya_core/cognitive/runtime.py",
+    "packages/jaya-core/src/jaya_core/core_config.py",
+    "packages/jaya-core/verification/p22_windows_cpu_engineering_docs.json",
+    "scripts/run_jaya_core_server.py",
+    "scripts/verify_ternary_precision.py"
+  ]
+}
