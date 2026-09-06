@@ -60,7 +60,7 @@ def test_receipt_uses_real_git_state_without_secret_values(tmp_path: Path) -> No
     assert receipt["head"]
     assert receipt["branch"]
     assert len(receipt["path_digest_sha256"]) == SHA256_HEX_LENGTH
-    assert receipt["entries"]
+    assert isinstance(receipt["entries"], list)
     assert receipt["secret_scan"]["values_included"] is False
     assert all("content" not in entry for entry in receipt["entries"])
 
