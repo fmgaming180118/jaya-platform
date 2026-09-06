@@ -21,9 +21,20 @@ blueprint-*/
 .env.*
 *.env
 !**/.env.example
+!**/.env.sample
+!**/.env.template
+*.pem
 *.key
+*.p12
+*.pfx
+*.jks
+*.keystore
 *.jay.key
+credentials.json
+service-account*.json
+secrets.json
 secrets.yaml
+secrets.yml
 configs/local_*.yaml
 nvidia_nim_config.yaml
 
@@ -91,6 +102,7 @@ file-uji-coba/
 scratch/
 **/scratch/
 /temp/
+/temp_nemoclaw/
 
 # Generated distillation/training outputs stay local. Training source code under
 # JAYA_RESEARCH/src/training remains trackable.
