@@ -2,7 +2,7 @@
 
 - [x] Align root README with the proprietary license.
 - [x] Align root `pyproject.toml` with the proprietary license.
-- [x] Complete the canonical documentation validator contract.
+- [x] Complete the public documentation validator contract.
 - [x] Remove the shell hardcoded vault password.
 - [x] Add a Python lockfile.
 - [ ] Verify clean-clone installation with `uv sync --locked` after root Hatch fix.

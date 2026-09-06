@@ -15,5 +15,7 @@ Start with:
 - [Governance](GOVERNANCE.md)
 - [Workflows](WORKFLOWS.md)
 
-This release is public proprietary software. See the repository `LICENSE` for
-use restrictions.
+Internal prompts, Core/Mesh blueprints, and detailed pillar construction
+records are intentionally excluded from the public release. This repository
+contains the public operational contract only. See the repository `LICENSE`
+for use restrictions.

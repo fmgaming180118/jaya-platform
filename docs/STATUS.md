@@ -12,7 +12,9 @@ Status: **pre-release research prototype**.
 ## Open release blockers
 
 - Root `pyproject.toml` is aligned with the proprietary license and Hatch wheel configuration.
-- Canonical documentation validation passes for 23 canonical documents and 40 pillar documents.
+- Public documentation validation passes for the reduced operational documentation set.
+- Internal prompts, 40-pillar construction records, and Core/Mesh blueprints are
+  excluded from the public snapshot.
 - A bounded, non-root API container baseline with healthcheck is available in `docker/`.
 - Python dependency resolution is recorded in `uv.lock`.
 - UI clean install, lint, contract tests, production build, and high-severity

@@ -1,4 +1,4 @@
-[project]
+﻿[project]
 name = "jaya-monorepo"
 version = "0.1.0"
 description = "JAYA AI Research Monorepo - Core, Agent, OS, and Research Platform"
@@ -20,7 +20,7 @@ jaya-core = {workspace = true}
 jaya-agent = {workspace = true}
 jaya-os = {workspace = true}
 jaya-research = {workspace = true}
-
+`
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

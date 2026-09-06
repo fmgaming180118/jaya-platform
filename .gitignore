@@ -6,6 +6,17 @@
 docs/references/
 docs/archive/*
 !docs/archive/README.md
+docs/internal/
+docs/40_PILLARS_IMPLEMENTATION_MATRIX.md
+docs/arsitektur_40_pilar_jaya.md
+docs/JAYA_CORE_DESIGN.md
+docs/JAYA_MESH_DESIGN.md
+docs/DISCOVERY_PIPELINE_DESIGN.md
+docs/LOGICAL_FOUNDATION_PROGRESS.md
+docs/SOVEREIGN_FOUNDATION_PROGRESS.md
+docs/SECURITY_ENVELOPE_PROGRESS.md
+docs/pillars/
+prompts/
 packages/jaya-core/docs/
 packages/jaya-research/docs/
 packages/jaya-agent/docs/
