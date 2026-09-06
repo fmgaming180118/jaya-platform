@@ -11,7 +11,7 @@ Status: **pre-release research prototype**.
 
 ## Open release blockers
 
-- Root `pyproject.toml` still needs to be aligned with the proprietary license.
+- Root `pyproject.toml` is aligned with the proprietary license and Hatch wheel configuration.
 - Canonical documentation validation passes for 23 canonical documents and 40 pillar documents.
 - A bounded, non-root API container baseline with healthcheck is available in `docker/`.
 - Python dependency resolution is recorded in `uv.lock`.
@@ -19,9 +19,7 @@ Status: **pre-release research prototype**.
   dependency audit pass.
 - Docker API image builds successfully and a bounded container smoke test
   confirms 1 GiB memory, 1 CPU, and 128 PID limits.
-- Clean-clone installation is not yet verified with `uv sync --locked`.
-- Root meta-package packaging still needs an explicit Hatch wheel selection so
-  a plain `uv sync --locked` can install the workspace root.
+- Clean-clone installation with `uv sync --locked` passes on the release branch.
 - Production deployment, authentication, observability, backup, and rollback
   still need execution evidence; the container files are a baseline, not proof.
 - Full UI and cross-package release validation is pending.
