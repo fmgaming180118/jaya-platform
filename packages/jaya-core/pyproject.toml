@@ -3,7 +3,7 @@ name = "jaya-core"
 version = "0.1.0"
 description = "JAYA Core Framework - Cognitive Architecture, Agents, and Runtime"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Proprietary"}
 requires-python = ">=3.11"
 dependencies = [
     "cryptography>=43,<47",

@@ -3,7 +3,7 @@ name = "jaya-os"
 version = "0.1.0"
 description = "JAYA OS Integration - Kernel Interfaces, Permissions, and Sandboxing"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Proprietary"}
 requires-python = ">=3.11"
 dependencies = [
     "jaya-core>=0.1.0",

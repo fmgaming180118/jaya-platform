@@ -38,6 +38,8 @@ from jaya_research.provider_errors import (
 
 static_ffmpeg.add_paths()
 
+MAX_SAMPLED_VIDEO_FRAMES = 120
+
 
 class SmartAudioProcessor:
     def split_by_silence(
@@ -174,58 +176,71 @@ class AdaptiveVisualSampler:
         diff_threshold: float = 30.0,
         min_interval: float = 1.0,
         max_interval: float = 60.0,
+        max_frames: int = MAX_SAMPLED_VIDEO_FRAMES,
     ) -> List[Any]:
         """
         Sample frames based on visual change detection (Scene Change).
         - diff_threshold: Pixel difference average to trigger capture
         - min_interval: Minimum time between frames (to avoid burst)
         - max_interval: Maximum time without frame (force capture)
+        - max_frames: Hard upper bound to prevent unbounded in-memory output.
         """
+        if not isinstance(max_frames, int) or isinstance(max_frames, bool):
+            raise ValueError("max_frames must be an integer")
+        if not 1 <= max_frames <= MAX_SAMPLED_VIDEO_FRAMES:
+            raise ValueError(
+                f"max_frames must be between 1 and {MAX_SAMPLED_VIDEO_FRAMES}"
+            )
+
         cap = cv2.VideoCapture(str(video_path))
 
         last_frame = None
         last_timestamp = -999.0
         encoded_frames = []
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                break
+        try:
+            while cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    break
 
-            current_timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+                current_timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
 
-            # Grayscale for diff calculation
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            gray = cv2.GaussianBlur(gray, (21, 21), 0)
+                # Grayscale for diff calculation
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                gray = cv2.GaussianBlur(gray, (21, 21), 0)
 
-            should_capture = False
+                should_capture = False
 
-            if last_frame is None:
-                should_capture = True
-            else:
-                # Calculate time delta
-                time_delta = current_timestamp - last_timestamp
-
-                if time_delta < min_interval:
-                    continue
-
-                if time_delta > max_interval:
+                if last_frame is None:
                     should_capture = True
                 else:
-                    # Calculate visual diff
-                    diff = cv2.absdiff(last_frame, gray)
-                    mean_diff = diff.mean()
-                    if mean_diff > diff_threshold:
+                    # Calculate time delta
+                    time_delta = current_timestamp - last_timestamp
+
+                    if time_delta < min_interval:
+                        continue
+
+                    if time_delta > max_interval:
                         should_capture = True
+                    else:
+                        # Calculate visual diff
+                        diff = cv2.absdiff(last_frame, gray)
+                        mean_diff = diff.mean()
+                        if mean_diff > diff_threshold:
+                            should_capture = True
 
-            if should_capture:
-                # Resize and encode
-                encoded = self._encode_image(frame)
-                encoded_frames.append({"timestamp": current_timestamp, "b64": encoded})
-                last_frame = gray
-                last_timestamp = current_timestamp
+                if should_capture:
+                    # Resize and encode
+                    encoded = self._encode_image(frame)
+                    encoded_frames.append({"timestamp": current_timestamp, "b64": encoded})
+                    last_frame = gray
+                    last_timestamp = current_timestamp
+                    if len(encoded_frames) >= max_frames:
+                        break
+        finally:
+            cap.release()
 
-        cap.release()
         return encoded_frames
 
     def _encode_image(self, frame):

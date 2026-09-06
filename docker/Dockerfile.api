@@ -1,0 +1,31 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app/packages/jaya-research/src:/app/packages/jaya-core/src:/app/packages/jaya-agent/src:/app/packages/jaya-os/src \
+    JAYA_HOST=0.0.0.0 \
+    PORT=8000
+
+WORKDIR /app
+
+RUN useradd --create-home --uid 10001 jaya
+
+COPY packages/jaya-research/requirements-ci.txt /app/packages/jaya-research/requirements-ci.txt
+RUN python -m pip install --no-cache-dir --upgrade pip \
+    && python -m pip install --no-cache-dir -r /app/packages/jaya-research/requirements-ci.txt
+
+COPY packages/jaya-research/src /app/packages/jaya-research/src
+COPY packages/jaya-core/src /app/packages/jaya-core/src
+COPY packages/jaya-agent/src /app/packages/jaya-agent/src
+COPY packages/jaya-os/src /app/packages/jaya-os/src
+
+RUN mkdir -p /app/data/jaya-research \
+    && chown -R jaya:jaya /app
+
+USER jaya
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read()"
+
+CMD ["python", "-m", "jaya_research.network.research_api"]

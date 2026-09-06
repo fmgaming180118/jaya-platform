@@ -3,7 +3,7 @@ name = "jaya-agent"
 version = "0.1.0"
 description = "JAYA Agent Runtime - Multi-Agent Coordination and Execution"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "Proprietary"}
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115,<1",

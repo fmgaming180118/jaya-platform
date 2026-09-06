@@ -674,8 +674,13 @@ def jaya_shell():
     parser.add_argument("--offline", action="store_true", help="Paksa JAYA masuk ke mode kedaulatan lokal.")
     args = parser.parse_args()
 
-    # Initialize Core Components
-    engine = IronEngine(model_path="jaya.jay", password="jaya_password")
+    # Initialize Core Components only with an operator-provided secret.
+    vault_password = os.getenv("JAYA_CORE_VAULT_PASSWORD")
+    if not vault_password:
+        raise RuntimeError(
+            "JAYA_CORE_VAULT_PASSWORD must be set before starting the JAYA shell"
+        )
+    engine = IronEngine(model_path="jaya.jay", password=vault_password)
     engine.ignite()
     rag = AgenticRAG(db_path="rag_vault.db")
     rag.memorize_procedure(

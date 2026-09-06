@@ -1,0 +1,48 @@
+services:
+  jaya-research-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    image: jaya-research-api:pre-release
+    restart: unless-stopped
+    init: true
+    env_file:
+      - ../.env
+    environment:
+      JAYA_DATA_DIR: /app/data/jaya-research
+      JAYA_HOST: 0.0.0.0
+      PORT: 8000
+      JAYA_DEBUG: "false"
+      OMP_NUM_THREADS: ${JAYA_OMP_THREADS:-1}
+      OPENBLAS_NUM_THREADS: ${JAYA_OPENBLAS_THREADS:-1}
+      MKL_NUM_THREADS: ${JAYA_MKL_THREADS:-1}
+      NUMBA_NUM_THREADS: ${JAYA_NUMBA_THREADS:-1}
+      NUMBA_THREADING_LAYER: ${JAYA_NUMBA_THREADING_LAYER:-workqueue}
+      TOKENIZERS_PARALLELISM: "false"
+      MALLOC_ARENA_MAX: ${JAYA_MALLOC_ARENA_MAX:-2}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - jaya_research_data:/app/data/jaya-research
+    # Conservative defaults; override in .env after measuring real workload.
+    mem_limit: ${JAYA_CONTAINER_MEMORY:-1g}
+    mem_reservation: ${JAYA_CONTAINER_MEMORY_RESERVATION:-512m}
+    cpus: ${JAYA_CONTAINER_CPUS:-1.0}
+    pids_limit: ${JAYA_CONTAINER_PIDS:-128}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=${JAYA_CONTAINER_TMPFS:-128m},noexec,nosuid
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  jaya_research_data:
+    name: jaya-research-data

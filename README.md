@@ -1,7 +1,7 @@
 # JAYA Research
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![Frontend](https://img.shields.io/badge/UI-React%20%7C%20Vite%20%7C%20Tailwind-blueviolet.svg)](packages/jaya-research/ui/)
 [![Backend](https://img.shields.io/badge/API-FastAPI%20%7C%20Uvicorn-emerald.svg)](packages/jaya-research/src/)
 
@@ -126,6 +126,13 @@ jaya-research/
 
 ---
 
-## License
+## License and Use
 
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+JAYA Research is public source software distributed under the proprietary terms
+in [LICENSE](LICENSE). Public visibility does not grant permission to use,
+modify, deploy, redistribute, or create derivative works without written
+permission from the copyright holder.
+
+Security reports should follow [docs/SECURITY.md](docs/SECURITY.md). The project
+is provided for authorized evaluation and research only; known limitations are
+documented in [docs/STATUS.md](docs/STATUS.md).
